@@ -1,68 +1,168 @@
+/* ========================================
+   CUSTOM CSS VARIABLES FOR BLUE THEME
+   ======================================== */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Blue Color Palette */
+  --primary-blue: #2563eb;        /* Main blue color */
+  --primary-blue-light: #3b82f6;  /* Lighter blue for gradients */
+  --primary-blue-dark: #1d4ed8;    /* Darker blue for hover states */
+  --light-blue: #eff6ff;           /* Very light blue for backgrounds */
+  --soft-blue: #dbeafe;            /* Soft blue for subtle backgrounds */
+  
+  /* Text Colors */
+  --text-dark: #1e293b;            /* Dark text for headings */
+  --text-muted: #64748b;           /* Muted text for descriptions */
+  
+  /* UI Elements */
+  --border-light: #e2e8f0;         /* Light border color */
+  
+  /* Shadow Effects */
+  --shadow-soft: 0 4px 6px -1px rgba(37, 99, 235, 0.1), 0 2px 4px -1px rgba(37, 99, 235, 0.06);
+  --shadow-hover: 0 10px 15px -3px rgba(37, 99, 235, 0.1), 0 4px 6px -2px rgba(37, 99, 235, 0.05);
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
+/* ========================================
+   GLOBAL STYLES
+   ======================================== */
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); /* Subtle gradient background */
+  color: var(--text-dark);
+  line-height: 1.6;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* ========================================
+   BUTTON STYLES - PRIMARY BUTTON
+   ======================================== */
+.btn-primary {
+  background: var(--light-blue) !important; /* Light blue background - force override */
+  color: var(--primary-blue) !important;    /* Blue text - force override */
+  border: 1px solid var(--border-light) !important; /* Light border - force override */
+  box-shadow: var(--shadow-soft) !important; /* Soft shadow - force override */
+  transition: all 0.3s ease;               /* Smooth transitions */
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.btn-primary:hover {
+  background: var(--soft-blue) !important;  /* Slightly darker blue on hover - force override */
+  color: var(--primary-blue-dark) !important; /* Darker blue text on hover - force override */
+  border-color: var(--primary-blue) !important; /* Blue border on hover - force override */
+  transform: translateY(-1px);             /* Lift effect on hover */
+  box-shadow: var(--shadow-hover) !important; /* Enhanced shadow on hover - force override */
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+
+
+
+/* ========================================
+   BUTTON STYLES - SUCCESS BUTTON
+   ======================================== */
+.btn-success {
+  background: #059669 !important;           /* Fixed green color - force override */
+  border: none !important;                 /* No border - force override */
+  color: white !important;                 /* White text - force override */
+  box-shadow: var(--shadow-soft) !important; /* Soft shadow - force override */
+  transition: all 0.3s ease;               /* Smooth transitions */
+}
+
+.btn-success:hover {
+  background: #059669 !important;           /* Same green color on hover - force override */
+  color: white !important;                 /* White text on hover - force override */
+  box-shadow: var(--shadow-hover) !important; /* Enhanced shadow on hover - force override */
+  transform: translateY(-1px);           /* Lift effect on hover */
+}
+
+/* ========================================
+   BUTTON STYLES - DANGER BUTTON
+   ======================================== */
+.btn-danger {
+  background: #dc2626 !important;         /* Red color - force override */
+  border: none !important;                 /* No border - force override */
+  color: white !important;                /* White text - force override */
+  box-shadow: var(--shadow-soft) !important; /* Soft shadow - force override */
+  transition: all 0.3s ease;               /* Smooth transitions */
+}
+
+.btn-danger:hover {
+  background: #b91c1c !important;         /* Darker red on hover - force override */
+  color: white !important;                /* White text on hover - force override */
+  box-shadow: var(--shadow-hover) !important; /* Enhanced shadow on hover - force override */
+  transform: translateY(-1px);           /* Lift effect on hover */
+}
+
+
+/* ========================================
+   CARD STYLES
+   ======================================== */
+.card {
+  background: rgba(255, 255, 255, 0.9);   /* Semi-transparent white background */
+  backdrop-filter: blur(10px);             /* Glass effect */
+  border: 1px solid rgba(255, 255, 255, 0.2); /* Subtle border */
+  box-shadow: var(--shadow-soft);          /* Soft shadow */
+  transition: all 0.3s ease;               /* Smooth transitions */
+}
+
+.card:hover {
+  box-shadow: var(--shadow-hover);         /* Enhanced shadow on hover */
+  transform: translateY(-2px);            /* Lift effect on hover */
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);            /* Stronger lift effect */
+  box-shadow: var(--shadow-hover);        /* Enhanced shadow */
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Gradient Backgrounds */
+.bg-gradient {
+  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-light) 100%);
+}
+
+/* Animation Utilities */
+.transition-all {
+  transition: all 0.3s ease;               /* Smooth transitions for all properties */
+}
+
+/* Border Radius Utilities */
+.rounded-3 {
+  border-radius: 1rem !important;          /* Large rounded corners */
+}
+
+.rounded-pill {
+  border-radius: 50px !important;         /* Pill-shaped buttons */
+}
+
+/* ========================================
+   TEXT COLOR UTILITIES
+   ======================================== */
+.text-primary {
+  color: var(--primary-blue) !important;   /* Blue text */
+}
+
+.text-muted {
+  color: var(--text-muted) !important;     /* Muted gray text */
+}
+
+/* ========================================
+   BACKGROUND COLOR UTILITIES
+   ======================================== */
+.bg-primary {
+  background-color: var(--primary-blue) !important; /* Blue background */
+}
+
+.bg-light {
+  background-color: var(--light-blue) !important;   /* Light blue background */
+}
+
+/* ========================================
+   BORDER COLOR UTILITIES
+   ======================================== */
+.border-primary {
+  border-color: var(--primary-blue) !important;     /* Blue border */
+}
+
+.border-light {
+  border-color: var(--border-light) !important;     /* Light border */
 }
