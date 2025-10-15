@@ -1,3 +1,19 @@
+/**
+ * Smart Scheduling Application Styles
+ * 
+ * This file contains all custom CSS styles for the Smart Scheduling application.
+ * It defines the blue color theme, component styles, and utility classes.
+ * 
+ * Structure:
+ * 1. CSS Custom Properties - Blue theme color variables
+ * 2. Global Styles - Base typography and layout
+ * 3. Button Styles - Custom button variants with overrides
+ * 4. Card Styles - Card component styling and effects
+ * 5. Utility Classes - Helper classes for common patterns
+ * 
+ * @fileoverview Main application stylesheet with blue theme
+ */
+
 /* ========================================
    CUSTOM CSS VARIABLES FOR BLUE THEME
    ======================================== */
