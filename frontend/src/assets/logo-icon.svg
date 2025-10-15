@@ -1,0 +1,32 @@
+<!-- Smart Scheduling – Icon Only -->
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" aria-labelledby="title desc">
+  <title id="title">Smart Scheduling icon</title>
+  <desc id="desc">A rounded calendar icon with a checkmark.</desc>
+
+  <!-- Calendar Icon -->
+  <g transform="translate(16,16)">
+    <!-- Outer rounded body -->
+    <rect x="0" y="6" rx="14" ry="14" width="88" height="88" fill="#ffffff" stroke="#0b1220" stroke-width="2"/>
+    <!-- Top bar -->
+    <rect x="0" y="6" rx="14" ry="14" width="88" height="24" fill="#2563eb"/>
+    <!-- Binding rings -->
+    <g fill="#ffffff">
+      <rect x="18" y="0" width="10" height="16" rx="3" ry="3"/>
+      <rect x="60" y="0" width="10" height="16" rx="3" ry="3"/>
+    </g>
+
+    <!-- Grid (subtle) -->
+    <g stroke="#e2e8f0" stroke-width="1">
+      <line x1="12" y1="40" x2="76" y2="40"/>
+      <line x1="12" y1="56" x2="76" y2="56"/>
+      <line x1="12" y1="72" x2="76" y2="72"/>
+      <line x1="28" y1="24" x2="28" y2="88"/>
+      <line x1="48" y1="24" x2="48" y2="88"/>
+      <line x1="68" y1="24" x2="68" y2="88"/>
+    </g>
+
+    <!-- Checkmark appointment -->
+    <circle cx="58" cy="68" r="12" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+    <path d="M51 68 l4 4 l10 -10" fill="none" stroke="#1d4ed8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

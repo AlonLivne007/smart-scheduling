@@ -1,0 +1,31 @@
+<!-- Smart Scheduling – Favicon -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>Smart Scheduling</title>
+  
+  <!-- Calendar Icon - scaled down for favicon -->
+  <g transform="translate(4,4)">
+    <!-- Outer rounded body -->
+    <rect x="0" y="2" rx="4" ry="4" width="24" height="24" fill="#ffffff" stroke="#0b1220" stroke-width="1"/>
+    <!-- Top bar -->
+    <rect x="0" y="2" rx="4" ry="4" width="24" height="6" fill="#2563eb"/>
+    <!-- Binding rings -->
+    <g fill="#ffffff">
+      <rect x="5" y="0" width="3" height="4" rx="1"/>
+      <rect x="16" y="0" width="3" height="4" rx="1"/>
+    </g>
+
+    <!-- Grid (subtle) -->
+    <g stroke="#e2e8f0" stroke-width="0.5">
+      <line x1="3" y1="11" x2="21" y2="11"/>
+      <line x1="3" y1="15" x2="21" y2="15"/>
+      <line x1="3" y1="19" x2="21" y2="19"/>
+      <line x1="8" y1="6" x2="8" y2="24"/>
+      <line x1="13" y1="6" x2="13" y2="24"/>
+      <line x1="18" y1="6" x2="18" y2="24"/>
+    </g>
+
+    <!-- Checkmark appointment -->
+    <circle cx="16" cy="18" r="3" fill="none" stroke="#1d4ed8" stroke-width="1"/>
+    <path d="M14 18 l1 1 l3 -3" fill="none" stroke="#1d4ed8" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
