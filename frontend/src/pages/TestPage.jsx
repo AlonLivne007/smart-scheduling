@@ -17,7 +17,8 @@
  * @component
  * @returns {JSX.Element} The comprehensive UI test page
  */
-import { Button, Card } from '../components/ui';
+import Button from '../components/ui/Button.jsx';
+import Card from '../components/ui/Card.jsx';
 
 export default function TestPage() {
   return (

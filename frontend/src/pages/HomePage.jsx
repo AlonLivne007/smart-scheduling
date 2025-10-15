@@ -14,7 +14,9 @@
  * @component
  * @returns {JSX.Element} The home dashboard page
  */
-import { Button, Card, Logo } from '../components/ui';
+import Button from '../components/ui/Button.jsx';
+import Card from '../components/ui/Card.jsx';
+import Logo from '../components/ui/Logo.jsx';
 import { Users, Clock, TrendingUp, Activity } from 'lucide-react';
 
 export default function Home() {

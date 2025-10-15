@@ -16,7 +16,7 @@
  * @component
  * @returns {JSX.Element} The settings configuration page
  */
-import { Card } from '../components/ui';
+import Card from '../components/ui/Card.jsx';
 import { Building2, Users, Bell, Shield, Database, Mail } from 'lucide-react';
 
 export default function Settings() {

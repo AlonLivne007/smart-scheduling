@@ -14,7 +14,7 @@
  */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'                                 // Custom application styles with Tailwind
+import './styles/global.css'                                 // Custom application styles with Tailwind
 import App from './App.jsx'                          // Main application component
 
 // Create React root and render the application
