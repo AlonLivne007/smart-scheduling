@@ -2,7 +2,7 @@
  * Button Component
  * 
  * A reusable button component with consistent styling and multiple variants.
- * Uses Bootstrap classes with custom CSS overrides for the blue theme.
+ * Uses Tailwind CSS for modern, utility-first styling with a blue theme.
  * 
  * @component
  * @param {Object} props - Component props
@@ -40,20 +40,20 @@ const Button = ({
   ...props 
 }) => {
   // Base button classes - applies to all button variants
-  const baseClasses = 'btn border-0 rounded-pill fw-medium transition-all';
+  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-full border-0 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2';
   
   // Button variant styles - each variant has different colors and effects
   const variantClasses = {
-    primary: 'btn-primary bg-gradient',    // Light blue background with blue text
-    success: 'btn-success bg-gradient',    // Green background with white text
-    danger: 'btn-danger bg-gradient'       // Red background with white text
+    primary: 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-md',    // Light blue background with blue text
+    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md',    // Green background with white text
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md'       // Red background with white text
   };
   
   // Button size styles - controls padding and font size
   const sizeClasses = {
-    small: 'px-3 py-2 fs-6',    // Small padding, small font
-    medium: 'px-4 py-2',        // Medium padding, default font
-    large: 'px-5 py-3 fs-5'     // Large padding, large font
+    small: 'px-3 py-1.5 text-sm',    // Small padding, small font
+    medium: 'px-4 py-2 text-base',        // Medium padding, default font
+    large: 'px-6 py-3 text-lg'     // Large padding, large font
   };
   
   // Disabled state styling - reduces opacity and changes cursor

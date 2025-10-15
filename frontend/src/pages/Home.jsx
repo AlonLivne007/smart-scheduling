@@ -15,27 +15,33 @@
  * @returns {JSX.Element} The home dashboard page
  */
 import { Button, Card, Logo } from '../components/ui';
+import { Users, Clock, TrendingUp, Activity } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="container-fluid py-4">
-      <div className="row g-4">
+    <div className="w-full py-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Header Section - Logo and subtitle */}
-        <div className="col-12">
-          <div className="d-flex align-items-center mb-4">
+        <div className="lg:col-span-12">
+          <div className="flex items-center mb-6">
             <Logo size="large" />
-            <div className="ms-3">
-              <p className="text-muted mb-0">Workforce Management Dashboard</p>
+            <div className="ml-4">
+              <p className="text-gray-600 mb-0">Workforce Management Dashboard</p>
             </div>
+          </div>
+          {/* Tailwind Test */}
+          <div className="bg-blue-500 text-white p-4 rounded-lg mb-4">
+            <p className="text-lg font-semibold">✅ Tailwind CSS is working!</p>
+            <p className="text-sm opacity-90">This blue box confirms Tailwind styling is active.</p>
           </div>
         </div>
         
         {/* Welcome Card - Main call-to-action section */}
-        <div className="col-12">
-          <Card className="mb-4" padding="large">
-            <Card.Title className="text-primary">Welcome to your dashboard</Card.Title>
+        <div className="lg:col-span-12">
+          <Card className="mb-6" padding="large">
+            <Card.Title className="text-blue-600">Welcome to your dashboard</Card.Title>
             <Card.Text>Manage your workforce efficiently with our smart scheduling system.</Card.Text>
-            <div className="d-flex gap-3 mt-3">
+            <div className="flex gap-3 mt-4">
               <Button variant="primary" size="large">Get Started</Button>
               <Button variant="success" size="large">Learn More</Button>
             </div>
@@ -43,55 +49,55 @@ export default function Home() {
         </div>
         
         {/* Metrics Cards - Key performance indicators */}
-        <div className="col-md-4">
-          <Card hover className="h-100">
+        <div className="lg:col-span-4">
+          <Card hover className="h-full">
             <Card.Body className="text-center">
-              <div className="bg-primary bg-opacity-10 rounded-circle p-3 d-inline-block mb-3">
-                <i className="bi bi-people text-primary fs-3"></i>
+              <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
+                <Users className="w-6 h-6 text-blue-600" />
               </div>
               <Card.Title>Total Employees</Card.Title>
-              <h2 className="display-6 fw-bold text-primary">120</h2>
+              <h2 className="text-4xl font-bold text-blue-600">120</h2>
               <Card.Text>Active team members</Card.Text>
             </Card.Body>
           </Card>
         </div>
         
-        <div className="col-md-4">
-          <Card hover className="h-100">
+        <div className="lg:col-span-4">
+          <Card hover className="h-full">
             <Card.Body className="text-center">
-              <div className="bg-primary bg-opacity-10 rounded-circle p-3 d-inline-block mb-3">
-                <i className="bi bi-clock text-primary fs-3"></i>
+              <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
+                <Clock className="w-6 h-6 text-blue-600" />
               </div>
               <Card.Title>Upcoming Shifts</Card.Title>
-              <h2 className="display-6 fw-bold text-primary">24</h2>
+              <h2 className="text-4xl font-bold text-blue-600">24</h2>
               <Card.Text>Next 7 days</Card.Text>
             </Card.Body>
           </Card>
         </div>
         
-        <div className="col-md-4">
-          <Card hover className="h-100">
+        <div className="lg:col-span-4">
+          <Card hover className="h-full">
             <Card.Body className="text-center">
-              <div className="bg-primary bg-opacity-10 rounded-circle p-3 d-inline-block mb-3">
-                <i className="bi bi-graph-up text-primary fs-3"></i>
+              <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
+                <TrendingUp className="w-6 h-6 text-blue-600" />
               </div>
               <Card.Title>Coverage Rate</Card.Title>
-              <h2 className="display-6 fw-bold text-primary">96%</h2>
+              <h2 className="text-4xl font-bold text-blue-600">96%</h2>
               <Card.Text>This week</Card.Text>
             </Card.Body>
           </Card>
         </div>
         
         {/* Recent Activity Section - Shows latest system activity */}
-        <div className="col-12">
+        <div className="lg:col-span-12">
           <Card>
             <Card.Header>
               <Card.Title>Recent Activity</Card.Title>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-5">
-                <i className="bi bi-activity text-muted fs-1 mb-3"></i>
-                <p className="text-muted">No recent activity</p>
+              <div className="text-center py-8">
+                <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500">No recent activity</p>
               </div>
             </Card.Body>
           </Card>
