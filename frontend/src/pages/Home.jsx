@@ -1,9 +1,26 @@
+/**
+ * Home Page Component
+ * 
+ * The main dashboard page that provides an overview of the workforce management system.
+ * Displays key metrics, welcome message, and quick actions for users.
+ * 
+ * Features:
+ * - Large branded logo with subtitle
+ * - Welcome card with call-to-action buttons
+ * - Key metrics cards (employees, shifts, coverage)
+ * - Recent activity section
+ * - Responsive grid layout
+ * 
+ * @component
+ * @returns {JSX.Element} The home dashboard page
+ */
 import { Button, Card, Logo } from '../components/ui';
 
 export default function Home() {
   return (
     <div className="container-fluid py-4">
       <div className="row g-4">
+        {/* Header Section - Logo and subtitle */}
         <div className="col-12">
           <div className="d-flex align-items-center mb-4">
             <Logo size="large" />
@@ -13,6 +30,7 @@ export default function Home() {
           </div>
         </div>
         
+        {/* Welcome Card - Main call-to-action section */}
         <div className="col-12">
           <Card className="mb-4" padding="large">
             <Card.Title className="text-primary">Welcome to your dashboard</Card.Title>
@@ -24,6 +42,7 @@ export default function Home() {
           </Card>
         </div>
         
+        {/* Metrics Cards - Key performance indicators */}
         <div className="col-md-4">
           <Card hover className="h-100">
             <Card.Body className="text-center">
@@ -63,6 +82,7 @@ export default function Home() {
           </Card>
         </div>
         
+        {/* Recent Activity Section - Shows latest system activity */}
         <div className="col-12">
           <Card>
             <Card.Header>

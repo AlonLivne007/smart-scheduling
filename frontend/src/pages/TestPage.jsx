@@ -1,3 +1,22 @@
+/**
+ * TestPage Component
+ * 
+ * A comprehensive UI testing page that showcases all available components and design elements.
+ * This page is used for development and testing purposes to verify component functionality
+ * and visual consistency across the application.
+ * 
+ * Features:
+ * - Button variants and sizes demonstration
+ * - Card component variations and layouts
+ * - Form elements and input styling
+ * - Color palette showcase
+ * - Typography hierarchy display
+ * - Interactive elements and hover effects
+ * - Responsive design testing
+ * 
+ * @component
+ * @returns {JSX.Element} The comprehensive UI test page
+ */
 import { Button, Card } from '../components/ui';
 
 export default function TestPage() {
