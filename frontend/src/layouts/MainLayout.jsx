@@ -15,107 +15,97 @@
  */
 import { NavLink, Outlet } from 'react-router-dom'
 import { Button, Logo } from '../components/ui';
+import { LogOut, Home, Calendar, Settings, TestTube } from 'lucide-react';
 
 export default function MainLayout() {
   return (
-    <div className="min-vh-100">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Section - Contains logo and sign-out button */}
-      <header className="bg-white shadow-sm border-bottom">
-        <div className="container-fluid">
-          <div className="d-flex align-items-center justify-content-between py-3">
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-4">
             {/* Brand logo - medium size for header */}
             <Logo size="medium" />
             {/* Sign out button - danger variant for logout action */}
             <Button variant="danger" size="small">
-              <i className="bi bi-box-arrow-right me-2"></i>Sign Out
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="d-flex">
+      <div className="flex">
         {/* Sidebar Navigation - Fixed width sidebar with navigation links */}
-        <nav className="bg-white shadow-sm border-end" style={{ width: '250px', minHeight: 'calc(100vh - 80px)' }}>
-          <div className="p-3">
-            <ul className="nav nav-pills flex-column gap-2">
+        <nav className="bg-white shadow-sm border-r border-gray-200 w-64 min-h-screen">
+          <div className="p-4">
+            <ul className="space-y-2">
               {/* Home Navigation Link */}
-              <li className="nav-item">
+              <li>
                 <NavLink 
                   to="/" 
                   end 
                   className={({ isActive }) => 
-                    `nav-link d-flex align-items-center rounded-3 ${
+                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive 
-                        ? 'bg-primary text-white' 
-                        : 'text-muted hover-bg-light'
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`
                   }
                 >
-                  <i className="bi bi-house me-3"></i>Home
+                  <Home className="w-4 h-4 mr-3" />
+                  Dashboard
                 </NavLink>
               </li>
               
               {/* Schedule Navigation Link */}
-              <li className="nav-item">
+              <li>
                 <NavLink 
                   to="/schedule" 
                   className={({ isActive }) => 
-                    `nav-link d-flex align-items-center rounded-3 ${
+                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive 
-                        ? 'bg-primary text-white' 
-                        : 'text-muted hover-bg-light'
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`
                   }
                 >
-                  <i className="bi bi-calendar3 me-3"></i>Schedule
+                  <Calendar className="w-4 h-4 mr-3" />
+                  Schedule
                 </NavLink>
               </li>
               
-              {/* Employees Navigation Link */}
-              <li className="nav-item">
+              {/* Settings Navigation Link */}
+              <li>
                 <NavLink 
-                  to="/employees" 
+                  to="/settings" 
                   className={({ isActive }) => 
-                    `nav-link d-flex align-items-center rounded-3 ${
+                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive 
-                        ? 'bg-primary text-white' 
-                        : 'text-muted hover-bg-light'
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`
                   }
                 >
-                  <i className="bi bi-people me-3"></i>Employees
-                </NavLink>
-              </li>
-              
-              {/* Reports Navigation Link */}
-              <li className="nav-item">
-                <NavLink 
-                  to="/reports" 
-                  className={({ isActive }) => 
-                    `nav-link d-flex align-items-center rounded-3 ${
-                      isActive 
-                        ? 'bg-primary text-white' 
-                        : 'text-muted hover-bg-light'
-                    }`
-                  }
-                >
-                  <i className="bi bi-graph-up me-3"></i>Reports
+                  <Settings className="w-4 h-4 mr-3" />
+                  Settings
                 </NavLink>
               </li>
               
               {/* Test UI Navigation Link - For development/testing */}
-              <li className="nav-item">
+              <li>
                 <NavLink 
                   to="/test" 
                   className={({ isActive }) => 
-                    `nav-link d-flex align-items-center rounded-3 ${
+                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive 
-                        ? 'bg-primary text-white' 
-                        : 'text-muted hover-bg-light'
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`
                   }
                 >
-                  <i className="bi bi-palette me-3"></i>Test UI
+                  <TestTube className="w-4 h-4 mr-3" />
+                  Test UI
                 </NavLink>
               </li>
             </ul>
@@ -123,7 +113,7 @@ export default function MainLayout() {
         </nav>
 
         {/* Main Content Area - Renders child route components */}
-        <main className="flex-grow-1">
+        <main className="flex-1 p-6">
           <Outlet />
         </main>
       </div>

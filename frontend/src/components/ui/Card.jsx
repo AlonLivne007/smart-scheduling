@@ -2,7 +2,7 @@
  * Card Component
  * 
  * A flexible card component for displaying content with consistent styling.
- * Supports multiple variants, padding options, and hover effects.
+ * Uses Tailwind CSS for modern, utility-first styling with glass morphism effects.
  * 
  * @component
  * @param {Object} props - Component props
@@ -36,14 +36,14 @@ const Card = ({
   ...props 
 }) => {
   // Base card classes - applies to all card variants
-  const baseClasses = 'card border-0 shadow-sm rounded-3';
+  const baseClasses = 'bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm rounded-xl transition-all duration-300';
   
   // Card variant styles - different background colors and text colors
   const variantClasses = {
-    default: 'bg-white',              // White background
-    primary: 'bg-primary text-white', // Blue background with white text
-    light: 'bg-light',                // Light blue background
-    gradient: 'bg-gradient'           // Blue gradient background
+    default: 'bg-white/90',              // White background with transparency
+    primary: 'bg-blue-600 text-white', // Blue background with white text
+    light: 'bg-blue-50',                // Light blue background
+    gradient: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'           // Blue gradient background
   };
   
   // Padding size options - controls internal spacing
@@ -51,11 +51,11 @@ const Card = ({
     none: '',        // No padding
     small: 'p-3',    // Small padding (12px)
     medium: 'p-4',   // Medium padding (16px)
-    large: 'p-5'     // Large padding (20px)
+    large: 'p-6'     // Large padding (24px)
   };
   
   // Hover effect classes - adds lift animation on hover
-  const hoverClasses = hover ? 'hover-lift' : '';
+  const hoverClasses = hover ? 'hover:shadow-lg hover:-translate-y-1' : '';
   
   // Combine all classes into final className string
   const classes = `${baseClasses} ${variantClasses[variant]} ${paddingClasses[padding]} ${hoverClasses} ${className}`.trim();
@@ -77,7 +77,7 @@ const Card = ({
  * @param {Object} props - Additional props
  */
 const CardHeader = ({ children, className = '', ...props }) => (
-  <div className={`card-header bg-transparent border-0 pb-2 ${className}`} {...props}>
+  <div className={`bg-transparent border-0 pb-2 ${className}`} {...props}>
     {children}
   </div>
 );
@@ -92,7 +92,7 @@ const CardHeader = ({ children, className = '', ...props }) => (
  * @param {Object} props - Additional props
  */
 const CardBody = ({ children, className = '', ...props }) => (
-  <div className={`card-body ${className}`} {...props}>
+  <div className={`${className}`} {...props}>
     {children}
   </div>
 );
@@ -107,7 +107,7 @@ const CardBody = ({ children, className = '', ...props }) => (
  * @param {Object} props - Additional props
  */
 const CardFooter = ({ children, className = '', ...props }) => (
-  <div className={`card-footer bg-transparent border-0 pt-2 ${className}`} {...props}>
+  <div className={`bg-transparent border-0 pt-2 ${className}`} {...props}>
     {children}
   </div>
 );
@@ -122,7 +122,7 @@ const CardFooter = ({ children, className = '', ...props }) => (
  * @param {Object} props - Additional props
  */
 const CardTitle = ({ children, className = '', ...props }) => (
-  <h5 className={`card-title fw-semibold mb-2 ${className}`} {...props}>
+  <h5 className={`font-semibold mb-2 text-gray-900 ${className}`} {...props}>
     {children}
   </h5>
 );
@@ -137,7 +137,7 @@ const CardTitle = ({ children, className = '', ...props }) => (
  * @param {Object} props - Additional props
  */
 const CardText = ({ children, className = '', ...props }) => (
-  <p className={`card-text text-muted mb-0 ${className}`} {...props}>
+  <p className={`text-gray-600 mb-0 ${className}`} {...props}>
     {children}
   </p>
 );

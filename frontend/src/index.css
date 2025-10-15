@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /**
  * Smart Scheduling Application Styles
  * 
@@ -5,11 +7,12 @@
  * It defines the blue color theme, component styles, and utility classes.
  * 
  * Structure:
- * 1. CSS Custom Properties - Blue theme color variables
- * 2. Global Styles - Base typography and layout
- * 3. Button Styles - Custom button variants with overrides
- * 4. Card Styles - Card component styling and effects
- * 5. Utility Classes - Helper classes for common patterns
+ * 1. Tailwind CSS - Utility-first CSS framework
+ * 2. CSS Custom Properties - Blue theme color variables
+ * 3. Global Styles - Base typography and layout
+ * 4. Button Styles - Custom button variants with overrides
+ * 5. Card Styles - Card component styling and effects
+ * 6. Utility Classes - Helper classes for common patterns
  * 
  * @fileoverview Main application stylesheet with blue theme
  */
@@ -48,137 +51,39 @@ body {
 }
 
 /* ========================================
-   BUTTON STYLES - PRIMARY BUTTON
+   CUSTOM COMPONENT STYLES
    ======================================== */
-.btn-primary {
-  background: var(--light-blue) !important; /* Light blue background - force override */
-  color: var(--primary-blue) !important;    /* Blue text - force override */
-  border: 1px solid var(--border-light) !important; /* Light border - force override */
-  box-shadow: var(--shadow-soft) !important; /* Soft shadow - force override */
-  transition: all 0.3s ease;               /* Smooth transitions */
-}
-
-.btn-primary:hover {
-  background: var(--soft-blue) !important;  /* Slightly darker blue on hover - force override */
-  color: var(--primary-blue-dark) !important; /* Darker blue text on hover - force override */
-  border-color: var(--primary-blue) !important; /* Blue border on hover - force override */
-  transform: translateY(-1px);             /* Lift effect on hover */
-  box-shadow: var(--shadow-hover) !important; /* Enhanced shadow on hover - force override */
-}
-
-
+/* These styles work alongside Tailwind CSS for custom components */
 
 
 /* ========================================
-   BUTTON STYLES - SUCCESS BUTTON
+   CUSTOM UTILITIES
    ======================================== */
-.btn-success {
-  background: #059669 !important;           /* Fixed green color - force override */
-  border: none !important;                 /* No border - force override */
-  color: white !important;                 /* White text - force override */
-  box-shadow: var(--shadow-soft) !important; /* Soft shadow - force override */
-  transition: all 0.3s ease;               /* Smooth transitions */
-}
-
-.btn-success:hover {
-  background: #059669 !important;           /* Same green color on hover - force override */
-  color: white !important;                 /* White text on hover - force override */
-  box-shadow: var(--shadow-hover) !important; /* Enhanced shadow on hover - force override */
-  transform: translateY(-1px);           /* Lift effect on hover */
-}
+/* Custom utility classes that complement Tailwind */
 
 /* ========================================
-   BUTTON STYLES - DANGER BUTTON
+   CUSTOM UTILITIES
    ======================================== */
-.btn-danger {
-  background: #dc2626 !important;         /* Red color - force override */
-  border: none !important;                 /* No border - force override */
-  color: white !important;                /* White text - force override */
-  box-shadow: var(--shadow-soft) !important; /* Soft shadow - force override */
-  transition: all 0.3s ease;               /* Smooth transitions */
+/* These utilities complement Tailwind CSS */
+
+/* Glass morphism effect for special cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.btn-danger:hover {
-  background: #b91c1c !important;         /* Darker red on hover - force override */
-  color: white !important;                /* White text on hover - force override */
-  box-shadow: var(--shadow-hover) !important; /* Enhanced shadow on hover - force override */
-  transform: translateY(-1px);           /* Lift effect on hover */
+/* Custom gradient backgrounds */
+.gradient-blue {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
 }
 
-
-/* ========================================
-   CARD STYLES
-   ======================================== */
-.card {
-  background: rgba(255, 255, 255, 0.9);   /* Semi-transparent white background */
-  backdrop-filter: blur(10px);             /* Glass effect */
-  border: 1px solid rgba(255, 255, 255, 0.2); /* Subtle border */
-  box-shadow: var(--shadow-soft);          /* Soft shadow */
-  transition: all 0.3s ease;               /* Smooth transitions */
+/* Smooth animations */
+.animate-lift {
+  transition: all 0.3s ease;
 }
 
-.card:hover {
-  box-shadow: var(--shadow-hover);         /* Enhanced shadow on hover */
-  transform: translateY(-2px);            /* Lift effect on hover */
-}
-
-.hover-lift:hover {
-  transform: translateY(-4px);            /* Stronger lift effect */
-  box-shadow: var(--shadow-hover);        /* Enhanced shadow */
-}
-
-/* ========================================
-   UTILITY CLASSES
-   ======================================== */
-
-/* Gradient Backgrounds */
-.bg-gradient {
-  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-light) 100%);
-}
-
-/* Animation Utilities */
-.transition-all {
-  transition: all 0.3s ease;               /* Smooth transitions for all properties */
-}
-
-/* Border Radius Utilities */
-.rounded-3 {
-  border-radius: 1rem !important;          /* Large rounded corners */
-}
-
-.rounded-pill {
-  border-radius: 50px !important;         /* Pill-shaped buttons */
-}
-
-/* ========================================
-   TEXT COLOR UTILITIES
-   ======================================== */
-.text-primary {
-  color: var(--primary-blue) !important;   /* Blue text */
-}
-
-.text-muted {
-  color: var(--text-muted) !important;     /* Muted gray text */
-}
-
-/* ========================================
-   BACKGROUND COLOR UTILITIES
-   ======================================== */
-.bg-primary {
-  background-color: var(--primary-blue) !important; /* Blue background */
-}
-
-.bg-light {
-  background-color: var(--light-blue) !important;   /* Light blue background */
-}
-
-/* ========================================
-   BORDER COLOR UTILITIES
-   ======================================== */
-.border-primary {
-  border-color: var(--primary-blue) !important;     /* Blue border */
-}
-
-.border-light {
-  border-color: var(--border-light) !important;     /* Light border */
+.animate-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.1), 0 4px 6px -2px rgba(37, 99, 235, 0.05);
 }
