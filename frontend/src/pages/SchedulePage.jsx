@@ -15,7 +15,7 @@
  * @component
  * @returns {JSX.Element} The schedule management page
  */
-import { Card } from '../components/ui';
+import Card from '../components/ui/Card.jsx';
 import { Calendar, Plus, Users, Clock } from 'lucide-react';
 
 export default function Schedule() {

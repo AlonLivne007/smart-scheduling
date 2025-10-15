@@ -14,7 +14,8 @@
  * @returns {JSX.Element} The main layout structure
  */
 import { NavLink, Outlet } from 'react-router-dom'
-import { Button, Logo } from '../components/ui';
+import Button from '../components/ui/Button.jsx';
+import Logo from '../components/ui/Logo.jsx';
 import { LogOut, Home, Calendar, Settings, TestTube } from 'lucide-react';
 
 export default function MainLayout() {
