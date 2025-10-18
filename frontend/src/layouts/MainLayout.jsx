@@ -20,25 +20,25 @@ import { LogOut, Home, Calendar, Settings, TestTube } from 'lucide-react';
 
 export default function MainLayout() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Header Section - Contains logo and sign-out button */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-blue-200">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-4">
             {/* Brand logo - medium size for header */}
             <Logo size="medium" />
             {/* Sign out button - danger variant for logout action */}
-            <Button variant="danger" size="small">
+            <button className="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200 flex items-center">
               <LogOut className="w-4 h-4 mr-2" />
               Sign Out
-            </Button>
+            </button>
           </div>
         </div>
       </header>
 
       <div className="flex">
         {/* Sidebar Navigation - Fixed width sidebar with navigation links */}
-        <nav className="bg-white shadow-sm border-r border-gray-200 w-64 min-h-screen">
+        <nav className="bg-white/90 backdrop-blur-sm shadow-lg border-r border-blue-200 w-64 min-h-screen">
           <div className="p-4">
             <ul className="space-y-2">
               {/* Home Navigation Link */}
@@ -47,10 +47,10 @@ export default function MainLayout() {
                   to="/" 
                   end 
                   className={({ isActive }) => 
-                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       isActive 
-                        ? 'bg-blue-600 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-blue-600 text-white shadow-lg' 
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
                     }`
                   }
                 >
@@ -64,10 +64,10 @@ export default function MainLayout() {
                 <NavLink 
                   to="/schedule" 
                   className={({ isActive }) => 
-                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       isActive 
-                        ? 'bg-blue-600 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-blue-600 text-white shadow-lg' 
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
                     }`
                   }
                 >
@@ -81,10 +81,10 @@ export default function MainLayout() {
                 <NavLink 
                   to="/settings" 
                   className={({ isActive }) => 
-                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       isActive 
-                        ? 'bg-blue-600 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-blue-600 text-white shadow-lg' 
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
                     }`
                   }
                 >
@@ -98,10 +98,10 @@ export default function MainLayout() {
                 <NavLink 
                   to="/test" 
                   className={({ isActive }) => 
-                    `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       isActive 
-                        ? 'bg-blue-600 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-blue-600 text-white shadow-lg' 
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
                     }`
                   }
                 >
@@ -114,7 +114,7 @@ export default function MainLayout() {
         </nav>
 
         {/* Main Content Area - Renders child route components */}
-        <main className="flex-1 p-6">
+        <main className="flex-1">
           <Outlet />
         </main>
       </div>

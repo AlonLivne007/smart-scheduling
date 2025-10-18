@@ -16,6 +16,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './styles/global.css'
 import MainLayout from './layouts/MainLayout.jsx'
+import LoginPage from './pages/LoginPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import SchedulePage from './pages/SchedulePage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
@@ -26,6 +27,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Login page - standalone page without layout */}
+        <Route path="/login" element={<LoginPage />} />
+        
         {/* Main layout route - wraps all pages with header and sidebar */}
         <Route path="/" element={<MainLayout />}>
           {/* Home page - dashboard with metrics and overview */}
