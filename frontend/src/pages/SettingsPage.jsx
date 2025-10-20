@@ -17,16 +17,17 @@
  * @returns {JSX.Element} The settings configuration page
  */
 import Card from '../components/ui/Card.jsx';
+import PageLayout from '../layouts/PageLayout.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import { Building2, Users, Bell, Shield, Database, Mail } from 'lucide-react';
 
 export default function Settings() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-blue-700 mb-2">Settings</h1>
-          <p className="text-lg text-blue-500 font-light">Configure company-level preferences and integrations.</p>
-        </div>
+    <PageLayout>
+      <PageHeader 
+        title="Settings" 
+        subtitle="Configure company-level preferences and integrations." 
+      />
       
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Company Settings */}
@@ -114,8 +115,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </PageLayout>
   )
 }
 
