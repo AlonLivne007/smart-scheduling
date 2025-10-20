@@ -14,6 +14,7 @@
  */
 import React from 'react';
 import InputField from '../../components/ui/InputField.jsx';
+import Button from '../../components/ui/Button.jsx';
 
 function RegisterForm({ formData, errors, onInputChange, onSubmit }) {
   return (
@@ -67,12 +68,9 @@ function RegisterForm({ formData, errors, onInputChange, onSubmit }) {
       />
 
       {/* Register Button */}
-      <button
-        type="submit"
-        className="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-      >
+      <Button type="submit" variant="primary" className="w-full">
         Create Account
-      </button>
+      </Button>
     </form>
   );
 }

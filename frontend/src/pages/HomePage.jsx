@@ -46,12 +46,8 @@ export default function Home() {
               <h2 className="text-2xl font-bold text-blue-600 mb-2">Welcome to your dashboard</h2>
               <p className="text-gray-600 mb-6">Manage your workforce efficiently with our smart scheduling system.</p>
               <div className="flex gap-3">
-                <button className="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
-                  Get Started
-                </button>
-                <button className="bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200">
-                  Learn More
-                </button>
+                <Button variant="primary">Get Started</Button>
+                <Button variant="successSolid">Learn More</Button>
               </div>
             </div>
           </div>

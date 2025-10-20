@@ -19,6 +19,7 @@
  */
 import Button from '../components/ui/Button.jsx';
 import Card from '../components/ui/Card.jsx';
+import InputField from '../components/ui/InputField.jsx';
 
 export default function TestPage() {
   return (
@@ -31,19 +32,15 @@ export default function TestPage() {
               <p className="text-lg text-blue-500 font-light">Testing all components and layouts</p>
             </div>
             <div className="flex gap-3">
-              <button className="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
-                Primary Action
-              </button>
-              <button className="bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200">
-                Secondary
-              </button>
+              <Button variant="primary">Primary Action</Button>
+              <Button variant="secondarySolid">Secondary</Button>
             </div>
           </div>
         </div>
 
-        {/* Button Variants */}
+        {/* Button Variants - showcases Button component variants and sizes */}
         <div className="mb-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <Card padding="large" hover>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Button Variants</h3>
             <p className="text-gray-600 mb-6">All button styles and sizes</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -64,16 +61,16 @@ export default function TestPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
 
-        {/* Card Variants */}
+        {/* Card Variants - showcases Card component variants */}
         <div className="mb-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <Card padding="large" hover>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Card Variants</h3>
             <p className="text-gray-600 mb-6">Different card styles and layouts</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <Card padding="large" hover>
                 <div className="text-center">
                   <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -83,8 +80,8 @@ export default function TestPage() {
                   <h4 className="text-lg font-semibold text-gray-900 mb-2">Default Card</h4>
                   <p className="text-gray-600">Standard card with hover effect</p>
                 </div>
-              </div>
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              </Card>
+              <Card variant="gradient" padding="large" hover>
                 <div className="text-center">
                   <div className="bg-white bg-opacity-20 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
@@ -94,8 +91,8 @@ export default function TestPage() {
                   <h4 className="text-lg font-semibold text-white mb-2">Primary Card</h4>
                   <p className="text-white">Blue gradient background</p>
                 </div>
-              </div>
-              <div className="bg-blue-50 rounded-2xl shadow-lg p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              </Card>
+              <Card variant="light" padding="large" hover>
                 <div className="text-center">
                   <div className="bg-blue-100 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -105,18 +102,18 @@ export default function TestPage() {
                   <h4 className="text-lg font-semibold text-gray-900 mb-2">Light Card</h4>
                   <p className="text-gray-600">Light blue background</p>
                 </div>
-              </div>
+              </Card>
             </div>
-          </div>
+          </Card>
         </div>
 
-        {/* Dashboard Layout Test */}
+        {/* Dashboard Layout Test - showcases Card in dashboard layout */}
         <div className="mb-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <Card padding="large" hover>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Dashboard Layout</h3>
             <p className="text-gray-600 mb-6">Testing the dashboard card layout</p>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-2xl shadow-lg p-6 h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <Card className="h-full" hover padding="large">
                 <div className="text-center">
                   <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -127,8 +124,8 @@ export default function TestPage() {
                   <h2 className="text-4xl font-bold text-blue-600 mb-2">120</h2>
                   <p className="text-gray-600">Active team members</p>
                 </div>
-              </div>
-              <div className="bg-white rounded-2xl shadow-lg p-6 h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              </Card>
+              <Card className="h-full" hover padding="large">
                 <div className="text-center">
                   <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -139,8 +136,8 @@ export default function TestPage() {
                   <h2 className="text-4xl font-bold text-blue-600 mb-2">24</h2>
                   <p className="text-gray-600">Next 7 days</p>
                 </div>
-              </div>
-              <div className="bg-white rounded-2xl shadow-lg p-6 h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              </Card>
+              <Card className="h-full" hover padding="large">
                 <div className="text-center">
                   <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -151,8 +148,8 @@ export default function TestPage() {
                   <h2 className="text-4xl font-bold text-blue-600 mb-2">96%</h2>
                   <p className="text-gray-600">This week</p>
                 </div>
-              </div>
-              <div className="bg-white rounded-2xl shadow-lg p-6 h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              </Card>
+              <Card className="h-full" hover padding="large">
                 <div className="text-center">
                   <div className="bg-blue-50 rounded-full p-3 inline-block mb-3">
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
@@ -163,26 +160,20 @@ export default function TestPage() {
                   <h2 className="text-4xl font-bold text-blue-600 mb-2">156</h2>
                   <p className="text-gray-600">This month</p>
                 </div>
-              </div>
+              </Card>
             </div>
-          </div>
+          </Card>
         </div>
 
-        {/* Form Elements */}
+        {/* Form Elements - showcases InputField component */}
         <div className="mb-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <Card padding="large" hover>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Form Elements</h3>
             <p className="text-gray-600 mb-6">Input fields and form components</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                  <input type="email" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="Enter your email" />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                  <input type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="Enter your password" />
-                </div>
+                <InputField label="Email Address" type="email" name="demoEmail" placeholder="Enter your email" />
+                <InputField label="Password" type="password" name="demoPassword" placeholder="Enter your password" />
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Select Option</label>
                   <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
@@ -216,7 +207,7 @@ export default function TestPage() {
               <Button variant="success">Cancel</Button>
               <Button variant="danger">Reset</Button>
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* Color Palette */}
