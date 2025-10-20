@@ -66,9 +66,7 @@ export default function Schedule() {
                 <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No schedules created yet</h3>
                 <p className="text-gray-500 mb-4">Start by creating your first schedule to manage your workforce.</p>
-                <button className="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
-                  Create Schedule
-                </button>
+                <Button variant="primary">Create Schedule</Button>
               </div>
             </div>
           </div>

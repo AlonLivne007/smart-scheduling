@@ -7,7 +7,7 @@
  * @component
  * @param {Object} props - Component props
  * @param {React.ReactNode} props.children - Button content (text, icons, etc.)
- * @param {'primary'|'success'|'danger'} props.variant - Button style variant
+ * @param {'primary'|'success'|'danger'|'primarySolid'|'successSolid'|'secondarySolid'|'primarySubtle'} props.variant - Button style variant
  * @param {'small'|'medium'|'large'} props.size - Button size
  * @param {string} props.className - Additional CSS classes
  * @param {boolean} props.disabled - Whether button is disabled
@@ -44,16 +44,26 @@ const Button = ({
   
   // Button variant styles - each variant has different colors and effects
   const variantClasses = {
-    primary: 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-md',    // Light blue background with blue text
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md',    // Green background with white text
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md'       // Red background with white text
+    // Primary is now gradient (default look)
+    primary: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold hover:from-blue-600 hover:to-blue-700 focus:ring-blue-500',
+    // Subtle alternative kept as primarySubtle for low-emphasis actions
+    primarySubtle: 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-md',
+    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md',
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md',
+
+    // Solid variants (match page-level action buttons)
+    primarySolid: 'bg-blue-600 text-white font-semibold hover:bg-blue-700 focus:ring-blue-500',
+    successSolid: 'bg-green-600 text-white font-semibold hover:bg-green-700 focus:ring-green-500',
+    secondarySolid: 'bg-gray-600 text-white font-semibold hover:bg-gray-700 focus:ring-gray-500',
+
+    // (former gradient alias removed; primary now serves that purpose)
   };
   
   // Button size styles - controls padding and font size
   const sizeClasses = {
-    small: 'px-3 py-1.5 text-sm',    // Small padding, small font
-    medium: 'px-4 py-2 text-base',        // Medium padding, default font
-    large: 'px-6 py-3 text-lg'     // Large padding, large font
+    small: 'px-3 py-1.5 text-sm',
+    medium: 'px-4 py-2 text-base',
+    large: 'px-6 py-3 text-lg'
   };
   
   // Disabled state styling - reduces opacity and changes cursor
