@@ -88,7 +88,7 @@ export default function TestPage() {
                       <span className="text-blue-600 text-sm">★</span>
                     </div>
                   </div>
-                  <h4 className="text-lg font-semibold text-white mb-2">Primary Card</h4>
+                  <h4 className="text-lg font-semibold text-white mb-2">Gradient Card</h4>
                   <p className="text-white">Blue gradient background</p>
                 </div>
               </Card>
@@ -101,6 +101,17 @@ export default function TestPage() {
                   </div>
                   <h4 className="text-lg font-semibold text-gray-900 mb-2">Light Card</h4>
                   <p className="text-gray-600">Light blue background</p>
+                </div>
+              </Card>
+              <Card variant="primary" padding="large" hover>
+                <div className="text-center">
+                  <div className="bg-blue-100 rounded-full p-3 inline-block mb-3">
+                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm">⚡</span>
+                    </div>
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Primary Card</h4>
+                  <p className="text-gray-600">Primary blue background</p>
                 </div>
               </Card>
             </div>

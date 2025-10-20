@@ -36,14 +36,15 @@ const Card = ({
   ...props 
 }) => {
   // Base card classes - applies to all card variants
-  const baseClasses = 'bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm rounded-xl transition-all duration-300';
+  // Base without background so variant can fully control bg
+  const baseClasses = 'backdrop-blur-sm border border-white/20 shadow-sm rounded-xl transition-all duration-300';
   
   // Card variant styles - different background colors and text colors
   const variantClasses = {
     default: 'bg-white/90',              // White background with transparency
-    primary: 'bg-blue-600 text-white', // Blue background with white text
-    light: 'bg-blue-50',                // Light blue background
-    gradient: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'           // Blue gradient background
+    primary: 'bg-blue-600 text-white',   // Blue background with white text
+    light: 'bg-blue-50',                 // Light blue background
+    gradient: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' // Blue gradient background
   };
   
   // Padding size options - controls internal spacing
