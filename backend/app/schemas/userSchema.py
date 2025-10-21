@@ -2,15 +2,14 @@
 Pydantic schemas for the User model.
 
 These schemas define how User-related data is structured for requests (input)
-and responses (output). They also include references to Rank and Role schemas
-to represent relationships between entities.
+and responses (output). users can have
+multiple roles and may possess managerial privileges (is_manager).
 
 """
 
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr, Field
-from app.schemas.rankSchema import RankRead
 from app.schemas.roleSchema import RoleRead
 
 
@@ -40,18 +39,16 @@ class UserUpdate(BaseModel):
     user_full_name: Optional[str] = None
     user_email: Optional[EmailStr] = None
     user_status: Optional[str] = None
-    user_rank_id: Optional[int] = None
+    is_manager: Optional[bool] = None
     user_password: Optional[str] = None
 
 
 class UserRead(UserBase):
     """
     Schema used for returning user data in API responses.
-    Includes related Rank and Roles for detailed information.
+    Includes related Roles.
     """
     user_id: int
-    user_created_at: datetime
-    rank: Optional[RankRead] = None
     roles: List[RoleRead] = Field(default_factory=list)
 
     class Config:

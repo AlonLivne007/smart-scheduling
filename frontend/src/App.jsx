@@ -18,6 +18,7 @@ import './styles/global.css'
 import MainLayout from './layouts/MainLayout.jsx'
 import LoginPage from './pages/login/LoginPage.jsx'
 import RegisterPage from './pages/Register/RegisterPage.jsx'
+import AddUserPage from './pages/Admin/AddUser/AddUserPage.jsx'
 import HomePage from './pages/HomePage.jsx'
 import SchedulePage from './pages/SchedulePage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
@@ -33,6 +34,9 @@ function App() {
         
         {/* Registration page - standalone page without layout */}
         <Route path="/register" element={<RegisterPage />} />
+        
+        {/* Admin pages - standalone pages without layout */}
+        <Route path="/admin/add-user" element={<AddUserPage />} />
         
         {/* Main layout route - wraps all pages with header and sidebar */}
         <Route path="/" element={<MainLayout />}>

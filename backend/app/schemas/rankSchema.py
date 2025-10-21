@@ -1,4 +1,5 @@
 """
+not in use for now
 Pydantic schemas for the Rank model.
 
 These schemas define the structure of data used for API requests and responses
