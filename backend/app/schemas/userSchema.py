@@ -25,10 +25,12 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """
-    Schema used for user registration or creation.
-    Includes the password field for secure input (not returned in responses).
-    """
+        Schema used for user registration or creation.
+        Includes password and optional role/manager fields.
+        """
     user_password: str
+    is_manager: Optional[bool] = False  # חדש
+    roles: List[str] = Field(default_factory=list)
 
 
 class UserUpdate(BaseModel):
@@ -51,5 +53,4 @@ class UserRead(UserBase):
     user_id: int
     roles: List[RoleRead] = Field(default_factory=list)
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
