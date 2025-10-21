@@ -1,4 +1,5 @@
 """
+not in use for now
 Rank model definition.
 
 This module defines the Rank ORM model used to represent employee hierarchy levels

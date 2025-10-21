@@ -8,6 +8,8 @@ or responsibilities (e.g., 'Waiter', 'Bartender', 'Host'). Each user can hold mu
 
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
+
+from app.db.models.userRoleModel import user_roles
 from app.db.session import Base
 
 
@@ -27,7 +29,7 @@ class Role(Base):
     role_name = Column(String, unique=True, nullable=False)
 
     # Many-to-many relationship: a Role can belong to many Users
-    users = relationship("User", secondary="user_roles", back_populates="roles")
+    users = relationship("User", secondary=user_roles, back_populates="roles")
 
     def __repr__(self):
         """Return a readable string representation of the Role object."""

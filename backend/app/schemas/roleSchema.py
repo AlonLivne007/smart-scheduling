@@ -22,7 +22,7 @@ class RoleCreate(RoleBase):
     """
     Schema used when creating a new Role.
     """
-    pass
+    role_name: str
 
 
 class RoleUpdate(BaseModel):
@@ -39,5 +39,4 @@ class RoleRead(RoleBase):
     """
     role_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
