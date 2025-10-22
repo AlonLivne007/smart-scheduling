@@ -8,19 +8,17 @@ or responsibilities (e.g., 'Waiter', 'Bartender', 'Host'). Each user can hold mu
 
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
-
-from app.db.models.userRoleModel import user_roles
 from app.db.session import Base
 
 
-class Role(Base):
+class RoleModel(Base):
     """
     Represents a specific role within an organization.
 
     Attributes:
         role_id (int): Unique identifier for the role.
         role_name (str): Name of the role.
-        users (list[User]): List of users assigned to this role (many-to-many relationship).
+        users (list[UserModel]): Users who hold this role (many-to-many relationship).
     """
 
     __tablename__ = "roles"
@@ -28,9 +26,14 @@ class Role(Base):
     role_id = Column(Integer, primary_key=True, index=True)
     role_name = Column(String, unique=True, nullable=False)
 
-    # Many-to-many relationship: a Role can belong to many Users
-    users = relationship("User", secondary=user_roles, back_populates="roles")
+    # Many-to-many relationship with UserModel through the association table 'user_roles'
+    users = relationship(
+        "UserModel",
+        secondary="user_roles",      # שם הטבלה (לא אובייקט)
+        back_populates="roles",
+        lazy="selectin"
+    )
 
     def __repr__(self):
-        """Return a readable string representation of the Role object."""
+        """Readable string representation of the Role."""
         return f"<Role(name='{self.role_name}')>"

@@ -22,14 +22,8 @@ class RoleCreate(RoleBase):
     """
     Schema used when creating a new Role.
     """
-    role_name: str
+    pass
 
-
-class RoleUpdate(BaseModel):
-    """
-    Schema used when updating an existing Role.
-    """
-    role_name: Optional[str] = None
 
 
 class RoleRead(RoleBase):
