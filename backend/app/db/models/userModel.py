@@ -29,7 +29,7 @@ class UserStatus(PyEnum):
     SICK = "sick"
 
 
-class User(Base):
+class UserModel(Base):
     """
     Represents a user (employee or manager) in the scheduling system.
 
@@ -53,7 +53,7 @@ class User(Base):
     user_status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
 
     # Many-to-many relationship with Role
-    roles = relationship("Role", secondary=user_roles, back_populates="users")
+    roles = relationship("RoleModel", secondary=user_roles, back_populates="users")
 
     def __repr__(self):
         """Readable string representation of a User."""
