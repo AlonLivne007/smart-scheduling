@@ -1,40 +1,41 @@
-"""
-API routes for user-related operations.
-
-This module defines all endpoints related to users, such as
-creating new users, retrieving users, and listing all users.
-
-Author: Alon Livne
-"""
-
-from fastapi import APIRouter, Depends
+from typing import List
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
+
 from app.db.session import get_db
-from app.schemas.userSchema import UserCreate, UserRead
-from app.api.controllers.userController import create_user, get_all_users, get_user_by_id
+from app.schemas.userSchema import UserCreate, UserRead, UserUpdate
+from app.api.controllers.userController import (
+    create_user, get_all_users, get_user, update_user, delete_user
+)
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+# ➕ Create user
+@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED, summary="Create a new user")
+async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
+    user = await create_user(db, payload)
+    return user
 
-@router.post("/", response_model=UserRead, status_code=201)
-def add_user(user_data: UserCreate, db: Session = Depends(get_db)):
-    """
-    Endpoint: Create a new user.
-    """
-    return create_user(db, user_data)
+# 📋 List users
+@router.get("/", response_model=List[UserRead], status_code=status.HTTP_200_OK, summary="Get all users")
+async def list_users(db: Session = Depends(get_db)):
+    users = await get_all_users(db)
+    return users
 
+# 🔍 Get single user
+@router.get("/{user_id}", response_model=UserRead, status_code=status.HTTP_200_OK, summary="Get a user by ID")
+async def get_single_user(user_id: int, db: Session = Depends(get_db)):
+    user = await get_user(db, user_id)
+    return user
 
-@router.get("/", response_model=list[UserRead])
-def list_users(db: Session = Depends(get_db)):
-    """
-    Endpoint: Retrieve all users.
-    """
-    return get_all_users(db)
+# ✏️ Update user
+@router.put("/{user_id}", response_model=UserRead, status_code=status.HTTP_200_OK, summary="Update a user")
+async def edit_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
+    user = await update_user(db, user_id, payload)
+    return user
 
-
-@router.get("/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    """
-    Endpoint: Retrieve a specific user by ID.
-    """
-    return get_user_by_id(db, user_id)
+# ❌ Delete user
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK, summary="Delete a user")
+async def remove_user(user_id: int, db: Session = Depends(get_db)):
+    result = await delete_user(db, user_id)
+    return result
