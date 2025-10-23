@@ -1,3 +1,10 @@
+"""
+Role controller module.
+
+This module contains business logic for role management operations including
+creation, retrieval, and deletion of role records.
+"""
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -7,7 +14,21 @@ from app.schemas.roleSchema import RoleCreate
 
 
 async def create_role(db: Session, role_data: RoleCreate):
+    """
+    Create a new role.
+    
+    Args:
+        db: Database session
+        role_data: Role creation data
+        
+    Returns:
+        Created RoleModel instance
+        
+    Raises:
+        HTTPException: If role name exists or database error occurs
+    """
     try:
+        # Check for unique role name
         existing = db.query(RoleModel).filter(
             RoleModel.role_name == role_data.role_name).first()
         if existing:
@@ -28,6 +49,18 @@ async def create_role(db: Session, role_data: RoleCreate):
 
 
 async def get_all_roles(db: Session):
+    """
+    Retrieve all roles from the database.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        List of all RoleModel instances
+        
+    Raises:
+        HTTPException: If database error occurs
+    """
     try:
         roles = db.query(RoleModel).all()
         return roles
@@ -37,6 +70,19 @@ async def get_all_roles(db: Session):
 
 
 async def get_role(db: Session, role_id: int):
+    """
+    Retrieve a single role by ID.
+    
+    Args:
+        db: Database session
+        role_id: Role identifier
+        
+    Returns:
+        RoleModel instance
+        
+    Raises:
+        HTTPException: If role not found or database error occurs
+    """
     try:
         role = db.query(RoleModel).filter(RoleModel.role_id == role_id).first()
         if not role:
@@ -50,6 +96,19 @@ async def get_role(db: Session, role_id: int):
 
 
 async def delete_role(db: Session, role_id: int):
+    """
+    Delete a role from the database.
+    
+    Args:
+        db: Database session
+        role_id: Role identifier
+        
+    Returns:
+        Success message dictionary
+        
+    Raises:
+        HTTPException: If role not found or database error occurs
+    """
     try:
         role = db.query(RoleModel).filter(RoleModel.role_id == role_id).first()
         if not role:

@@ -1,36 +1,27 @@
 """
-Pydantic schemas for the Role model.
+Role schema definitions.
 
-These schemas define the structure of Role-related data used for API requests
-and responses. They ensure proper validation of Role names and relationships
-with Users.
-
+This module defines Pydantic schemas for role data validation and serialization
+in API requests and responses.
 """
+
 from typing import Optional
 
 from pydantic import BaseModel
 
 
 class RoleBase(BaseModel):
-    """
-    Base schema containing common fields shared by all Role operations.
-    """
+    """Base role schema with common fields."""
     role_name: str
 
 
 class RoleCreate(RoleBase):
-    """
-    Schema used when creating a new Role.
-    """
+    """Schema for creating new roles."""
     pass
 
 
-
 class RoleRead(RoleBase):
-    """
-    Schema returned when reading Role data from the database.
-    Includes the unique identifier of the Role.
-    """
+    """Schema for role data in API responses."""
     role_id: int
 
     model_config = {"from_attributes": True}

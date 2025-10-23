@@ -1,3 +1,10 @@
+"""
+Role routes module.
+
+This module defines the REST API endpoints for role management operations
+including CRUD operations for role records.
+"""
+
 from typing import List
 
 from fastapi import APIRouter, Depends, status
@@ -12,24 +19,63 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED,
-             summary="Create a new role", )
+             summary="Create a new role")
 async def add_role(role_data: RoleCreate, db: Session = Depends(get_db)):
+    """
+    Create a new role.
+    
+    Args:
+        role_data: Role creation data
+        db: Database session dependency
+        
+    Returns:
+        Created role data
+    """
     return await create_role(db, role_data)
 
 
 @router.get("/", response_model=List[RoleRead], status_code=status.HTTP_200_OK,
             summary="List all roles")
 async def list_roles(db: Session = Depends(get_db)):
+    """
+    Retrieve all roles from the system.
+    
+    Args:
+        db: Database session dependency
+        
+    Returns:
+        List of all roles
+    """
     return await get_all_roles(db)
 
 
 @router.get("/{role_id}", response_model=RoleRead,
             status_code=status.HTTP_200_OK, summary="Get a single role by ID")
 async def get_single_role(role_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieve a specific role by its ID.
+    
+    Args:
+        role_id: Role identifier
+        db: Database session dependency
+        
+    Returns:
+        Role data
+    """
     return await get_role(db, role_id)
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_200_OK,
                summary="Delete a role")
 async def remove_role(role_id: int, db: Session = Depends(get_db)):
+    """
+    Delete a role from the system.
+    
+    Args:
+        role_id: Role identifier
+        db: Database session dependency
+        
+    Returns:
+        Deletion confirmation message
+    """
     return await delete_role(db, role_id)
