@@ -1,11 +1,9 @@
 """
-not in use for now
 Rank model definition.
 
-This module defines the Rank ORM model used to represent employee hierarchy levels
-within the scheduling system. Each rank can optionally indicate whether it includes
-managerial privileges.
-
+This module defines the Rank ORM model representing employee hierarchy levels
+within the organization. Each rank indicates whether it includes managerial
+privileges. Currently not in active use.
 """
 
 from sqlalchemy import Column, Integer, String, Boolean
@@ -15,24 +13,23 @@ from app.db.session import Base
 
 class Rank(Base):
     """
-    Represents an employee rank (e.g., 'Manager', 'Junior', 'Trainee').
-
+    Rank model representing employee hierarchy levels.
+    
     Attributes:
-        rank_id (int): Unique identifier for the rank.
-        rank_name (str): Name of the rank.
-        rank_is_manager (bool): Indicates whether this rank represents a managerial role.
-        users (list[User]): Relationship to users holding this rank.
+        rank_id: Primary key identifier
+        rank_name: Name of the rank (unique)
+        rank_is_manager: Managerial privileges flag
+        users: Users with this rank
     """
-
     __tablename__ = "ranks"
 
     rank_id = Column(Integer, primary_key=True, index=True)
     rank_name = Column(String, unique=True, nullable=False)
     rank_is_manager = Column(Boolean, default=False)
 
-    # One-to-many relationship: one Rank → many Users
+    # One-to-many relationship with users
     users = relationship("User", back_populates="rank")
 
     def __repr__(self):
-        """Return a readable string representation of the Rank object."""
+        """String representation of the rank."""
         return f"<Rank(name='{self.rank_name}', is_manager={self.rank_is_manager})>"
