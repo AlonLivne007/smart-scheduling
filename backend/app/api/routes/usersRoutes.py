@@ -7,12 +7,12 @@ including CRUD operations for user records.
 
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException, Header
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.controllers.userController import (
     create_user, get_all_users, get_user, update_user, delete_user,
-    authenticate_user, verify_token
+    authenticate_user
 )
 from app.db.session import get_db
 from app.schemas.userSchema import UserCreate, UserRead, UserUpdate, UserLogin, \
@@ -52,44 +52,6 @@ async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
         JWT access token and user data
     """
     return await authenticate_user(db, payload)
-
-
-@router.get("/profile", response_model=UserRead, status_code=status.HTTP_200_OK,
-            summary="Get current user profile")
-async def get_current_user_profile(
-    authorization: str = Header(..., description="Bearer token"),
-    db: Session = Depends(get_db)
-):
-    """
-    Get the current user's profile using JWT token.
-    
-    Args:
-        authorization: Bearer token in Authorization header
-        db: Database session dependency
-        
-    Returns:
-        Current user's profile data
-    """
-    try:
-        # Extract token from "Bearer <token>"
-        token = authorization.split(" ")[1]
-        payload = verify_token(token)
-        user_id = payload.get("user_id")
-        
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload"
-            )
-        
-        user = await get_user(db, user_id)
-        return user
-        
-    except IndexError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format"
-        )
 
 
 @router.get("/", response_model=List[UserRead], status_code=status.HTTP_200_OK,
