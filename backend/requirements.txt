@@ -6,3 +6,4 @@ pydantic
 python-dotenv
 email-validator
 werkzeug
+python-jose[cryptography]

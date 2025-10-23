@@ -5,15 +5,24 @@ User controller module.
 This module contains business logic for user management operations including
 creation, retrieval, updating, and deletion of user records.
 """
+from datetime import datetime, timedelta
+import os
 
 from werkzeug.security import generate_password_hash, check_password_hash
+from jose import JWTError, jwt
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from app.db.models.userModel import UserModel
 from app.db.models.roleModel import RoleModel
-from app.schemas.userSchema import UserCreate, UserUpdate, UserLogin
+from app.schemas.userSchema import UserCreate, UserUpdate, UserLogin, \
+    LoginResponse, UserRead
+
+# JWT Configuration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-change-this-in-production")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "3"))
 
 
 def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[RoleModel]:
@@ -96,34 +105,87 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
         )
 
 
-async def authenticate_user(db: Session, data: UserLogin) -> UserModel:
-    """
-    Authenticate a user by email and password.
 
+def create_access_token(data: dict) -> str:
+    """
+    Create a JWT token with expiration time.
+    
+    Args:
+        data: Dictionary containing user data to encode in token
+        
+    Returns:
+        Encoded JWT token string
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=JWT_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+
+def verify_token(token: str) -> dict:
+    """
+    Verify and decode JWT token.
+    
+    Args:
+        token: JWT token string to verify
+        
+    Returns:
+        Decoded token payload
+        
+    Raises:
+        HTTPException: If token is invalid or expired
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid or expired token"
+        )
+
+
+async def authenticate_user(db: Session, data: UserLogin) -> LoginResponse:
+    """
+    Authenticate user and return JWT token if valid.
+    
     Args:
         db: Database session
-        data: Login data containing email and password
-
+        data: Login credentials
+        
     Returns:
-        Authenticated UserModel instance
-
+        LoginResponse containing JWT token and user data
+        
     Raises:
         HTTPException: If user not found or password invalid
     """
     user = db.query(UserModel).filter(UserModel.user_email == data.user_email).first()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND, 
             detail="User not found"
         )
 
     if not check_password_hash(user.hashed_password, data.user_password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="Invalid email or password"
         )
 
-    return user
+    # Create JWT token
+    access_token = create_access_token(
+        data={"sub": user.user_email, "user_id": user.user_id}
+    )
+
+    # Convert user to response format
+    user_data = UserRead.model_validate(user)
+
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=user_data
+    )
 
 
 async def get_all_users(db: Session) -> List[UserModel]:

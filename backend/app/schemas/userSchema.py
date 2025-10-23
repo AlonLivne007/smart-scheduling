@@ -22,8 +22,7 @@ class RoleSummary(BaseModel):
     role_id: int
     role_name: str
 
-    class Config:
-        model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True}
 
 
 class UserBase(BaseModel):
@@ -40,10 +39,7 @@ class UserCreate(UserBase):
     roles_by_id: Optional[List[int]] = None
 
 
-class UserLogin(BaseModel):
-    """Schema for user authentication."""
-    user_email: EmailStr
-    user_password: str = Field(...)
+
 
 
 class UserUpdate(BaseModel):
@@ -64,5 +60,16 @@ class UserRead(BaseModel):
     is_manager: bool
     roles: List[RoleSummary] = []
 
-    class Config:
-        model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True}
+
+
+class UserLogin(BaseModel):
+    """Schema for user authentication."""
+    user_email: EmailStr
+    user_password: str = Field(...)
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserRead
