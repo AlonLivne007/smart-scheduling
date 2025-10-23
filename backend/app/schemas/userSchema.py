@@ -40,6 +40,12 @@ class UserCreate(UserBase):
     roles_by_id: Optional[List[int]] = None
 
 
+class UserLogin(BaseModel):
+    """Schema for user authentication."""
+    user_email: EmailStr
+    user_password: str = Field(...)
+
+
 class UserUpdate(BaseModel):
     """Schema for updating existing users."""
     user_full_name: Optional[str] = None

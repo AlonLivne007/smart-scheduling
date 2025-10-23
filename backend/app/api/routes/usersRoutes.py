@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.userSchema import UserCreate, UserRead, UserUpdate
+from app.schemas.userSchema import UserCreate, UserRead, UserUpdate, UserLogin
 from app.api.controllers.userController import (
-    create_user, get_all_users, get_user, update_user, delete_user
+    create_user, get_all_users, get_user, update_user, delete_user,
+    authenticate_user
 )
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -33,6 +34,21 @@ async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
     user = await create_user(db, payload)
     return user
 
+
+@router.post("/login", response_model=UserRead, status_code=status.HTTP_200_OK, summary="Authenticate user")
+async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
+    """
+    Authenticate a user by email and password.
+    
+    Args:
+        payload: Login credentials
+        db: Database session dependency
+        
+    Returns:
+        Authenticated user data
+    """
+    user = await authenticate_user(db, payload)
+    return user
 
 @router.get("/", response_model=List[UserRead], status_code=status.HTTP_200_OK, summary="Get all users")
 async def list_users(db: Session = Depends(get_db)):

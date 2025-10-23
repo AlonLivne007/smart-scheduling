@@ -6,14 +6,14 @@ This module contains business logic for user management operations including
 creation, retrieval, updating, and deletion of user records.
 """
 
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from app.db.models.userModel import UserModel
 from app.db.models.roleModel import RoleModel
-from app.schemas.userSchema import UserCreate, UserUpdate
+from app.schemas.userSchema import UserCreate, UserUpdate, UserLogin
 
 
 def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[RoleModel]:
@@ -94,6 +94,36 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error: {str(e)}"
         )
+
+
+async def authenticate_user(db: Session, data: UserLogin) -> UserModel:
+    """
+    Authenticate a user by email and password.
+
+    Args:
+        db: Database session
+        data: Login data containing email and password
+
+    Returns:
+        Authenticated UserModel instance
+
+    Raises:
+        HTTPException: If user not found or password invalid
+    """
+    user = db.query(UserModel).filter(UserModel.user_email == data.user_email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if not check_password_hash(user.hashed_password, data.user_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+
+    return user
 
 
 async def get_all_users(db: Session) -> List[UserModel]:
