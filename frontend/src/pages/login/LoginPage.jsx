@@ -40,10 +40,32 @@ export default function LoginPage() {
    * Handles form submission for login
    * @param {Event} e - Form submit event
    */
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log('Login attempt:', formData);
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    try {
+      const resp = await fetch(`${API_BASE_URL}/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: formData.email,
+          user_password: formData.password,
+        }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data?.detail || 'Login failed');
+      }
+
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      // Optionally navigate to a protected page here
+      console.log('Logged in successfully');
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
   };
 
   return (

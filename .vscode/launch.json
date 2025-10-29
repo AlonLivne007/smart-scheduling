@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug React (Vite)",
+        "type": "chrome",
+        "request": "launch",
+        "url": "http://localhost:5173",
+        "webRoot": "${workspaceFolder}/frontend/src",
+        "sourceMaps": true,
+        "trace": true,
+        "sourceMapPathOverrides": {
+          "webpack:///src/*": "${webRoot}/*",
+          "http://localhost:5173/src/*": "${webRoot}/*",
+          "vite-app:///src/*": "${webRoot}/*",
+          "*/src/*": "${webRoot}/*"
+        }
+      }
+    ]
+  }
+  
