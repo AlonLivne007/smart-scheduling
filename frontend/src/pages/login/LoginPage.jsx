@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import LoginHeader from './LoginHeader.jsx';
 import LoginForm from './LoginForm.jsx';
 import LoginLinks from './LoginLinks.jsx';
+import api from '../../lib/axios.js';
 
 export default function LoginPage() {
   // Form state management
@@ -42,29 +43,20 @@ export default function LoginPage() {
    */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     try {
-      const resp = await fetch(`${API_BASE_URL}/users/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_email: formData.email,
-          user_password: formData.password,
-        }),
+      const { data } = await api.post('/users/login', {
+        user_email: formData.email,
+        user_password: formData.password,
       });
 
-      const data = await resp.json();
-      if (!resp.ok) {
-        throw new Error(data?.detail || 'Login failed');
-      }
-
       localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('current_user', JSON.stringify(data.user));
       // Optionally navigate to a protected page here
       console.log('Logged in successfully');
     } catch (err) {
-      console.error(err);
-      alert(err.message);
+      const message = err?.response?.data?.detail || err.message || 'Login failed';
+      console.error(message);
+      alert(message);
     }
   };
 
