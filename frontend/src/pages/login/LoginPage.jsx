@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import LoginHeader from './LoginHeader.jsx';
 import LoginForm from './LoginForm.jsx';
 import LoginLinks from './LoginLinks.jsx';
+import api from '../../lib/axios.js';
 
 export default function LoginPage() {
   // Form state management
@@ -40,10 +41,23 @@ export default function LoginPage() {
    * Handles form submission for login
    * @param {Event} e - Form submit event
    */
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log('Login attempt:', formData);
+    try {
+      const { data } = await api.post('/users/login', {
+        user_email: formData.email,
+        user_password: formData.password,
+      });
+
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('current_user', JSON.stringify(data.user));
+      // Optionally navigate to a protected page here
+      console.log('Logged in successfully');
+    } catch (err) {
+      const message = err?.response?.data?.detail || err.message || 'Login failed';
+      console.error(message);
+      alert(message);
+    }
   };
 
   return (
