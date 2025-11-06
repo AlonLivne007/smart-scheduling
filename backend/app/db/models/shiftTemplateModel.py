@@ -45,7 +45,8 @@ class ShiftTemplateModel(Base):
     planned_shifts = relationship(
         "PlannedShiftModel",
         back_populates="shift_template",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )
 
     def __repr__(self):

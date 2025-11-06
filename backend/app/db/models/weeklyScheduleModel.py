@@ -27,12 +27,13 @@ class WeeklyScheduleModel(Base):
     weekly_schedule_id = Column(Integer, primary_key=True, index=True)
     week_start_date = Column(Date, nullable=False, index=True)
     created_by_id = Column(Integer, ForeignKey("users.user_id", ondelete="RESTRICT"), nullable=False)
-    created_by = relationship("UserModel", back_populates="weekly_schedules")
+    created_by = relationship("UserModel", back_populates="weekly_schedules", lazy="selectin")
 
     planned_shifts = relationship(
         "PlannedShiftModel",
         back_populates="weekly_schedule",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )
 
     def __repr__(self):

@@ -14,6 +14,7 @@ class RoleBase(BaseModel):
         ...,
         min_length=1,
         max_length=100,
+        description="Name of the role (e.g., 'Waiter', 'Bartender', 'Host')"
     )
 
 

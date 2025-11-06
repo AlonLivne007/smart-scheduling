@@ -79,18 +79,21 @@ class PlannedShiftModel(Base):
 
     weekly_schedule = relationship(
         "WeeklyScheduleModel",
-        back_populates="planned_shifts"
+        back_populates="planned_shifts",
+        lazy="selectin"
     )
 
     shift_template = relationship(
         "ShiftTemplateModel",
-        back_populates="planned_shifts"
+        back_populates="planned_shifts",
+        lazy="selectin"
     )
 
     assignments = relationship(
         "ShiftAssignmentModel",
         back_populates="planned_shift",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )
 
     def __repr__(self):

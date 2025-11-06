@@ -62,7 +62,8 @@ class ShiftAssignmentModel(Base):
     # Relationships
     planned_shift = relationship(
         "PlannedShiftModel",
-        back_populates="assignments"
+        back_populates="assignments",
+        lazy="selectin"
     )
 
     user = relationship(
