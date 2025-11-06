@@ -21,6 +21,24 @@ from app.schemas.userSchema import UserCreate, UserRead, UserUpdate, UserLogin, 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+@router.post("/login", response_model=LoginResponse,
+             status_code=status.HTTP_200_OK, summary="Authenticate user")
+async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
+    """
+    Authenticate a user by email and password.
+    
+    Args:
+        payload: Login credentials
+        db: Database session dependency
+        
+    Returns:
+        JWT access token and user data
+    """
+    result = await authenticate_user(db, payload)
+    return result
+
+
+# Collection routes
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED,
              summary="Create a new user")
 async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
@@ -36,22 +54,6 @@ async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
     """
     user = await create_user(db, payload)
     return user
-
-
-@router.post("/login", response_model=LoginResponse,
-             status_code=status.HTTP_200_OK, summary="Authenticate user")
-async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
-    """
-    Authenticate a user by email and password.
-    
-    Args:
-        payload: Login credentials
-        db: Database session dependency
-        
-    Returns:
-        JWT access token and user data
-    """
-    return await authenticate_user(db, payload)
 
 
 @router.get("/", response_model=List[UserRead], status_code=status.HTTP_200_OK,
@@ -70,6 +72,7 @@ async def list_users(db: Session = Depends(get_db)):
     return users
 
 
+# Resource routes (parameterized)
 @router.get("/{user_id}", response_model=UserRead,
             status_code=status.HTTP_200_OK, summary="Get a user by ID")
 async def get_single_user(user_id: int, db: Session = Depends(get_db)):

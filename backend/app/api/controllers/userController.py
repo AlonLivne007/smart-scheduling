@@ -52,7 +52,7 @@ def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[Ro
             detail=f"The following role IDs do not exist: {missing}"
         )
 
-    return roles
+    return list(set(roles))
 
 
 async def create_user(db: Session, data: UserCreate) -> UserModel:
@@ -97,6 +97,10 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
         db.refresh(user)
         return user
 
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404, 400) without modification
+        db.rollback()
+        raise
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
@@ -203,10 +207,10 @@ async def get_all_users(db: Session) -> List[UserModel]:
     """
     try:
         return db.query(UserModel).all()
-    except Exception as e:
+    except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Database error: {str(e)}"
         )
 
 
@@ -229,10 +233,13 @@ async def get_user(db: Session, user_id: int) -> UserModel:
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
-    except Exception as e:
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404) without modification
+        raise
+    except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Database error: {str(e)}"
         )
 
 
@@ -283,6 +290,10 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
         db.refresh(user)
         return user
 
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404, 400) without modification
+        db.rollback()
+        raise
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
@@ -314,6 +325,10 @@ async def delete_user(db: Session, user_id: int) -> dict:
         db.commit()
         return {"message": "User deleted successfully"}
 
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404, 400) without modification
+        db.rollback()
+        raise
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
