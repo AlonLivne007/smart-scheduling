@@ -1,4 +1,12 @@
-# app/db/models/shiftTemplateModel.py
+"""
+Shift template model definition.
+
+This module defines the ShiftTemplate ORM model representing predefined types
+of shifts (e.g., 'Morning Shift', 'Evening Shift'). Templates define the
+structure, timing, location, and required roles for shifts that can be
+instantiated in weekly schedules.
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -7,16 +15,16 @@ from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
 
 class ShiftTemplateModel(Base):
     """
-    ShiftTemplateModel represents a predefined type of shift.
-    For example: 'Morning Shift' or 'Evening Shift'.
-
+    Shift template model representing a predefined type of shift.
+    
     Attributes:
-        shift_template_id: Unique identifier
+        shift_template_id: Primary key identifier
         shift_template_name: Name of the shift type
         start_time: Shift start time
         end_time: Shift end time
         location: Where the shift takes place
         required_roles: List of roles needed for this shift (many-to-many)
+        planned_shifts: Relationship to planned shift instances created from this template
     """
     __tablename__ = "shift_templates"
 

@@ -1,3 +1,11 @@
+"""
+Shift role requirements association table definition.
+
+This module defines the association table for the many-to-many relationship
+between shift templates and roles, specifying how many of each role are
+required for a given shift template.
+"""
+
 from sqlalchemy import Column, Integer, ForeignKey, Table
 from app.db.session import Base
 

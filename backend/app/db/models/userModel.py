@@ -62,3 +62,7 @@ class UserModel(Base):
         cascade="all, delete-orphan"
     )
 
+    def __repr__(self):
+        """String representation of the user."""
+        return f"<User(name='{self.user_full_name}', email='{self.user_email}')>"
+

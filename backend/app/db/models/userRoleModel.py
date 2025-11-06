@@ -26,3 +26,7 @@ class UserRoleModel(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "role_id", name="uq_user_role"),
     )
+
+    def __repr__(self):
+        """String representation of the user-role association."""
+        return f"<UserRole(user_id={self.user_id}, role_id={self.role_id})>"

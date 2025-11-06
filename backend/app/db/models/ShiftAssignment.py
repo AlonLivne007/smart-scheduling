@@ -1,9 +1,15 @@
+"""
+Shift assignment model definition.
+
+This module defines the ShiftAssignment ORM model representing the assignment
+of a user to a specific planned shift in a specific role. Each record represents
+one employee assigned to one shift with one role (e.g., 'Waiter', 'Bartender').
+"""
+
 from sqlalchemy import (
     Column,
     Integer,
-    String,
     ForeignKey,
-    Enum,
     UniqueConstraint
 )
 from sqlalchemy.orm import relationship
@@ -12,10 +18,16 @@ from app.db.session import Base
 
 class ShiftAssignmentModel(Base):
     """
-    Represents an assignment of a user to a specific planned shift
-    in a specific role (e.g., 'Waiter', 'Bartender').
-
-    Each record = 1 employee in 1 shift with 1 role.
+    Shift assignment model representing a user assigned to a planned shift in a specific role.
+    
+    Attributes:
+        assignment_id: Primary key identifier
+        planned_shift_id: Foreign key to the planned shift
+        user_id: Foreign key to the assigned user
+        role_id: Foreign key to the role the user plays in this shift
+        planned_shift: Relationship to the planned shift
+        user: Relationship to the assigned user
+        role: Relationship to the role
     """
 
     __tablename__ = "shift_assignments"
@@ -64,6 +76,7 @@ class ShiftAssignmentModel(Base):
     )
 
     def __repr__(self):
+        """String representation of the shift assignment."""
         return (
             f"<ShiftAssignment("
             f"shift_id={self.planned_shift_id}, "

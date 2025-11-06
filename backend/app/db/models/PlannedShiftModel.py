@@ -1,3 +1,12 @@
+"""
+Planned shift model definition.
+
+This module defines the PlannedShift ORM model representing a specific scheduled
+shift instance within a weekly schedule. Each planned shift is an instantiation
+of a shift template for a particular date and time, with assigned employees
+and a status tracking its assignment completion.
+"""
+
 from sqlalchemy import Column, Integer, Date, ForeignKey, String, Enum, \
     DateTime
 from sqlalchemy.orm import relationship
@@ -6,6 +15,15 @@ import enum
 
 
 class PlannedShiftStatus(enum.Enum):
+    """
+    Enumeration for planned shift status states.
+    
+    Values:
+        PLANNED: Shift is created but not yet assigned
+        PARTIALLY_ASSIGNED: Some but not all required roles are filled
+        FULLY_ASSIGNED: All required roles have been assigned
+        CANCELLED: Shift has been cancelled
+    """
     PLANNED = "planned"
     PARTIALLY_ASSIGNED = "partially_assigned"
     FULLY_ASSIGNED = "fully_assigned"
@@ -14,10 +32,20 @@ class PlannedShiftStatus(enum.Enum):
 
 class PlannedShiftModel(Base):
     """
-    Represents a specific scheduled shift (instance of a ShiftTemplate)
-    within a weekly schedule.
-
-    Example: "Morning shift on Monday, Nov 4, 08:00–14:00"
+    Planned shift model representing a specific scheduled shift instance.
+    
+    Attributes:
+        planned_shift_id: Primary key identifier
+        weekly_schedule_id: Foreign key to the weekly schedule containing this shift
+        shift_template_id: Foreign key to the shift template this shift is based on
+        date: Date of the shift
+        start_time: Start date and time of the shift
+        end_time: End date and time of the shift
+        location: Location where the shift takes place
+        status: Current assignment status of the shift
+        weekly_schedule: Relationship to the parent weekly schedule
+        shift_template: Relationship to the shift template
+        assignments: Relationship to user assignments for this shift
     """
 
     __tablename__ = "planned_shifts"
