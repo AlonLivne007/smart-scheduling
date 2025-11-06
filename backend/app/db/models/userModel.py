@@ -49,3 +49,16 @@ class UserModel(Base):
         secondary="user_roles",
         lazy="selectin",
     )
+
+    weekly_schedules = relationship(
+        "WeeklyScheduleModel",
+        back_populates="created_by",
+        lazy="selectin"
+    )
+
+    assignments = relationship(
+        "ShiftAssignmentModel",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+

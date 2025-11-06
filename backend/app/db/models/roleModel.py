@@ -33,6 +33,19 @@ class RoleModel(Base):
         lazy="selectin"
     )
 
+    shift_templates = relationship(
+        "ShiftTemplateModel",
+        secondary="shift_role_requirements",
+        back_populates="required_roles",
+        lazy="selectin"
+    )
+
+    assignments = relationship(
+        "ShiftAssignmentModel",
+        back_populates="role",
+        lazy="selectin"
+    )
+
     def __repr__(self):
         """String representation of the role."""
         return f"<Role(name='{self.role_name}')>"
