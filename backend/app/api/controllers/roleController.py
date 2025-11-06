@@ -28,13 +28,6 @@ async def create_role(db: Session, role_data: RoleCreate):
         HTTPException: If role name exists or database error occurs
     """
     try:
-        # Check for unique role name
-        existing = db.query(RoleModel).filter(
-            RoleModel.role_name == role_data.role_name).first()
-        if existing:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f"Role '{role_data.role_name}' already exists.")
-
         new_role = RoleModel(**role_data.model_dump())
         db.add(new_role)
         db.commit()
@@ -46,6 +39,20 @@ async def create_role(db: Session, role_data: RoleCreate):
         # Re-raise HTTPException (e.g., 400 from duplicate role name) without modification
         db.rollback()
         raise
+    except IntegrityError as e:
+        db.rollback()
+        # Check if it's a unique constraint violation for role name
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
+            if 'role_name' in error_str.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Role '{role_data.role_name}' already exists."
+                )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database constraint violation: {error_str}"
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

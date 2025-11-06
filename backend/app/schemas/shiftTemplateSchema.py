@@ -65,6 +65,36 @@ class ShiftTemplateCreate(ShiftTemplateBase):
     )
 
 
+class ShiftTemplateUpdate(BaseModel):
+    """
+    Schema for updating an existing shift template.
+    All fields are optional to allow partial updates.
+    """
+    shift_template_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        description="Name of the shift template (e.g., 'Morning Shift', 'Evening Shift')"
+    )
+    start_time: Optional[time] = Field(
+        default=None,
+        description="Start time of the shift (time only, not date)"
+    )
+    end_time: Optional[time] = Field(
+        default=None,
+        description="End time of the shift (time only, not date)"
+    )
+    location: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Location where the shift takes place"
+    )
+    required_roles: Optional[List[RoleRequirementBase]] = Field(
+        default=None,
+        description="List of roles required for this shift template and their counts. Set to empty list to remove all roles."
+    )
+
+
 class ShiftTemplateRead(ShiftTemplateBase):
     """
     Schema for shift template data in API responses.
