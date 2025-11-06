@@ -10,7 +10,8 @@ from sqlalchemy import (
     Column,
     Integer,
     ForeignKey,
-    UniqueConstraint
+    UniqueConstraint,
+    Index
 )
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -38,21 +39,24 @@ class ShiftAssignmentModel(Base):
     planned_shift_id = Column(
         Integer,
         ForeignKey("planned_shifts.planned_shift_id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     # FK to UserModel
     user_id = Column(
         Integer,
         ForeignKey("users.user_id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     # FK to RoleModel (what role the user plays in this shift)
     role_id = Column(
         Integer,
-        ForeignKey("roles.role_id"),
-        nullable=False
+        ForeignKey("roles.role_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
     )
 
     # Relationships
@@ -73,6 +77,7 @@ class ShiftAssignmentModel(Base):
 
     __table_args__ = (
         UniqueConstraint("planned_shift_id", "user_id", name="uq_shift_user"),
+        Index("idx_assignment_shift_role", "planned_shift_id", "role_id"),
     )
 
     def __repr__(self):

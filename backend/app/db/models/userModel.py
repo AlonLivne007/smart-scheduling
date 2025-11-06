@@ -7,7 +7,7 @@ Users can have multiple roles and different status states (active, vacation, sic
 
 from enum import Enum as PyEnum
 
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, Index, CheckConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -39,9 +39,16 @@ class UserModel(Base):
     user_full_name = Column(String(255), nullable=False)
     user_email = Column(String(255), unique=True, index=True, nullable=False)
     user_status = Column(String(50), nullable=False,
-                         default=UserStatus.ACTIVE.value)
+                         default=UserStatus.ACTIVE.value, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_manager = Column(Boolean, default=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "user_status IN ('active', 'vacation', 'sick')",
+            name="check_user_status"
+        ),
+    )
 
     # Many-to-many relationship with roles
     roles = relationship(

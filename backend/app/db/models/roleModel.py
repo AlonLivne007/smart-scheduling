@@ -6,7 +6,7 @@ within the organization (e.g., 'Waiter', 'Bartender', 'Host'). Users can be assi
 multiple roles through a many-to-many relationship.
 """
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Index
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
@@ -23,7 +23,7 @@ class RoleModel(Base):
     __tablename__ = "roles"
 
     role_id = Column(Integer, primary_key=True, index=True)
-    role_name = Column(String, unique=True, nullable=False)
+    role_name = Column(String(100), unique=True, nullable=False, index=True)
 
     # Many-to-many relationship with users
     users = relationship(

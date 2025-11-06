@@ -8,7 +8,7 @@ and a status tracking its assignment completion.
 """
 
 from sqlalchemy import Column, Integer, Date, ForeignKey, String, Enum, \
-    DateTime
+    DateTime, Index
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 import enum
@@ -54,17 +54,19 @@ class PlannedShiftModel(Base):
 
     weekly_schedule_id = Column(
         Integer,
-        ForeignKey("shift_weekly_schedule.weekly_schedule_id"),
-        nullable=False
+        ForeignKey("shift_weekly_schedule.weekly_schedule_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
     )
 
     shift_template_id = Column(
         Integer,
-        ForeignKey("shift_templates.shift_template_id"),
-        nullable=False
+        ForeignKey("shift_templates.shift_template_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
     )
 
-    date = Column(Date, nullable=False)
+    date = Column(Date, nullable=False, index=True)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     location = Column(String(255), nullable=False)
