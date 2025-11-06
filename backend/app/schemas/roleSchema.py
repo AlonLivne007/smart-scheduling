@@ -5,14 +5,17 @@ This module defines Pydantic schemas for role data validation and serialization
 in API requests and responses.
 """
 
-from typing import Optional
-
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RoleBase(BaseModel):
     """Base role schema with common fields."""
-    role_name: str
+    role_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+    )
+
 
 
 class RoleCreate(RoleBase):

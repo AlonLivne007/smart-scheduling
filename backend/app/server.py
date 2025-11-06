@@ -9,10 +9,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import usersRoutes, rolesRoutes
 from app.db.session import engine, Base
-from app.db.models import userModel, roleModel, userRoleModel
+from app.db import models  # Ensure all models are imported for table creation
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+print("📋 Tables registered in metadata:", Base.metadata.tables.keys())
 
 # Initialize FastAPI application
 app = FastAPI(title="Smart Scheduling API")
