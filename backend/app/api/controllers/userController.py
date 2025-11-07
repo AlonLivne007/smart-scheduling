@@ -1,4 +1,3 @@
-
 """
 User controller module.
 
@@ -27,41 +26,45 @@ JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "3"))
 
 def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[RoleModel]:
     """
-    Validate and fetch roles by their IDs.
+    Fetch roles by their IDs.
+    
+    Note: Foreign key constraint will validate role existence on commit.
     
     Args:
         db: Database session
-        role_ids: List of role IDs to validate
+        role_ids: List of role IDs to fetch
         
     Returns:
-        List of valid RoleModel instances
-        
-    Raises:
-        HTTPException: If any role IDs don't exist
+        List of RoleModel instances (empty list if role_ids is None/empty)
     """
     if not role_ids:
         return []
 
+    # Fetch roles - database foreign key will validate existence on commit
     roles = db.query(RoleModel).filter(RoleModel.role_id.in_(role_ids)).all()
-    found_ids = {r.role_id for r in roles}
-    missing = [r for r in role_ids if r not in found_ids]
-
+    
+    # Remove duplicates 
+    unique_roles = list(set(roles))
+    
+    # Validate all requested roles were found (foreign key will also catch this, but this provides better UX)
+    found_ids = {r.role_id for r in unique_roles}
+    missing = [rid for rid in role_ids if rid not in found_ids]
     if missing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"The following role IDs do not exist: {missing}"
         )
+    
+    return unique_roles
 
-    return list(set(roles))
 
-
-async def create_user(db: Session, data: UserCreate) -> UserModel:
+async def create_user(db: Session, user_data: UserCreate) -> UserModel:
     """
     Create a new user with optional role assignments.
     
     Args:
         db: Database session
-        data: User creation data
+        user_data: User creation data
         
     Returns:
         Created UserModel instance
@@ -71,17 +74,17 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
     """
     try:
         # Hash password and create user
-        hashed_pw = generate_password_hash(data.user_password)
+        hashed_pw = generate_password_hash(user_data.user_password)
         user = UserModel(
-            user_full_name=data.user_full_name,
-            user_email=data.user_email,
-            user_status=data.user_status,
+            user_full_name=user_data.user_full_name,
+            user_email=user_data.user_email,
+            user_status=user_data.user_status,
             hashed_password=hashed_pw,
-            is_manager=data.is_manager,
+            is_manager=user_data.is_manager,
         )
 
         # Assign roles if provided
-        roles = _resolve_roles(db, data.roles_by_id)
+        roles = _resolve_roles(db, user_data.roles_by_id)
         if roles:
             user.roles = roles
 
@@ -91,19 +94,11 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
         return user
 
     except HTTPException:
-        # Re-raise HTTPException (e.g., 404, 400) without modification
         db.rollback()
         raise
     except IntegrityError as e:
         db.rollback()
-        # Check if it's a unique constraint violation for email
         error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
-            if 'user_email' in error_str.lower() or 'email' in error_str.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Email '{data.user_email}' is already in use."
-                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Database constraint violation: {error_str}"
@@ -157,46 +152,54 @@ def verify_token(token: str) -> dict:
         )
 
 
-async def authenticate_user(db: Session, data: UserLogin) -> LoginResponse:
+async def authenticate_user(db: Session, user_login_data: UserLogin) -> LoginResponse:
     """
     Authenticate user and return JWT token if valid.
     
     Args:
         db: Database session
-        data: Login credentials
+        user_login_data: Login credentials
         
     Returns:
         LoginResponse containing JWT token and user data
         
     Raises:
-        HTTPException: If user not found or password invalid
+        HTTPException: If user not found, password invalid, or database error occurs
     """
-    user = db.query(UserModel).filter(UserModel.user_email == data.user_email).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="User not found"
+    try:
+        user = db.query(UserModel).filter(UserModel.user_email == user_login_data.user_email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="User not found"
+            )
+
+        if not check_password_hash(user.hashed_password, user_login_data.user_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Invalid email or password"
+            )
+
+        # Create JWT token
+        access_token = create_access_token(
+            data={"sub": user.user_email, "user_id": user.user_id}
         )
 
-    if not check_password_hash(user.hashed_password, data.user_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Invalid email or password"
+        # Convert user to response format
+        user_read = UserRead.model_validate(user)
+
+        return LoginResponse(
+            access_token=access_token,
+            token_type="bearer",
+            user=user_read
         )
-
-    # Create JWT token
-    access_token = create_access_token(
-        data={"sub": user.user_email, "user_id": user.user_id}
-    )
-
-    # Convert user to response format
-    user_data = UserRead.model_validate(user)
-
-    return LoginResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=user_data
-    )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
 
 async def get_all_users(db: Session) -> List[UserModel]:
@@ -236,12 +239,11 @@ async def get_user(db: Session, user_id: int) -> UserModel:
         HTTPException: If user not found or database error occurs
     """
     try:
-        user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
+        user = db.get(UserModel, user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
     except HTTPException:
-        # Re-raise HTTPException (e.g., 404) without modification
         raise
     except SQLAlchemyError as e:
         raise HTTPException(
@@ -250,14 +252,14 @@ async def get_user(db: Session, user_id: int) -> UserModel:
         )
 
 
-async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
+async def update_user(db: Session, user_id: int, user_data: UserUpdate) -> UserModel:
     """
     Update an existing user's information.
     
     Args:
         db: Database session
         user_id: User identifier
-        data: Update data
+        user_data: Update data
         
     Returns:
         Updated UserModel instance
@@ -266,23 +268,23 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
         HTTPException: If user not found, email conflict, or database error occurs
     """
     try:
-        user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
+        user = db.get(UserModel, user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         # Apply field updates
-        if data.user_full_name is not None:
-            user.user_full_name = data.user_full_name
-        if data.user_email is not None:
-            user.user_email = data.user_email
-        if data.user_status is not None:
-            user.user_status = data.user_status
-        if data.is_manager is not None:
-            user.is_manager = data.is_manager
+        if user_data.user_full_name is not None:
+            user.user_full_name = user_data.user_full_name
+        if user_data.user_email is not None:
+            user.user_email = user_data.user_email
+        if user_data.user_status is not None:
+            user.user_status = user_data.user_status
+        if user_data.is_manager is not None:
+            user.is_manager = user_data.is_manager
 
         # Update roles if provided
-        if data.roles_by_id is not None:
-            roles = _resolve_roles(db, data.roles_by_id)
+        if user_data.roles_by_id is not None:
+            roles = _resolve_roles(db, user_data.roles_by_id)
             user.roles = roles
 
         db.commit()
@@ -295,15 +297,7 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
         raise
     except IntegrityError as e:
         db.rollback()
-        # Check if it's a unique constraint violation for email
         error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
-            if 'user_email' in error_str.lower() or 'email' in error_str.lower():
-                email = data.user_email if data.user_email else user.user_email
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Email '{email}' is already in use."
-                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Database constraint violation: {error_str}"
@@ -319,19 +313,19 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
 async def delete_user(db: Session, user_id: int) -> dict:
     """
     Delete a user from the database.
-    
+
     Args:
         db: Database session
         user_id: User identifier
-        
+
     Returns:
         Success message dictionary
-        
+
     Raises:
         HTTPException: If user not found or database error occurs
     """
     try:
-        user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
+        user = db.get(UserModel, user_id)
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -340,19 +334,11 @@ async def delete_user(db: Session, user_id: int) -> dict:
         return {"message": "User deleted successfully"}
 
     except HTTPException:
-        # Re-raise HTTPException (e.g., 404, 400) without modification
         db.rollback()
         raise
     except IntegrityError as e:
         db.rollback()
-        # Check if it's a unique constraint violation for email
         error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
-            if 'user_email' in error_str.lower() or 'email' in error_str.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Email '{data.user_email}' is already in use."
-                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Database constraint violation: {error_str}"

@@ -5,8 +5,10 @@ This module defines Pydantic schemas for planned shift data validation and seria
 in API requests and responses.
 """
 
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
-from datetime import date, datetime
+import datetime
 from typing import Optional, List
 from enum import Enum
 from app.schemas.shiftAssignmentSchema import ShiftAssignmentRead
@@ -26,9 +28,9 @@ class PlannedShiftBase(BaseModel):
     """Base schema for planned shifts with common fields."""
     weekly_schedule_id: int = Field(..., description="ID of the weekly schedule containing this shift", gt=0)
     shift_template_id: int = Field(..., description="ID of the shift template this shift is based on", gt=0)
-    date: date = Field(..., description="Date of the shift")
-    start_time: datetime = Field(..., description="Start date and time of the shift")
-    end_time: datetime = Field(..., description="End date and time of the shift")
+    date: datetime.date = Field(..., description="Date of the shift")
+    start_time: datetime.datetime = Field(..., description="Start date and time of the shift")
+    end_time: datetime.datetime = Field(..., description="End date and time of the shift")
     location: str = Field(
         ...,
         min_length=1,
