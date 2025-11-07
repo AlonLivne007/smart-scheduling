@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from app.db.models.userModel import UserModel
 from app.db.models.roleModel import RoleModel
 from app.schemas.userSchema import UserCreate, UserUpdate, UserLogin, \
@@ -52,7 +52,7 @@ def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[Ro
             detail=f"The following role IDs do not exist: {missing}"
         )
 
-    return roles
+    return list(set(roles))
 
 
 async def create_user(db: Session, data: UserCreate) -> UserModel:
@@ -70,13 +70,6 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
         HTTPException: If email exists or database error occurs
     """
     try:
-        # Check for unique email
-        if db.query(UserModel).filter(UserModel.user_email == data.user_email).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Email '{data.user_email}' is already in use."
-            )
-        
         # Hash password and create user
         hashed_pw = generate_password_hash(data.user_password)
         user = UserModel(
@@ -97,6 +90,24 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
         db.refresh(user)
         return user
 
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404, 400) without modification
+        db.rollback()
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        # Check if it's a unique constraint violation for email
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
+            if 'user_email' in error_str.lower() or 'email' in error_str.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{data.user_email}' is already in use."
+                )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database constraint violation: {error_str}"
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
@@ -203,10 +214,10 @@ async def get_all_users(db: Session) -> List[UserModel]:
     """
     try:
         return db.query(UserModel).all()
-    except Exception as e:
+    except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Database error: {str(e)}"
         )
 
 
@@ -229,10 +240,13 @@ async def get_user(db: Session, user_id: int) -> UserModel:
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
-    except Exception as e:
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404) without modification
+        raise
+    except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=f"Database error: {str(e)}"
         )
 
 
@@ -256,14 +270,6 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        # Validate email uniqueness if changed
-        if data.user_email and data.user_email != user.user_email:
-            if db.query(UserModel).filter(UserModel.user_email == data.user_email).first():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Email '{data.user_email}' is already in use."
-                )
-
         # Apply field updates
         if data.user_full_name is not None:
             user.user_full_name = data.user_full_name
@@ -283,6 +289,25 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
         db.refresh(user)
         return user
 
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404, 400) without modification
+        db.rollback()
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        # Check if it's a unique constraint violation for email
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
+            if 'user_email' in error_str.lower() or 'email' in error_str.lower():
+                email = data.user_email if data.user_email else user.user_email
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{email}' is already in use."
+                )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database constraint violation: {error_str}"
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
@@ -314,6 +339,24 @@ async def delete_user(db: Session, user_id: int) -> dict:
         db.commit()
         return {"message": "User deleted successfully"}
 
+    except HTTPException:
+        # Re-raise HTTPException (e.g., 404, 400) without modification
+        db.rollback()
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        # Check if it's a unique constraint violation for email
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
+            if 'user_email' in error_str.lower() or 'email' in error_str.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email '{data.user_email}' is already in use."
+                )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database constraint violation: {error_str}"
+        )
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(

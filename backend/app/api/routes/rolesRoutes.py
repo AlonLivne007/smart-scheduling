@@ -18,7 +18,7 @@ from app.schemas.roleSchema import RoleRead, RoleCreate
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED,
+@router.post("/", response_model=RoleRead, status_code=status.HTTP_201_CREATED,
              summary="Create a new role")
 async def add_role(role_data: RoleCreate, db: Session = Depends(get_db)):
     """
@@ -31,7 +31,8 @@ async def add_role(role_data: RoleCreate, db: Session = Depends(get_db)):
     Returns:
         Created role data
     """
-    return await create_role(db, role_data)
+    role = await create_role(db, role_data)
+    return role
 
 
 @router.get("/", response_model=List[RoleRead], status_code=status.HTTP_200_OK,
@@ -46,7 +47,8 @@ async def list_roles(db: Session = Depends(get_db)):
     Returns:
         List of all roles
     """
-    return await get_all_roles(db)
+    roles = await get_all_roles(db)
+    return roles
 
 
 @router.get("/{role_id}", response_model=RoleRead,
@@ -62,7 +64,8 @@ async def get_single_role(role_id: int, db: Session = Depends(get_db)):
     Returns:
         Role data
     """
-    return await get_role(db, role_id)
+    role = await get_role(db, role_id)
+    return role
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_200_OK,
@@ -78,4 +81,5 @@ async def remove_role(role_id: int, db: Session = Depends(get_db)):
     Returns:
         Deletion confirmation message
     """
-    return await delete_role(db, role_id)
+    result = await delete_role(db, role_id)
+    return result
