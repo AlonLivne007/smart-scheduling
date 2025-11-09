@@ -1,23 +1,24 @@
 /**
  * LoginForm Component
- * 
+ *
  * Handles the main login form with email and password fields.
- * Manages form state and submission logic for user authentication.
- * 
+ * Supports a submitting state to disable inputs and show progress.
+ *
  * @component
- * @param {Object} props - Component props
- * @param {Object} props.formData - Current form data state
- * @param {Function} props.onInputChange - Handler for input field changes
- * @param {Function} props.onSubmit - Handler for form submission
- * @returns {JSX.Element} The login form
+ * @param {Object}   props
+ * @param {Object}   props.formData
+ * @param {Function} props.onInputChange
+ * @param {Function} props.onSubmit
+ * @param {boolean}  [props.submitting=false]
+ * @returns {JSX.Element}
  */
-import React from 'react';
-import InputField from '../../components/ui/InputField.jsx';
-import Button from '../../components/ui/Button.jsx';
+import React from "react";
+import InputField from "../../components/ui/InputField.jsx";
+import Button from "../../components/ui/Button.jsx";
 
-function LoginForm({ formData, onInputChange, onSubmit }) {
+function LoginForm({ formData, onInputChange, onSubmit, submitting = false }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6" aria-busy={submitting}>
       {/* Email Field */}
       <InputField
         label="Email Address"
@@ -27,6 +28,8 @@ function LoginForm({ formData, onInputChange, onSubmit }) {
         value={formData.email}
         onChange={onInputChange}
         required
+        autoComplete="email"
+        disabled={submitting}
       />
 
       {/* Password Field */}
@@ -38,11 +41,18 @@ function LoginForm({ formData, onInputChange, onSubmit }) {
         value={formData.password}
         onChange={onInputChange}
         required
+        autoComplete="current-password"
+        disabled={submitting}
       />
 
       {/* Login Button */}
-      <Button type="submit" variant="primary" className="w-full">
-        Login
+      <Button
+        type="submit"
+        variant="primary"
+        className="w-full"
+        disabled={submitting}
+      >
+        {submitting ? "Logging in..." : "Login"}
       </Button>
     </form>
   );

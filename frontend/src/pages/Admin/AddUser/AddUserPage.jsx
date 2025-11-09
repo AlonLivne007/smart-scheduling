@@ -1,178 +1,211 @@
-/**
- * AddUserPage Component
- * 
- * Main container component for the admin add user page that orchestrates all sub-components.
- * Manages the overall layout, form state, validation, and coordinates between child components.
- * 
- * Features:
- * - Soft blue-to-white gradient background
- * - Centered form card with shadow
- * - Modular component structure for maintainability
- * - Form validation with error handling
- * - Admin-focused user creation workflow
- * 
- * @component
- * @returns {JSX.Element} The complete add user admin page
- */
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import AddUserHeader from './AddUserHeader.jsx';
-import AddUserForm from './AddUserForm.jsx';
-import AddUserActions from './AddUserActions.jsx';
-import PageLayout from '../../../layouts/PageLayout.jsx';
-import Card from '../../../components/ui/Card.jsx';
+// frontend/src/pages/Admin/AddUser/AddUserPage.jsx
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../../../lib/axios";
+import InputField from "../../../components/ui/InputField.jsx";
+import Button from "../../../components/ui/Button.jsx";
+
+const DEFAULT_FORM = {
+  user_full_name: "",
+  user_email: "",
+  user_password: "",
+  user_status: "active",   // active | vacation | sick  (your enum)
+  is_manager: false,
+  role_id: "",             // we'll store single selected role id here
+};
 
 export default function AddUserPage() {
   const navigate = useNavigate();
-  
-  // Form state management
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    role: '',
-    is_manager: false
-  });
 
-  // Error state management
-  const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [roles, setRoles] = useState([]);     // list from GET /roles
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  /**
-   * Handles input field changes and updates form state
-   * Clears validation errors when user starts typing
-   * @param {Event} e - Input change event
-   */
-  const handleInputChange = (e) => {
+  // Load roles for the selector
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const { data } = await api.get("/roles");
+        if (!canceled) setRoles(data || []);
+      } catch (e) {
+        if (!canceled) {
+          const m = e?.response?.data?.detail || e.message || "Failed to load roles";
+          setError(m);
+        }
+      } finally {
+        if (!canceled) setLoading(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  function onChange(e) {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
+  }
 
-  /**
-   * Validates the add user form and sets error messages
-   * @returns {boolean} True if form is valid, false otherwise
-   */
-  const validateForm = () => {
-    const newErrors = {};
-
-    // Full name validation
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (formData.fullName.trim().length < 2) {
-      newErrors.fullName = 'Full name must be at least 2 characters';
-    }
-
-    // Email validation
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    // Password validation
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
-
-    // Role validation
-    if (!formData.role) {
-      newErrors.role = 'Role is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  /**
-   * Handles form submission for user creation
-   * Validates form before processing
-   * @param {Event} e - Form submit event
-   */
-  const handleSubmit = (e) => {
+  async function onSubmit(e) {
     e.preventDefault();
-    
-    if (validateForm()) {
-      handleCreateUser();
-    }
-  };
+    setError("");
 
-  /**
-   * Handles the create user action
-   * Simulates API call and navigation
-   */
-  const handleCreateUser = async () => {
-    setIsLoading(true);
-    
+    // small validations
+    if (!form.user_full_name.trim()) return setError("Full name is required.");
+    if (!form.user_email.trim()) return setError("Email is required.");
+    if (!form.user_password.trim()) return setError("Password is required.");
+    if (!form.role_id) return setError("Please select a role.");
+
+    setSaving(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Handle user creation logic here
-      console.log('Creating user with data:', {
-        user_full_name: formData.fullName,
-        user_email: formData.email,
-        user_hashed_password: formData.password, // This would be hashed on backend
-        is_manager: formData.is_manager,
-        role: formData.role
-      });
-      
-      // Navigate back to admin dashboard or users list
-      navigate('/admin/users');
-    } catch (error) {
-      console.error('Error creating user:', error);
-      // Handle error (show notification, etc.)
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      // Build payload expected by backend
+      const payload = {
+        user_full_name: form.user_full_name,
+        user_email: form.user_email,
+        user_password: form.user_password,
+        user_status: form.user_status,  // "active" | "vacation" | "sick"
+        is_manager: form.is_manager,
+        roles_by_id: [Number(form.role_id)], // single role selection
+      };
 
-  /**
-   * Handles cancel action
-   * Navigates back to previous page or admin dashboard
-   */
-  const handleCancel = () => {
-    navigate(-1); // Go back to previous page
-  };
+      await api.post("/users", payload); // admin-only; backend enforces RBAC
+      navigate("/employees", { replace: true });
+    } catch (e) {
+      const m =
+        e?.response?.data?.detail ||
+        e.message ||
+        "Failed to create user. Please try again.";
+      setError(m);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <PageLayout>
-      <div className="w-full max-w-2xl mx-auto">
-        {/* Header Section - Logo and Page Title */}
-        <AddUserHeader />
+    <div className="max-w-2xl">
+      <h1 className="mb-4 text-2xl font-semibold">Add New Employee</h1>
 
-        {/* Add User Card */}
-        <Card padding="large" hover>
-          {/* Add User Form */}
-          <AddUserForm 
-            formData={formData}
-            errors={errors}
-            onInputChange={handleInputChange}
-            onSubmit={handleSubmit}
-          />
+      {/* Error line */}
+      {error && (
+        <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-          {/* Action Buttons */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <AddUserActions 
-              onCreateUser={handleCreateUser}
-              onCancel={handleCancel}
-              isLoading={isLoading}
+      {loading ? (
+        <div className="text-gray-600">Loading roles…</div>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-5 bg-white p-6 rounded-xl shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="Full Name"
+              name="user_full_name"
+              type="text"
+              placeholder="e.g., Dana Cohen"
+              value={form.user_full_name}
+              onChange={onChange}
+              required
+              disabled={saving}
             />
+            <InputField
+              label="Email"
+              name="user_email"
+              type="email"
+              placeholder="name@example.com"
+              value={form.user_email}
+              onChange={onChange}
+              required
+              disabled={saving}
+            />
+            <InputField
+              label="Password"
+              name="user_password"
+              type="password"
+              placeholder="Temporary password"
+              value={form.user_password}
+              onChange={onChange}
+              required
+              disabled={saving}
+            />
+
+            {/* Status select */}
+            <div className="flex flex-col">
+              <label className="mb-1 text-sm font-medium text-gray-700">Status</label>
+              <select
+                name="user_status"
+                value={form.user_status}
+                onChange={onChange}
+                className="rounded border px-3 py-2"
+                disabled={saving}
+              >
+                <option value="active">Active</option>
+                <option value="vacation">Vacation</option>
+                <option value="sick">Sick</option>
+              </select>
+            </div>
+
+            {/* Role select (from DB) */}
+            <div className="flex flex-col">
+              <label className="mb-1 text-sm font-medium text-gray-700">Role</label>
+              <select
+                name="role_id"
+                value={form.role_id}
+                onChange={onChange}
+                className="rounded border px-3 py-2"
+                required
+                disabled={saving}
+              >
+                <option value="">Select a role…</option>
+                {roles.map((r) => (
+                  <option key={r.role_id} value={r.role_id}>
+                    {r.role_name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Roles are loaded from the database.
+              </p>
+            </div>
+
+            {/* Is Manager */}
+            <div className="flex items-center gap-2">
+              <input
+                id="is_manager"
+                name="is_manager"
+                type="checkbox"
+                checked={form.is_manager}
+                onChange={onChange}
+                disabled={saving}
+              />
+              <label htmlFor="is_manager" className="text-sm text-gray-700">
+                Grant manager permissions
+              </label>
+            </div>
           </div>
-        </Card>
-      </div>
-    </PageLayout>
+
+          <div className="flex items-center gap-3">
+            <Button type="submit" variant="primary" disabled={saving}>
+              {saving ? "Creating…" : "Create Employee"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/employees")}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
