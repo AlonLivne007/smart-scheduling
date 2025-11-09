@@ -23,36 +23,36 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/login", response_model=LoginResponse,
              status_code=status.HTTP_200_OK, summary="Authenticate user")
-async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
+async def login_user(user_login_data: UserLogin, db: Session = Depends(get_db)):
     """
     Authenticate a user by email and password.
     
     Args:
-        payload: Login credentials
+        user_login_data: Login credentials
         db: Database session dependency
         
     Returns:
         JWT access token and user data
     """
-    result = await authenticate_user(db, payload)
+    result = await authenticate_user(db, user_login_data)
     return result
 
 
 # Collection routes
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED,
              summary="Create a new user")
-async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
+async def add_user(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Create a new user account.
     
     Args:
-        payload: User creation data
+        user_data: User creation data
         db: Database session dependency
         
     Returns:
         Created user data
     """
-    user = await create_user(db, payload)
+    user = await create_user(db, user_data)
     return user
 
 
@@ -92,20 +92,20 @@ async def get_single_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{user_id}", response_model=UserRead,
             status_code=status.HTTP_200_OK, summary="Update a user")
-async def edit_user(user_id: int, payload: UserUpdate,
+async def edit_user(user_id: int, user_data: UserUpdate,
                     db: Session = Depends(get_db)):
     """
     Update an existing user's information.
     
     Args:
         user_id: User identifier
-        payload: Update data
+        user_data: Update data
         db: Database session dependency
         
     Returns:
         Updated user data
     """
-    user = await update_user(db, user_id, payload)
+    user = await update_user(db, user_id, user_data)
     return user
 
 
