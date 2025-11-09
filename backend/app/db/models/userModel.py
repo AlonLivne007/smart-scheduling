@@ -5,19 +5,20 @@ This module defines the User ORM model representing employees in the scheduling 
 Users can have multiple roles and different status states (active, vacation, sick).
 """
 
-from enum import Enum as PyEnum
+import enum
 
-from sqlalchemy import Column, Integer, String, Boolean, Index, CheckConstraint
+from sqlalchemy import Column, Integer, String, Boolean, CheckConstraint, \
+    Enum as SqlEnum
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
 
 
-class UserStatus(PyEnum):
+class UserStatus(enum.Enum):
     """Employee status enumeration."""
-    ACTIVE = "active"
-    VACATION = "vacation"
-    SICK = "sick"
+    ACTIVE = "ACTIVE"
+    VACATION = "VACATION"
+    SICK = "SICK"
 
 
 class UserModel(Base):
@@ -38,17 +39,12 @@ class UserModel(Base):
     user_id = Column(Integer, primary_key=True, index=True)
     user_full_name = Column(String(255), nullable=False)
     user_email = Column(String(255), unique=True, index=True, nullable=False)
-    user_status = Column(String(50), nullable=False,
-                         default=UserStatus.ACTIVE.value, index=True)
+    user_status = Column(SqlEnum(UserStatus, name="userstatus"), nullable=False,
+                         default=UserStatus.ACTIVE, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_manager = Column(Boolean, default=False)
 
-    __table_args__ = (
-        CheckConstraint(
-            "user_status IN ('active', 'vacation', 'sick')",
-            name="check_user_status"
-        ),
-    )
+
 
     # Many-to-many relationship with roles
     roles = relationship(
@@ -73,4 +69,3 @@ class UserModel(Base):
     def __repr__(self):
         """String representation of the user."""
         return f"<User(name='{self.user_full_name}', email='{self.user_email}')>"
-

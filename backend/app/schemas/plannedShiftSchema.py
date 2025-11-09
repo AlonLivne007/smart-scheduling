@@ -17,10 +17,10 @@ from app.schemas.shiftAssignmentSchema import ShiftAssignmentRead
 # ----------- Enum for status -----------
 class PlannedShiftStatus(str, Enum):
     """Enumeration for planned shift status states."""
-    PLANNED = "planned"
-    PARTIALLY_ASSIGNED = "partially_assigned"
-    FULLY_ASSIGNED = "fully_assigned"
-    CANCELLED = "cancelled"
+    PLANNED = "PLANNED"
+    PARTIALLY_ASSIGNED = "PARTIALLY_ASSIGNED"
+    FULLY_ASSIGNED = "FULLY_ASSIGNED"
+    CANCELLED = "CANCELLED"
 
 
 # ----------- Base Schema -----------

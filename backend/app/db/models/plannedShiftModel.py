@@ -7,7 +7,7 @@ of a shift template for a particular date and time, with assigned employees
 and a status tracking its assignment completion.
 """
 
-from sqlalchemy import Column, Integer, Date, ForeignKey, String, Enum, \
+from sqlalchemy import Column, Integer, Date, ForeignKey, String, Enum as SqlEnum, \
     DateTime, Index
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -24,10 +24,10 @@ class PlannedShiftStatus(enum.Enum):
         FULLY_ASSIGNED: All required roles have been assigned
         CANCELLED: Shift has been cancelled
     """
-    PLANNED = "planned"
-    PARTIALLY_ASSIGNED = "partially_assigned"
-    FULLY_ASSIGNED = "fully_assigned"
-    CANCELLED = "cancelled"
+    PLANNED = "PLANNED"
+    PARTIALLY_ASSIGNED = "PARTIALLY_ASSIGNED"
+    FULLY_ASSIGNED = "FULLY_ASSIGNED"
+    CANCELLED = "CANCELLED"
 
 
 class PlannedShiftModel(Base):
@@ -72,7 +72,7 @@ class PlannedShiftModel(Base):
     location = Column(String(255), nullable=False)
 
     status = Column(
-        Enum(PlannedShiftStatus),
+        SqlEnum(PlannedShiftStatus, name="plannedshiftstatus"),
         nullable=False,
         default=PlannedShiftStatus.PLANNED
     )

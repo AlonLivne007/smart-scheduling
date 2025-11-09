@@ -12,9 +12,9 @@ from enum import Enum
 
 class UserStatus(str, Enum):
     """User employment status enumeration."""
-    ACTIVE = "active"
-    VACATION = "vacation"
-    SICK = "sick"
+    ACTIVE = "ACTIVE"
+    VACATION = "VACATION"
+    SICK = "SICK"
 
 
 class RoleSummary(BaseModel):
