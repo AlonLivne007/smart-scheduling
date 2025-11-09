@@ -1,4 +1,3 @@
-# backend/app/api/controllers/userController.py
 """
 User controller module.
 
@@ -164,7 +163,7 @@ async def get_user(db: Session, user_id: int) -> UserModel:
 
 
 async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
-    """Update an existing user's information."""
+    """Update an existing user's information (incl. optional password, roles)."""
     try:
         user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
         if not user:
@@ -179,6 +178,11 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
         if data.is_manager is not None:
             user.is_manager = data.is_manager
 
+        # NEW: password change
+        if data.new_password:
+            user.hashed_password = generate_password_hash(data.new_password)
+
+        # Replace role set if provided
         if data.roles_by_id is not None:
             roles = _resolve_roles(db, data.roles_by_id)
             user.roles = roles

@@ -19,7 +19,7 @@ class UserStatus(str, Enum):
 
 class RoleSummary(BaseModel):
     """Simplified role representation for user responses."""
-    role_id: int 
+    role_id: int
     role_name: str = Field(..., max_length=100, description="Name of the role")
 
     model_config = {"from_attributes": True}
@@ -58,10 +58,6 @@ class UserCreate(UserBase):
     )
 
 
-
-
-
-
 class UserUpdate(BaseModel):
     """Schema for updating existing users."""
     user_full_name: Optional[str] = Field(
@@ -82,11 +78,18 @@ class UserUpdate(BaseModel):
         default=None,
         description="Managerial privileges flag"
     )
+    # NEW: optional password change
+    new_password: Optional[str] = Field(
+        default=None,
+        min_length=6,
+        max_length=255,
+        description="If provided, replaces the current password"
+    )
+    # If provided, replaces the full role set for the user
     roles_by_id: Optional[List[int]] = Field(
         default=None,
         description="List of role IDs to assign to the user"
     )
-
 
 
 class UserRead(BaseModel):

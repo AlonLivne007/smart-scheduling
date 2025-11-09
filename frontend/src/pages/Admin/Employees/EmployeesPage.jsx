@@ -42,6 +42,10 @@ export default function EmployeesPage() {
     navigate("/admin/add-user");
   }
 
+  function onEdit(userId) {
+    navigate(`/admin/users/${userId}/edit`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -92,13 +96,19 @@ export default function EmployeesPage() {
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-2">
                       <button
+                        onClick={() => onEdit(u.user_id)}
+                        className="rounded bg-gray-100 px-2 py-1 text-gray-800 hover:bg-gray-200"
+                        title="Edit employee"
+                      >
+                        Edit
+                      </button>
+                      <button
                         onClick={() => onDelete(u.user_id)}
                         className="rounded bg-red-50 px-2 py-1 text-red-600 hover:bg-red-100"
                         title="Delete employee"
                       >
                         Delete
                       </button>
-                      {/* (Optional) You can add an Edit button later to update roles/status */}
                     </div>
                   </td>
                 </tr>

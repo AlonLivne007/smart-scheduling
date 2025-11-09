@@ -11,6 +11,7 @@ import MainLayout from "./layouts/MainLayout.jsx";
 import LoginPage from "./pages/login/LoginPage.jsx";
 import AddUserPage from "./pages/Admin/AddUser/AddUserPage.jsx";
 import EmployeesPage from "./pages/Admin/Employees/EmployeesPage.jsx";
+import EditUserPage from "./pages/Admin/Employees/EditUserPage.jsx"; // <-- NEW
 import HomePage from "./pages/HomePage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
@@ -67,12 +68,22 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="test" element={<TestPage />} />
 
-          {/* NEW: Employees (admin-only) */}
+          {/* Employees list (admin) */}
           <Route
             path="employees"
             element={
               <AdminRoute>
                 <EmployeesPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Edit user (admin) */}
+          <Route
+            path="admin/users/:id/edit"
+            element={
+              <AdminRoute>
+                <EditUserPage />
               </AdminRoute>
             }
           />
