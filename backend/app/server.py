@@ -7,7 +7,7 @@ and registers API route handlers for the Smart Scheduling system.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import usersRoutes, rolesRoutes, shiftTemplateRoutes, weeklyScheduleRoutes
+from app.api.routes import usersRoutes, rolesRoutes, shiftTemplateRoutes, weeklyScheduleRoutes, plannedShiftRoutes, shiftAssignmentRoutes
 from app.db.session import engine, Base
 from app.db.models import roleModel, userModel, userRoleModel,shiftTemplateModel, shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel # Ensure all models are imported for table creation
 
@@ -37,3 +37,7 @@ app.include_router(rolesRoutes.router)
 app.include_router(shiftTemplateRoutes.router)
 
 app.include_router(weeklyScheduleRoutes.router)
+
+app.include_router(plannedShiftRoutes.router)
+
+app.include_router(shiftAssignmentRoutes.router)
