@@ -1,125 +1,66 @@
-/**
- * MainLayout Component
- * 
- * The main application layout that provides the overall structure for all pages.
- * Includes a header with logo and sign-out button, and a sidebar navigation.
- * 
- * Features:
- * - Responsive header with branded logo
- * - Sidebar navigation with active state highlighting
- * - Main content area that renders child routes
- * - Consistent blue theme throughout
- * 
- * @component
- * @returns {JSX.Element} The main layout structure
- */
-import { NavLink, Outlet } from 'react-router-dom'
-import Button from '../components/ui/Button.jsx';
-import Logo from '../components/ui/Logo.jsx';
-import { LogOut, Home, Calendar, Settings, TestTube } from 'lucide-react';
+// frontend/src/layouts/MainLayout.jsx
+import React from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { getAuth, logout } from "../lib/auth";
 
 export default function MainLayout() {
+  const navigate = useNavigate();
+  const { user } = getAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
+
+  const linkClass = ({ isActive }) =>
+    `block rounded px-3 py-2 ${isActive ? "bg-blue-100 text-blue-700" : "text-gray-700 hover:bg-gray-100"}`;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
-      {/* Header Section - Contains logo and sign-out button */}
-      <header className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-blue-200">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-4">
-            {/* Brand logo - medium size for header */}
-            <Logo size="medium" />
-            {/* Sign out button - danger variant for logout action */}
-            <button className="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200 flex items-center">
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </button>
-          </div>
+    <div className="min-h-screen grid grid-rows-[auto_1fr]">
+      {/* Header */}
+      <header className="flex items-center justify-between px-4 py-3 border-b bg-white">
+        <div className="flex items-center gap-3">
+          <span className="text-xl font-semibold">Smart Scheduling</span>
+          <span className="text-sm text-gray-500">| Welcome, {user?.user_full_name}</span>
+          {user?.is_manager && (
+            <span className="ml-2 rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">Manager</span>
+          )}
         </div>
+
+        <button
+          onClick={handleLogout}
+          className="rounded bg-gray-100 px-3 py-1.5 text-sm hover:bg-gray-200"
+        >
+          Sign out
+        </button>
       </header>
 
-      <div className="flex">
-        {/* Sidebar Navigation - Fixed width sidebar with navigation links */}
-        <nav className="bg-white/90 backdrop-blur-sm shadow-lg border-r border-blue-200 w-64 min-h-screen">
-          <div className="p-4">
-            <ul className="space-y-2">
-              {/* Home Navigation Link */}
-              <li>
-                <NavLink 
-                  to="/" 
-                  end 
-                  className={({ isActive }) => 
-                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-lg' 
-                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
-                    }`
-                  }
-                >
-                  <Home className="w-4 h-4 mr-3" />
-                  Dashboard
-                </NavLink>
-              </li>
-              
-              {/* Schedule Navigation Link */}
-              <li>
-                <NavLink 
-                  to="/schedule" 
-                  className={({ isActive }) => 
-                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-lg' 
-                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
-                    }`
-                  }
-                >
-                  <Calendar className="w-4 h-4 mr-3" />
-                  Schedule
-                </NavLink>
-              </li>
-              
-              {/* Settings Navigation Link */}
-              <li>
-                <NavLink 
-                  to="/settings" 
-                  className={({ isActive }) => 
-                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-lg' 
-                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
-                    }`
-                  }
-                >
-                  <Settings className="w-4 h-4 mr-3" />
-                  Settings
-                </NavLink>
-              </li>
-              
-              {/* Test UI Navigation Link - For development/testing */}
-              <li>
-                <NavLink 
-                  to="/test" 
-                  className={({ isActive }) => 
-                    `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-blue-600 text-white shadow-lg' 
-                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
-                    }`
-                  }
-                >
-                  <TestTube className="w-4 h-4 mr-3" />
-                  Test UI
-                </NavLink>
-              </li>
-            </ul>
-          </div>
-        </nav>
+      {/* Body: Sidebar + Content */}
+      <div className="grid grid-cols-[220px_1fr] min-h-0">
+        {/* Sidebar */}
+        <aside className="border-r bg-white p-3 space-y-1">
+          <NavLink to="/" end className={linkClass}>
+            Dashboard
+          </NavLink>
+          <NavLink to="/schedule" className={linkClass}>
+            Schedule
+          </NavLink>
+          <NavLink to="/settings" className={linkClass}>
+            Settings
+          </NavLink>
+          {/* Admin-only Employees link */}
+          {user?.is_manager && (
+            <NavLink to="/employees" className={linkClass}>
+              Employees
+            </NavLink>
+          )}
+        </aside>
 
-        {/* Main Content Area - Renders child route components */}
-        <main className="flex-1">
+        {/* Content */}
+        <main className="p-4 overflow-auto bg-gray-50">
           <Outlet />
         </main>
       </div>
     </div>
-  )
+  );
 }
-
-
