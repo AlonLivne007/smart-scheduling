@@ -18,7 +18,6 @@ from app.schemas.shiftTemplateSchema import (
     ShiftTemplateCreate,
     ShiftTemplateUpdate,
     ShiftTemplateRead,
-    RoleRequirementBase,
     RoleRequirementRead,
 )
 
@@ -27,23 +26,7 @@ from app.schemas.shiftTemplateSchema import (
 # Helper functions
 # ------------------------
 
-def _ensure_roles_exist(db: Session, role_reqs: List[RoleRequirementBase]) -> None:
-    """Validate all role IDs exist."""
-    if not role_reqs:
-        return
-    role_ids = {r.role_id for r in role_reqs}
-    found = db.execute(
-        select(RoleModel.role_id).where(RoleModel.role_id.in_(role_ids))
-    ).scalars().all()
-    missing = role_ids.difference(found)
-    if missing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Role IDs not found: {sorted(list(missing))}",
-        )
-
-
-def _fetch_role_requirements(db: Session, template_id: int) -> List[RoleRequirementRead]:
+async def _fetch_role_requirements(db: Session, template_id: int) -> List[RoleRequirementRead]:
     """Return the roles + required_count for a given template."""
     rows = db.execute(
         select(
@@ -65,7 +48,7 @@ def _fetch_role_requirements(db: Session, template_id: int) -> List[RoleRequirem
     ]
 
 
-def _serialize_template(db: Session, template: ShiftTemplateModel) -> ShiftTemplateRead:
+async def _serialize_template(db: Session, template: ShiftTemplateModel) -> ShiftTemplateRead:
     """Convert ORM object to Pydantic model."""
     return ShiftTemplateRead(
         shift_template_id=template.shift_template_id,
@@ -73,7 +56,7 @@ def _serialize_template(db: Session, template: ShiftTemplateModel) -> ShiftTempl
         start_time=template.start_time,
         end_time=template.end_time,
         location=template.location,
-        required_roles=_fetch_role_requirements(db, template.shift_template_id),
+        required_roles=await _fetch_role_requirements(db, template.shift_template_id),
     )
 
 
@@ -81,7 +64,7 @@ def _serialize_template(db: Session, template: ShiftTemplateModel) -> ShiftTempl
 # CRUD functions
 # ------------------------
 
-def create_shift_template(db: Session, shift_template_data: ShiftTemplateCreate) -> ShiftTemplateRead:
+async def create_shift_template(db: Session, shift_template_data: ShiftTemplateCreate) -> ShiftTemplateRead:
     """
     Create a new shift template with optional required roles.
     
@@ -96,8 +79,6 @@ def create_shift_template(db: Session, shift_template_data: ShiftTemplateCreate)
         HTTPException: If template name exists or database error occurs
     """
     try:
-        _ensure_roles_exist(db, shift_template_data.required_roles or [])
-
         template = ShiftTemplateModel(
             shift_template_name=shift_template_data.shift_template_name,
             start_time=shift_template_data.start_time,
@@ -123,21 +104,14 @@ def create_shift_template(db: Session, shift_template_data: ShiftTemplateCreate)
 
         db.commit()
         db.refresh(template)
-        return _serialize_template(db, template)
+        return await _serialize_template(db, template)
     
     except HTTPException:
         db.rollback()
         raise
     except IntegrityError as e:
         db.rollback()
-        # Check if it's a unique constraint violation
         error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
-            if 'shift_template_name' in error_str.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Shift template '{shift_template_data.shift_template_name}' already exists"
-                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Database constraint violation: {error_str}"
@@ -150,7 +124,7 @@ def create_shift_template(db: Session, shift_template_data: ShiftTemplateCreate)
         )
 
 
-def list_shift_templates(db: Session) -> List[ShiftTemplateRead]:
+async def get_all_shift_templates(db: Session) -> List[ShiftTemplateRead]:
     """
     Retrieve all shift templates from the database.
     
@@ -165,7 +139,10 @@ def list_shift_templates(db: Session) -> List[ShiftTemplateRead]:
     """
     try:
         templates = db.execute(select(ShiftTemplateModel)).scalars().all()
-        return [_serialize_template(db, t) for t in templates]
+        result = []
+        for t in templates:
+            result.append(await _serialize_template(db, t))
+        return result
     except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -173,7 +150,7 @@ def list_shift_templates(db: Session) -> List[ShiftTemplateRead]:
         )
 
 
-def get_shift_template(db: Session, template_id: int) -> ShiftTemplateRead:
+async def get_shift_template(db: Session, template_id: int) -> ShiftTemplateRead:
     """
     Retrieve a single shift template by ID.
     
@@ -194,7 +171,7 @@ def get_shift_template(db: Session, template_id: int) -> ShiftTemplateRead:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Shift template not found"
             )
-        return _serialize_template(db, template)
+        return await _serialize_template(db, template)
     except HTTPException:
         raise
     except SQLAlchemyError as e:
@@ -204,7 +181,7 @@ def get_shift_template(db: Session, template_id: int) -> ShiftTemplateRead:
         )
 
 
-def update_shift_template(db: Session, template_id: int, shift_template_data: ShiftTemplateUpdate) -> ShiftTemplateRead:
+async def update_shift_template(db: Session, template_id: int, shift_template_data: ShiftTemplateUpdate) -> ShiftTemplateRead:
     """
     Update an existing shift template.
     
@@ -239,7 +216,6 @@ def update_shift_template(db: Session, template_id: int, shift_template_data: Sh
 
         # Update roles if provided
         if shift_template_data.required_roles is not None:
-            _ensure_roles_exist(db, shift_template_data.required_roles)
             db.execute(
                 delete(shift_role_requirements).where(
                     shift_role_requirements.c.shift_template_id == template_id
@@ -260,21 +236,14 @@ def update_shift_template(db: Session, template_id: int, shift_template_data: Sh
 
         db.commit()
         db.refresh(template)
-        return _serialize_template(db, template)
+        return await _serialize_template(db, template)
     
     except HTTPException:
         db.rollback()
         raise
     except IntegrityError as e:
         db.rollback()
-        # Check if it's a unique constraint violation
         error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
-            if 'shift_template_name' in error_str.lower() and shift_template_data.shift_template_name:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Shift template '{shift_template_data.shift_template_name}' already exists"
-                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Database constraint violation: {error_str}"
@@ -287,7 +256,7 @@ def update_shift_template(db: Session, template_id: int, shift_template_data: Sh
         )
 
 
-def delete_shift_template(db: Session, template_id: int) -> None:
+async def delete_shift_template(db: Session, template_id: int) -> None:
     """
     Delete a shift template from the database.
     
@@ -329,9 +298,10 @@ def delete_shift_template(db: Session, template_id: int) -> None:
         raise
     except IntegrityError as e:
         db.rollback()
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete shift template: {str(e)}"
+            detail=f"Database constraint violation: {error_str}"
         )
     except SQLAlchemyError as e:
         db.rollback()

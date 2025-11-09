@@ -8,12 +8,13 @@ creation, retrieval, and deletion of role records.
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import Session
+from typing import List
 
 from app.db.models.roleModel import RoleModel
 from app.schemas.roleSchema import RoleCreate
 
 
-async def create_role(db: Session, role_data: RoleCreate):
+async def create_role(db: Session, role_data: RoleCreate) -> RoleModel:
     """
     Create a new role.
     
@@ -36,30 +37,24 @@ async def create_role(db: Session, role_data: RoleCreate):
         return new_role
 
     except HTTPException:
-        # Re-raise HTTPException (e.g., 400 from duplicate role name) without modification
         db.rollback()
         raise
     except IntegrityError as e:
         db.rollback()
-        # Check if it's a unique constraint violation for role name
         error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
-        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
-            if 'role_name' in error_str.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Role '{role_data.role_name}' already exists."
-                )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Database constraint violation: {error_str}"
         )
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
 
-async def get_all_roles(db: Session):
+async def get_all_roles(db: Session) -> List[RoleModel]:
     """
     Retrieve all roles from the database.
     
@@ -76,11 +71,13 @@ async def get_all_roles(db: Session):
         roles = db.query(RoleModel).all()
         return roles
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
 
-async def get_role(db: Session, role_id: int):
+async def get_role(db: Session, role_id: int) -> RoleModel:
     """
     Retrieve a single role by ID.
     
@@ -95,21 +92,23 @@ async def get_role(db: Session, role_id: int):
         HTTPException: If role not found or database error occurs
     """
     try:
-        role = db.query(RoleModel).filter(RoleModel.role_id == role_id).first()
+        role = db.get(RoleModel, role_id)
         if not role:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail="Role not found")
-
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Role not found"
+            )
         return role
     except HTTPException:
-        # Re-raise HTTPException (e.g., 404) without modification
         raise
     except SQLAlchemyError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
 
-async def delete_role(db: Session, role_id: int):
+async def delete_role(db: Session, role_id: int) -> dict:
     """
     Delete a role from the database.
     
@@ -124,10 +123,12 @@ async def delete_role(db: Session, role_id: int):
         HTTPException: If role not found or database error occurs
     """
     try:
-        role = db.query(RoleModel).filter(RoleModel.role_id == role_id).first()
+        role = db.get(RoleModel, role_id)
         if not role:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail="Role not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Role not found"
+            )
 
         db.delete(role)
         db.commit()
@@ -137,17 +138,18 @@ async def delete_role(db: Session, role_id: int):
         }
 
     except HTTPException:
-        # Re-raise HTTPException (e.g., 404, 400) without modification
         db.rollback()
         raise
     except IntegrityError as e:
         db.rollback()
-        # Handle any other integrity constraint violations
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete role: {str(e)}"
+            detail=f"Database constraint violation: {error_str}"
         )
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
