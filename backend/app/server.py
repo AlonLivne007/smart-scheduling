@@ -1,3 +1,4 @@
+# backend/app/server.py
 """
 FastAPI application entry point.
 
@@ -9,7 +10,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import usersRoutes, rolesRoutes, shiftTemplateRoutes, weeklyScheduleRoutes, plannedShiftRoutes, shiftAssignmentRoutes
 from app.db.session import engine, Base
-from app.db.models import roleModel, userModel, userRoleModel,shiftTemplateModel, shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel # Ensure all models are imported for table creation
+from app.db.models import (
+    roleModel, userModel, userRoleModel, shiftTemplateModel,
+    shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel
+)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

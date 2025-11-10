@@ -1,3 +1,4 @@
+# backend/app/api/routes/usersRoutes.py
 """
 User routes module.
 
@@ -7,7 +8,7 @@ including CRUD operations for user records.
 
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.controllers.userController import (
@@ -15,112 +16,111 @@ from app.api.controllers.userController import (
     authenticate_user
 )
 from app.db.session import get_db
-from app.schemas.userSchema import UserCreate, UserRead, UserUpdate, UserLogin, \
-    LoginResponse
+from app.schemas.userSchema import (
+    UserCreate, UserRead, UserUpdate, UserLogin, LoginResponse
+)
+
+# AuthN/Authorizaton
+from app.api.controllers.authController import get_current_user
+from app.db.models.userModel import UserModel
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+# ----------------------- AuthZ helpers -----------------------
 
-@router.post("/login", response_model=LoginResponse,
-             status_code=status.HTTP_200_OK, summary="Authenticate user")
-async def login_user(user_login_data: UserLogin, db: Session = Depends(get_db)):
+async def require_auth(current_user: UserModel = Depends(get_current_user)) -> UserModel:
+    """Allow any authenticated user."""
+    return current_user
+
+async def require_manager(current_user: UserModel = Depends(get_current_user)) -> UserModel:
+    """Allow only managers (is_manager=True)."""
+    if not getattr(current_user, "is_manager", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    return current_user
+
+# ------------------------------------------------------------
+
+
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Authenticate user",
+)
+async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
     """
     Authenticate a user by email and password.
-    
-    Args:
-        user_login_data: Login credentials
-        db: Database session dependency
-        
+
     Returns:
-        JWT access token and user data
+        JWT access token and user data (includes is_manager).
     """
-    result = await authenticate_user(db, user_login_data)
-    return result
+    return await authenticate_user(db, payload)
 
 
-# Collection routes
-@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED,
-             summary="Create a new user")
-async def add_user(user_data: UserCreate, db: Session = Depends(get_db)):
-    """
-    Create a new user account.
-    
-    Args:
-        user_data: User creation data
-        db: Database session dependency
-        
-    Returns:
-        Created user data
-    """
-    user = await create_user(db, user_data)
-    return user
+@router.get(
+    "/me",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get current authenticated user",
+    dependencies=[Depends(require_auth)],
+)
+async def get_me(current_user: UserModel = Depends(get_current_user)):
+    return current_user
 
 
-@router.get("/", response_model=List[UserRead], status_code=status.HTTP_200_OK,
-            summary="Get all users")
+# ---------------------- Collection routes -------------------
+
+@router.post(
+    "/",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new user",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
+async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
+    return await create_user(db, payload)
+
+
+@router.get(
+    "/",
+    response_model=List[UserRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all users",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
 async def list_users(db: Session = Depends(get_db)):
-    """
-    Retrieve all users from the system.
-    
-    Args:
-        db: Database session dependency
-        
-    Returns:
-        List of all users
-    """
-    users = await get_all_users(db)
-    return users
+    return await get_all_users(db)
 
 
-# Resource routes (parameterized)
-@router.get("/{user_id}", response_model=UserRead,
-            status_code=status.HTTP_200_OK, summary="Get a user by ID")
+# ---------------------- Resource routes ---------------------
+
+@router.get(
+    "/{user_id}",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get a user by ID",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
 async def get_single_user(user_id: int, db: Session = Depends(get_db)):
-    """
-    Retrieve a specific user by their ID.
-    
-    Args:
-        user_id: User identifier
-        db: Database session dependency
-        
-    Returns:
-        User data
-    """
-    user = await get_user(db, user_id)
-    return user
+    return await get_user(db, user_id)
 
 
-@router.put("/{user_id}", response_model=UserRead,
-            status_code=status.HTTP_200_OK, summary="Update a user")
-async def edit_user(user_id: int, user_data: UserUpdate,
-                    db: Session = Depends(get_db)):
-    """
-    Update an existing user's information.
-    
-    Args:
-        user_id: User identifier
-        user_data: Update data
-        db: Database session dependency
-        
-    Returns:
-        Updated user data
-    """
-    user = await update_user(db, user_id, user_data)
-    return user
+@router.put(
+    "/{user_id}",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Update a user",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
+async def edit_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
+    return await update_user(db, user_id, payload)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_200_OK,
-               summary="Delete a user")
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a user",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
 async def remove_user(user_id: int, db: Session = Depends(get_db)):
-    """
-    Delete a user from the system.
-    
-    Args:
-        user_id: User identifier
-        db: Database session dependency
-        
-    Returns:
-        Deletion confirmation message
-    """
-    result = await delete_user(db, user_id)
-    return result
+    return await delete_user(db, user_id)
