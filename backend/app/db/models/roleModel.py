@@ -9,6 +9,8 @@ multiple roles through a many-to-many relationship.
 from sqlalchemy import Column, Integer, String, Index
 from sqlalchemy.orm import relationship
 from app.db.session import Base
+from app.db.models.userRoleModel import user_roles
+from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
 
 
 class RoleModel(Base):
@@ -28,7 +30,7 @@ class RoleModel(Base):
     # Many-to-many relationship with users
     users = relationship(
         "UserModel",
-        secondary="user_roles",
+        secondary=user_roles,
         back_populates="roles",
         lazy="selectin"
     )
@@ -41,7 +43,7 @@ class RoleModel(Base):
     )
 
     assignments = relationship(
-        "ShiftAssignmentModel",
+        ShiftAssignmentModel,
         back_populates="role",
         lazy="selectin"
     )

@@ -9,6 +9,9 @@ from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
+from app.db.models.userRoleModel import user_roles
+from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
+from app.db.models.timeOffRequestModel import TimeOffRequestModel
 
 
 class UserModel(Base):
@@ -36,7 +39,8 @@ class UserModel(Base):
     # Many-to-many relationship with roles
     roles = relationship(
         "RoleModel",
-        secondary="user_roles",
+        secondary=user_roles,
+        back_populates="users",
         lazy="selectin",
     )
 
@@ -47,15 +51,15 @@ class UserModel(Base):
     )
 
     assignments = relationship(
-        "ShiftAssignmentModel",
+        ShiftAssignmentModel,
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin"
     )
 
     time_off_requests = relationship(
-        "TimeOffRequestModel",
-        foreign_keys="TimeOffRequestModel.user_id",
+        TimeOffRequestModel,
+        foreign_keys=[TimeOffRequestModel.user_id],
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin"

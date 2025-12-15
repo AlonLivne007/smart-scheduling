@@ -5,7 +5,7 @@ This module defines the association table for the many-to-many relationship
 between users and roles, enabling users to have multiple roles.
 """
 
-from sqlalchemy import Column, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, ForeignKey, UniqueConstraint, Table
 from app.db.session import Base
 
 
@@ -30,3 +30,9 @@ class UserRoleModel(Base):
     def __repr__(self):
         """String representation of the user-role association."""
         return f"<UserRole(user_id={self.user_id}, role_id={self.role_id})>"
+
+
+# Expose the underlying table for use as a many-to-many "secondary" target.
+# This lets other models import `user_roles` directly instead of relying on
+# string-based resolution, which was causing the mapper configuration error.
+user_roles: Table = UserRoleModel.__table__
