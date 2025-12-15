@@ -20,25 +20,12 @@ from app.schemas.userSchema import (
     UserCreate, UserRead, UserUpdate, UserLogin, LoginResponse
 )
 
-# AuthN/Authorizaton
+# AuthN/Authorization
 from app.api.controllers.authController import get_current_user
+from app.api.dependencies.auth import require_auth, require_manager
 from app.db.models.userModel import UserModel
 
 router = APIRouter(prefix="/users", tags=["Users"])
-
-# ----------------------- AuthZ helpers -----------------------
-
-async def require_auth(current_user: UserModel = Depends(get_current_user)) -> UserModel:
-    """Allow any authenticated user."""
-    return current_user
-
-async def require_manager(current_user: UserModel = Depends(get_current_user)) -> UserModel:
-    """Allow only managers (is_manager=True)."""
-    if not getattr(current_user, "is_manager", False):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
-    return current_user
-
-# ------------------------------------------------------------
 
 
 @router.post(

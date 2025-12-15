@@ -1,31 +1,102 @@
-# backend/app/api/controllers/authController.py
+"""
+Authentication controller module.
+
+This module handles JWT token creation, verification, and user authentication
+for the Smart Scheduling application.
+"""
+from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-import os
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.db.models.userModel import UserModel
 
-# Load JWT config from environment (set via docker-compose or .env)
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-change-this-in-production")
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-
 # Matches your /users/login route
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/login")
+bearer_scheme = HTTPBearer()
+
+
+def create_access_token(data: dict) -> str:
+    """
+    Create a JWT token with expiration time.
+    
+    Args:
+        data: Dictionary containing token payload (typically user_email and user_id)
+        
+    Returns:
+        str: Encoded JWT token string
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.JWT_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM
+    )
+    return encoded_jwt
+
+
+def verify_token(token: str) -> dict:
+    """
+    Verify and decode JWT token.
+    
+    Args:
+        token: JWT token string to verify
+        
+    Returns:
+        dict: Decoded token payload
+        
+    Raises:
+        HTTPException: If token is invalid or expired
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> UserModel:
+    """
+    Dependency function to get the current authenticated user from JWT token.
+    
+    Args:
+        token: JWT token from Authorization header
+        db: Database session
+        
+    Returns:
+        UserModel: The authenticated user
+        
+    Raises:
+        HTTPException: If token is invalid or user not found
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    token = creds.credentials
+
     try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
         email = payload.get("sub")         # you encode sub = user_email
         uid = payload.get("user_id")       # and also user_id
     except JWTError:

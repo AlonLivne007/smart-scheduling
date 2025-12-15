@@ -7,7 +7,7 @@
  * Planned Features:
  * - Calendar view for schedule visualization
  * - Drag-and-drop schedule creation
- * - Employee availability management
+ * - Employee time-off management
  * - Shift templates and patterns
  * - Schedule conflict detection
  * - Export and sharing capabilities

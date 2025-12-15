@@ -8,20 +8,11 @@ for the Smart Scheduling application using SQLAlchemy with PostgreSQL.
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-import os
 
-# Load environment variables
-load_dotenv()
-
-# Database connection URL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@db:5432/scheduler_db"
-)
+from app.core.config import settings
 
 # Create database engine
-engine = create_engine(DATABASE_URL)
+engine = create_engine(settings.DATABASE_URL)
 
 # Configure session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

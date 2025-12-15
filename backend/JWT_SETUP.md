@@ -53,7 +53,6 @@ Content-Type: application/json
     "user_id": 1,
     "user_full_name": "John Doe",
     "user_email": "user@example.com",
-    "user_status": "active",
     "is_manager": false,
     "roles": []
   }

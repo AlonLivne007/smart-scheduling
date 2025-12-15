@@ -7,14 +7,6 @@ in API requests and responses.
 
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr, Field
-from enum import Enum
-
-
-class UserStatus(str, Enum):
-    """User employment status enumeration."""
-    ACTIVE = "ACTIVE"
-    VACATION = "VACATION"
-    SICK = "SICK"
 
 
 class RoleSummary(BaseModel):
@@ -34,10 +26,6 @@ class UserBase(BaseModel):
         description="Employee's full name"
     )
     user_email: EmailStr = Field(..., description="Unique email address")
-    user_status: UserStatus = Field(
-        default=UserStatus.ACTIVE,
-        description="Current employment status"
-    )
     is_manager: bool = Field(
         default=False,
         description="Managerial privileges flag"
@@ -70,10 +58,6 @@ class UserUpdate(BaseModel):
         default=None,
         description="Unique email address"
     )
-    user_status: Optional[UserStatus] = Field(
-        default=None,
-        description="Current employment status"
-    )
     is_manager: Optional[bool] = Field(
         default=None,
         description="Managerial privileges flag"
@@ -97,7 +81,6 @@ class UserRead(BaseModel):
     user_id: int = Field(..., description="Unique user identifier")
     user_full_name: str = Field(..., description="Employee's full name")
     user_email: EmailStr = Field(..., description="Unique email address")
-    user_status: UserStatus = Field(..., description="Current employment status")
     is_manager: bool = Field(..., description="Managerial privileges flag")
     roles: List[RoleSummary] = Field(
         default_factory=list,
