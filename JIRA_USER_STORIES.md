@@ -73,7 +73,7 @@
 **Technical:**
 
 - New entity: `SystemConstraints`
-- Fields: constraint_type, constraint_value, is_hard_constraint, effective_from, effective_to
+- Fields: constraint_type, constraint_value, is_hard_constraint
 - Constraint types: MAX_HOURS, MIN_HOURS, MAX_CONSECUTIVE_DAYS, MIN_REST_HOURS, MAX_SHIFTS, MIN_SHIFTS
 - API: GET/POST/PUT/DELETE /api/system/constraints
 - No user_id (applies to all employees)

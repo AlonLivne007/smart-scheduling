@@ -97,9 +97,6 @@ This document outlines the architecture for implementing optimal shift schedulin
 - `constraint_type` (Enum: MAX_HOURS_PER_WEEK, MIN_HOURS_PER_WEEK, MAX_CONSECUTIVE_DAYS, MIN_REST_HOURS, MAX_SHIFTS_PER_WEEK, MIN_SHIFTS_PER_WEEK)
 - `constraint_value` (Float/Integer) - The limit value
 - `is_hard_constraint` (Boolean) - True = must be satisfied, False = soft constraint
-- `effective_from` (Date) - When this constraint becomes active
-- `effective_to` (Date, nullable) - When this constraint expires (null = active indefinitely)
-- `notes` (Text, nullable) - Description or reason for constraint
 
 **Use Cases:**
 

@@ -128,10 +128,7 @@ SystemConstraints (system_constraints)
 │                     MAX_CONSECUTIVE_DAYS, MIN_REST_HOURS,
 │                     MAX_SHIFTS_PER_WEEK, MIN_SHIFTS_PER_WEEK)
 ├── constraint_value (Float/Integer)
-├── is_hard_constraint (Boolean)
-├── effective_from (Date)
-├── effective_to (Date, nullable)
-└── notes (Text, nullable)
+└── is_hard_constraint (Boolean)
 ```
 
 **Purpose:** Define system-wide work rules that apply to all employees
@@ -351,7 +348,6 @@ Relationships:
 ### SystemConstraints
 
 - `idx_constraints_type` on (constraint_type)
-- `idx_constraints_effective` on (effective_from, effective_to)
 
 ### SchedulingRun
 
