@@ -15,8 +15,7 @@ import EditUserPage from "./pages/Admin/Employees/EditUserPage.jsx"; // <-- NEW
 import HomePage from "./pages/HomePage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
-import TestPage from "./pages/TestPage.jsx";
-import NotFoundPage from "./pages/NotFoundPage.jsx";
+
 
 function getAuth() {
   const token = localStorage.getItem("access_token");
@@ -66,7 +65,6 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="test" element={<TestPage />} />
 
           {/* Employees list (admin) */}
           <Route
@@ -88,7 +86,6 @@ export default function App() {
             }
           />
 
-          <Route path="*" element={<NotFoundPage />} />
         </Route>
 
         {/* fallback */}

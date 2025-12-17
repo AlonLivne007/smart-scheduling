@@ -75,7 +75,6 @@ export default function EmployeesPage() {
               <tr>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Manager</th>
                 <th className="px-3 py-2">Roles</th>
                 <th className="px-3 py-2 text-right">Actions</th>
@@ -86,7 +85,6 @@ export default function EmployeesPage() {
                 <tr key={u.user_id} className="border-t">
                   <td className="px-3 py-2">{u.user_full_name}</td>
                   <td className="px-3 py-2">{u.user_email}</td>
-                  <td className="px-3 py-2 capitalize">{u.user_status}</td>
                   <td className="px-3 py-2">{u.is_manager ? "Yes" : "No"}</td>
                   <td className="px-3 py-2">
                     {u.roles?.length

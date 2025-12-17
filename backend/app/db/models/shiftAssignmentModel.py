@@ -68,11 +68,13 @@ class ShiftAssignmentModel(Base):
 
     user = relationship(
         "UserModel",
+        back_populates="assignments",
         lazy="selectin"
     )
 
     role = relationship(
         "RoleModel",
+        back_populates="assignments",
         lazy="selectin"
     )
 

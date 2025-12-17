@@ -17,7 +17,6 @@ export default function EditUserPage() {
   const [form, setForm] = useState({
     user_full_name: "",
     user_email: "",
-    user_status: "active",
     is_manager: false,
     new_password: "",
     roles_selected: [],
@@ -42,7 +41,6 @@ export default function EditUserPage() {
           setForm({
             user_full_name: user.user_full_name,
             user_email: user.user_email,
-            user_status: user.user_status,
             is_manager: user.is_manager,
             new_password: "",
             roles_selected: (user.roles || []).map((r) => r.role_id),
@@ -89,7 +87,6 @@ export default function EditUserPage() {
       const payload = {
         user_full_name: form.user_full_name,
         user_email: form.user_email,
-        user_status: form.user_status,
         is_manager: form.is_manager,
         roles_by_id: form.roles_selected,
       };
@@ -144,21 +141,6 @@ export default function EditUserPage() {
               required
               disabled={saving}
             />
-
-            <div className="flex flex-col">
-              <label className="mb-1 text-sm font-medium text-gray-700">Status</label>
-              <select
-                name="user_status"
-                value={form.user_status}
-                onChange={onChange}
-                className="rounded border px-3 py-2"
-                disabled={saving}
-              >
-                <option value="active">Active</option>
-                <option value="vacation">Vacation</option>
-                <option value="sick">Sick</option>
-              </select>
-            </div>
 
             <div className="flex items-center gap-2">
               <input

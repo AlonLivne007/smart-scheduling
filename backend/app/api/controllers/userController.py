@@ -4,26 +4,19 @@ User controller module.
 This module contains business logic for user management operations including
 creation, retrieval, updating, and deletion of user records.
 """
-from datetime import datetime, timedelta
-import os
 from typing import List, Optional
 
 from werkzeug.security import generate_password_hash, check_password_hash
-from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
+from app.api.controllers.authController import create_access_token
 from app.db.models.userModel import UserModel
 from app.db.models.roleModel import RoleModel
 from app.schemas.userSchema import (
     UserCreate, UserUpdate, UserLogin, LoginResponse, UserRead
 )
-
-# JWT Configuration
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-jwt-key-change-this-in-production")
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_EXPIRE_DAYS = int(os.getenv("JWT_EXPIRE_DAYS", "3"))
 
 
 def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[RoleModel]:
@@ -49,19 +42,18 @@ def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[Ro
     return unique_roles
 
 
-async def create_user(db: Session, data: UserCreate) -> UserModel:
+async def create_user(db: Session, user_data: UserCreate) -> UserModel:
     """Create a new user with optional role assignments."""
     try:
-        hashed_pw = generate_password_hash(data.user_password)
+        hashed_pw = generate_password_hash(user_data.user_password)
         user = UserModel(
             user_full_name=user_data.user_full_name,
             user_email=user_data.user_email,
-            user_status=user_data.user_status,
             hashed_password=hashed_pw,
             is_manager=user_data.is_manager,
         )
 
-        roles = _resolve_roles(db, data.roles_by_id)
+        roles = _resolve_roles(db, user_data.roles_by_id)
         if roles:
             user.roles = roles
 
@@ -88,35 +80,14 @@ async def create_user(db: Session, data: UserCreate) -> UserModel:
         )
 
 
-def create_access_token(data: dict) -> str:
-    """Create a JWT token with expiration time."""
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=JWT_EXPIRE_DAYS)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
-    return encoded_jwt
-
-
-def verify_token(token: str) -> dict:
-    """Verify and decode JWT token."""
-    try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        return payload
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
-
-
 async def authenticate_user(db: Session, user_login_data: UserLogin) -> LoginResponse:
     """
     Authenticate user and return JWT token if valid.
 
     Security/UX: unify errors → 401 for both unknown user and bad password.
     """
-    user = db.query(UserModel).filter(UserModel.user_email == data.user_email).first()
-    if not user or not check_password_hash(user.hashed_password, data.user_password):
+    user = db.query(UserModel).filter(UserModel.user_email == user_login_data.user_email).first()
+    if not user or not check_password_hash(user.hashed_password, user_login_data.user_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -172,8 +143,6 @@ async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
             user.user_full_name = data.user_full_name
         if data.user_email is not None:
             user.user_email = data.user_email
-        if data.user_status is not None:
-            user.user_status = data.user_status
         if data.is_manager is not None:
             user.is_manager = data.is_manager
 

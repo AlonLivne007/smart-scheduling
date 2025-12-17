@@ -2,23 +2,16 @@
 User model definition.
 
 This module defines the User ORM model representing employees in the scheduling system.
-Users can have multiple roles and different status states (active, vacation, sick).
+Users can have multiple roles.
 """
 
-import enum
-
-from sqlalchemy import Column, Integer, String, Boolean, CheckConstraint, \
-    Enum as SqlEnum
+from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
-
-
-class UserStatus(enum.Enum):
-    """Employee status enumeration."""
-    ACTIVE = "ACTIVE"
-    VACATION = "VACATION"
-    SICK = "SICK"
+from app.db.models.userRoleModel import user_roles
+from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
+from app.db.models.timeOffRequestModel import TimeOffRequestModel
 
 
 class UserModel(Base):
@@ -29,7 +22,6 @@ class UserModel(Base):
         user_id: Primary key identifier
         user_full_name: Employee's full name
         user_email: Unique email address
-        user_status: Current employment status
         hashed_password: Encrypted password
         is_manager: Managerial privileges flag
         roles: Associated role assignments
@@ -39,8 +31,6 @@ class UserModel(Base):
     user_id = Column(Integer, primary_key=True, index=True)
     user_full_name = Column(String(255), nullable=False)
     user_email = Column(String(255), unique=True, index=True, nullable=False)
-    user_status = Column(SqlEnum(UserStatus, name="userstatus"), nullable=False,
-                         default=UserStatus.ACTIVE, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_manager = Column(Boolean, default=False)
 
@@ -49,7 +39,8 @@ class UserModel(Base):
     # Many-to-many relationship with roles
     roles = relationship(
         "RoleModel",
-        secondary="user_roles",
+        secondary=user_roles,
+        back_populates="users",
         lazy="selectin",
     )
 
@@ -60,7 +51,15 @@ class UserModel(Base):
     )
 
     assignments = relationship(
-        "ShiftAssignmentModel",
+        ShiftAssignmentModel,
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+    time_off_requests = relationship(
+        TimeOffRequestModel,
+        foreign_keys=[TimeOffRequestModel.user_id],
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin"
