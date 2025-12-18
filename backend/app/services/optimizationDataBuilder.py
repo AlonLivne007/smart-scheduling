@@ -36,10 +36,10 @@ class OptimizationData:
         self.role_requirements: Dict[int, Dict[int, int]] = {}
         
         # Available pairs: {(employee_id, shift_id)} - only stores available assignments
-        self.availability_matrix: Set[Tuple[int, int]] = set()
+        self.available_pairs: Set[Tuple[int, int]] = set()
         
-        # Overlap mapping: {shift_id: {overlapping_shift_ids}}
-        self.overlap_matrix: Dict[int, Set[int]] = {}
+        # Shift overlaps: {shift_id: {overlapping_shift_ids}}
+        self.shift_overlaps: Dict[int, Set[int]] = {}
         
         # Time-off conflicts: {employee_id: [shift_ids]}
         self.time_off_conflicts: Dict[int, List[int]] = {}
@@ -85,7 +85,7 @@ class OptimizationDataBuilder:
         data.role_requirements = self.build_role_requirements(data.shifts)
         
         # Build these first as they're needed for availability checks
-        data.overlap_matrix = self.build_overlap_matrix(data.shifts)
+        data.shift_overlaps = self.build_shift_overlaps(data.shifts)
         data.existing_assignments = self.build_existing_assignments(weekly_schedule_id)
         
         # Compute schedule date range to filter time-off requests
@@ -95,13 +95,13 @@ class OptimizationDataBuilder:
         # Build time-off map once, reused in availability and conflicts
         time_off_map = self._build_time_off_map(schedule_min_date, schedule_max_date)
         
-        data.availability_matrix = self.build_availability_matrix(
+        data.available_pairs = self.build_available_pairs(
             data.employees,
             data.shifts,
             data.role_requirements,
             time_off_map,
             data.existing_assignments,
-            data.overlap_matrix
+            data.shift_overlaps
         )
         
         data.time_off_conflicts = self.build_time_off_conflicts(
@@ -174,7 +174,7 @@ class OptimizationDataBuilder:
     
     def build_role_requirements(self, shifts: List[Dict]) -> Dict[int, Dict[int, int]]:
         """
-        Build role requirements matrix: {shift_id: {role_id: required_count}}.
+        Build role requirements mapping: {shift_id: {role_id: required_count}}.
         
         Optimized: Fetches all template requirements in a single query.
         Reuses pre-loaded shifts instead of querying the database again.
@@ -218,14 +218,14 @@ class OptimizationDataBuilder:
         
         return requirements
     
-    def build_availability_matrix(
+    def build_available_pairs(
         self,
         employees: List[Dict],
         shifts: List[Dict],
         role_requirements: Dict[int, Dict[int, int]],
         time_off_map: Dict[int, List[Tuple[date, date]]],
-            existing_assignments: Set[Tuple[int, int, int]],
-            overlaps_by_shift: Dict[int, Set[int]]
+        existing_assignments: Set[Tuple[int, int, int]],
+        shift_overlaps: Dict[int, Set[int]]
     ) -> Set[Tuple[int, int]]:
         """
         Build available pairs: {(employee_id, shift_id)}.
@@ -244,7 +244,7 @@ class OptimizationDataBuilder:
             role_requirements: Precomputed role requirements {shift_id: {role_id: count}}
             time_off_map: Precomputed time-off map {user_id: [(start_date, end_date), ...]}
             existing_assignments: Precomputed existing assignments {(emp_id, shift_id, role_id)}
-            overlaps_by_shift: Precomputed overlap mapping {shift_id: {overlapping_shift_ids}}
+            shift_overlaps: Precomputed shift overlaps {shift_id: {overlapping_shift_ids}}
             
         Returns:
             Set of (employee_id, shift_id) tuples for available assignments
@@ -297,8 +297,8 @@ class OptimizationDataBuilder:
                 if (emp_id, shift_id) in assigned_shifts:
                     continue
                 
-                # Check for overlapping assignments using precomputed overlap mapping
-                overlapping_shifts = overlaps_by_shift.get(shift_id, set())
+                # Check for overlapping assignments using precomputed shift overlaps
+                overlapping_shifts = shift_overlaps.get(shift_id, set())
                 is_overlapping = bool(assigned_shift_ids & overlapping_shifts)
                 
                 if is_overlapping:
@@ -309,11 +309,11 @@ class OptimizationDataBuilder:
         
         return available_pairs
     
-    def build_overlap_matrix(self, shifts: List[Dict]) -> Dict[int, Set[int]]:
+    def build_shift_overlaps(self, shifts: List[Dict]) -> Dict[int, Set[int]]:
         """
-        Build overlap mapping: {shift_id: {overlapping_shift_ids}}.
+        Build shift overlaps mapping: {shift_id: {overlapping_shift_ids}}.
         
-        Memory-efficient alternative to full O(S²) matrix.
+        Memory-efficient: only stores overlapping pairs, not a full O(S²) matrix.
         Two shifts overlap if their time ranges intersect.
         
         Args:
@@ -322,24 +322,24 @@ class OptimizationDataBuilder:
         Returns:
             Dictionary mapping shift_id to set of overlapping shift IDs
         """
-        overlaps_by_shift: Dict[int, Set[int]] = {}
+        shift_overlaps: Dict[int, Set[int]] = {}
         
         for i, shift1 in enumerate(shifts):
             shift_id1 = shift1["shift_id"]
-            if shift_id1 not in overlaps_by_shift:
-                overlaps_by_shift[shift_id1] = set()
+            if shift_id1 not in shift_overlaps:
+                shift_overlaps[shift_id1] = set()
             
             for shift2 in shifts[i+1:]:
                 shift_id2 = shift2["shift_id"]
                 
                 if self._shifts_overlap(shift1, shift2):
-                    overlaps_by_shift[shift_id1].add(shift_id2)
+                    shift_overlaps[shift_id1].add(shift_id2)
                     # Initialize set for shift2 if not exists
-                    if shift_id2 not in overlaps_by_shift:
-                        overlaps_by_shift[shift_id2] = set()
-                    overlaps_by_shift[shift_id2].add(shift_id1)
+                    if shift_id2 not in shift_overlaps:
+                        shift_overlaps[shift_id2] = set()
+                    shift_overlaps[shift_id2].add(shift_id1)
         
-        return overlaps_by_shift
+        return shift_overlaps
     
     def build_time_off_conflicts(
         self,
