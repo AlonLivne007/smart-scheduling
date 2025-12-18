@@ -6,10 +6,10 @@ An automated shift scheduling system that uses **Mixed Integer Programming (MIP)
 
 - Employee availability
 - Time-off requests
-- Employee preferences
 - Work constraints (max hours, rest periods, etc.)
 - Fairness (balanced workload)
 - Coverage (all roles filled)
+- _(Employee preferences removed from MVP - can be added later)_
 
 ---
 
@@ -26,22 +26,25 @@ An automated shift scheduling system that uses **Mixed Integer Programming (MIP)
 ### New System (After Implementation)
 
 - ✅ Automated optimization
-- ✅ Preference-based assignment
 - ✅ Constraint validation
 - ✅ Fair workload distribution
 - ✅ Time-off integration
 - ✅ Multiple optimization strategies
+- ⏭️ Preference-based assignment (Future enhancement)
 
 ---
 
-## New Entities Needed (6 Total)
+## New Entities Needed (3 Total for MVP)
 
-1. **TimeOffRequest** - Vacation/sick leave requests
-2. **EmployeePreferences** - Shift preferences
-3. **SystemConstraints** - System-wide work rules (max hours, rest periods) - applies to all employees
-4. **OptimizationConfig** - Optimization parameters
-5. **SchedulingRun** - Optimization execution tracking
-6. **SchedulingSolution** - Proposed assignments from optimizer
+1. **TimeOffRequest** - Vacation/sick leave requests ✅ **COMPLETED**
+2. **SystemConstraints** - System-wide work rules (max hours, rest periods) - applies to all employees ✅ **COMPLETED**
+3. **SchedulingRun** - Optimization execution tracking (Phase 2)
+4. **SchedulingSolution** - Proposed assignments from optimizer (Phase 2)
+
+**Future Enhancement:**
+
+- **EmployeePreferences** - Shift preferences (removed from MVP)
+- **OptimizationConfig** - Optimization parameters (removed from MVP - will use hardcoded defaults)
 
 **Note:** Employees are available by default. If they're not available, they request time-off. If they're not assigned to a shift, they're free.
 
@@ -52,14 +55,14 @@ An automated shift scheduling system that uses **Mixed Integer Programming (MIP)
 ```
 1. Manager creates weekly schedule with planned shifts
    ↓
-2. Employees set preferences, request time-off (if unavailable)
+2. Employees request time-off (if unavailable)
    ↓
 3. Manager triggers optimization
    ↓
 4. System builds MIP model:
    - Decision: Assign employee X to shift Y in role Z? (Yes/No)
    - Constraints: Time-off, existing assignments, max hours, rest periods, etc.
-   - Objective: Minimize unfairness, maximize preferences
+   - Objective: Minimize unfairness, maximize coverage
    ↓
 5. MIP solver finds optimal solution
    ↓
@@ -72,11 +75,12 @@ An automated shift scheduling system that uses **Mixed Integer Programming (MIP)
 
 ## Implementation Phases
 
-### Phase 1: Foundation (23 story points)
+### Phase 1: Foundation (13 story points) ✅ **COMPLETED**
 
-- Add 4 new entities (TimeOff, Preferences, SystemConstraints, Config)
-- Basic CRUD APIs
-- Database migrations
+- ✅ Add 2 new entities (TimeOff, SystemConstraints)
+- ✅ Basic CRUD APIs
+- ✅ Database migrations
+- _(EmployeePreferences and OptimizationConfig removed from MVP)_
 
 ### Phase 2: Optimization Engine (42 story points)
 
@@ -95,10 +99,10 @@ An automated shift scheduling system that uses **Mixed Integer Programming (MIP)
 ### Phase 4: Frontend (34 story points)
 
 - Optimization UI
-- Employee preferences UI
 - Time-off management UI
+- _(Employee preferences UI removed from MVP)_
 
-**Total: 136 story points**
+**Total: 118 story points (MVP)**
 
 ---
 
@@ -129,10 +133,14 @@ An automated shift scheduling system that uses **Mixed Integer Programming (MIP)
 
 Minimize weighted sum of:
 
-- Workload imbalance (fairness)
-- Preference violations
-- Cost (optional)
-- Coverage gaps
+- **Workload imbalance (fairness)** - Weight: 1.0
+- **Coverage gaps** - Weight: 1.0
+- _(Preference violations removed from MVP)_
+- _(Cost optimization removed - not considered)_
+
+**Default Weights:**
+- `weight_fairness = 1.0` - Balance workload evenly across employees
+- `weight_coverage = 1.0` - Fill all required roles for all shifts
 
 ---
 
@@ -148,14 +156,13 @@ Minimize weighted sum of:
 6. Manager reviews, adjusts if needed, applies solution
 7. All employees get balanced schedules respecting preferences
 
-### Use Case 2: Employee Sets Preferences
+### Use Case 2: Employee Requests Time-Off
 
 1. Employee logs in
-2. Goes to "My Preferences"
-3. Sets: "Prefer morning shifts, Monday-Friday"
-4. Sets: "Available 6am-2pm"
-5. Requests vacation: Dec 20-27
-6. System uses this in next optimization
+2. Requests vacation: Dec 20-27
+3. Manager approves request
+4. System respects time-off in next optimization
+5. _(Preference setting removed from MVP - can be added later)_
 
 ### Use Case 3: Constraint Violation
 
@@ -179,19 +186,18 @@ Minimize weighted sum of:
 ## Next Steps
 
 1. ✅ Review architecture documents
-2. ✅ Create Jira tickets from user stories (US-1 to US-16)
-3. ⏭️ Set up development branch
-4. ⏭️ Install dependencies (`mip` library)
-5. ⏭️ Start Phase 1: Create new entities
-6. ⏭️ Implement Phase 2: Optimization engine
-7. ⏭️ Implement Phase 3: APIs
-8. ⏭️ Implement Phase 4: Frontend
+2. ✅ Create Jira tickets from user stories
+3. ✅ **Phase 1: Foundation** - US-1 (Time-Off) and US-3 (System Constraints) **COMPLETED**
+4. ⏭️ **Phase 2: Optimization Engine** - US-6 (MIP Model Builder) - **NEXT**
+5. ⏭️ Install dependencies (`mip` library) when starting Phase 2
+6. ⏭️ Implement Phase 3: APIs
+7. ⏭️ Implement Phase 4: Frontend
 
 ---
 
 ## Questions to Answer Before Implementation
 
-1. **Pay Rates:** Do different roles have different pay rates? (affects cost optimization)
+1. **Pay Rates:** Do different roles have different pay rates? _(Note: Cost optimization removed from system - not considered)_
 2. **Skill Levels:** Are there seniority levels within roles?
 3. **Shift Bidding:** Do employees bid on shifts?
 4. **Break Requirements:** Mandatory breaks during shifts?
@@ -214,11 +220,11 @@ numpy>=1.24.0        # Numerical operations (if not already included)
 ## Success Metrics
 
 - **Optimization Success Rate:** % of runs finding feasible solutions
-- **Preference Satisfaction:** % of assignments matching preferences
 - **Workload Fairness:** Variance in hours across employees (lower is better)
 - **Coverage:** % of required roles filled (target: 100%)
 - **Runtime:** Average optimization time (target: < 60 seconds)
 - **User Satisfaction:** Manager/employee feedback
+- _(Preference satisfaction metric removed from MVP)_
 
 ---
 
