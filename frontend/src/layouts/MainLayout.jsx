@@ -133,17 +133,28 @@ export default function MainLayout() {
           <NavLink to="/" end className={linkClass} onClick={(e) => handleNavClick(e, "/")}>
             Dashboard
           </NavLink>
-          <NavLink to="/schedule" className={linkClass} onClick={(e) => handleNavClick(e, "/schedule")}>
-            Schedule
+          <NavLink to="/time-off/request" className={linkClass} onClick={(e) => handleNavClick(e, "/time-off/request")}>
+            Request Time-Off
+          </NavLink>
+          <NavLink to="/time-off/my-requests" className={linkClass} onClick={(e) => handleNavClick(e, "/time-off/my-requests")}>
+            My Time-Off
           </NavLink>
           <NavLink to="/settings" className={linkClass} onClick={(e) => handleNavClick(e, "/settings")}>
             Settings
           </NavLink>
-          {/* Admin-only Employees link */}
+          {/* Admin-only links */}
           {user?.is_manager && (
-            <NavLink to="/employees" className={linkClass} onClick={(e) => handleNavClick(e, "/employees")}>
-              Employees
-            </NavLink>
+            <>
+              <NavLink to="/schedules" className={linkClass} onClick={(e) => handleNavClick(e, "/schedules")}>
+                Schedules
+              </NavLink>
+              <NavLink to="/employees" className={linkClass} onClick={(e) => handleNavClick(e, "/employees")}>
+                Employees
+              </NavLink>
+              <NavLink to="/admin/time-off" className={linkClass} onClick={(e) => handleNavClick(e, "/admin/time-off")}>
+                Manage Time-Off
+              </NavLink>
+            </>
           )}
         </aside>
 

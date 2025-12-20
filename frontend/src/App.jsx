@@ -13,13 +13,21 @@ import MainLayout from "./layouts/MainLayout.jsx";
 import LoginPage from "./pages/login/LoginPage.jsx";
 import AddUserPage from "./pages/Admin/AddUser/AddUserPage.jsx";
 import EmployeesPage from "./pages/Admin/Employees/EmployeesPage.jsx";
-import EditUserPage from "./pages/Admin/Employees/EditUserPage.jsx"; // <-- NEW
+import EditUserPage from "./pages/Admin/Employees/EditUserPage.jsx";
+import EmployeeProfilePage from "./pages/Admin/Employees/EmployeeProfilePage.jsx";
+import ScheduleListPage from "./pages/Admin/Schedule/ScheduleListPage.jsx";
+import CreateScheduleWizardPage from "./pages/Admin/Schedule/CreateScheduleWizardPage.jsx";
+import ScheduleCalendarPage from "./pages/Admin/Schedule/ScheduleCalendarPage.jsx";
+import ShiftAssignmentPage from "./pages/Admin/Schedule/ShiftAssignmentPage.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
 import ErrorTestPage from "./pages/debug/ErrorTestPage.jsx";
 import InputFieldDemo from "./pages/debug/InputFieldDemo.jsx";
 import ConfirmDialogDemo from "./pages/debug/ConfirmDialogDemo.jsx";
+import TimeOffRequestPage from "./pages/TimeOff/TimeOffRequestPage.jsx";
+import MyTimeOffPage from "./pages/TimeOff/MyTimeOffPage.jsx";
+import TimeOffManagementPage from "./pages/Admin/TimeOffManagementPage.jsx";
 
 
 function getAuth() {
@@ -76,6 +84,46 @@ export default function App() {
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="settings" element={<SettingsPage />} />
 
+          {/* Schedules list (admin) */}
+          <Route
+            path="schedules"
+            element={
+              <AdminRoute>
+                <ScheduleListPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Create schedule wizard (admin) */}
+          <Route
+            path="schedules/create"
+            element={
+              <AdminRoute>
+                <CreateScheduleWizardPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Schedule calendar view (admin) */}
+          <Route
+            path="schedules/:id"
+            element={
+              <AdminRoute>
+                <ScheduleCalendarPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Shift assignment management (admin) */}
+          <Route
+            path="schedules/:scheduleId/shifts/:shiftId"
+            element={
+              <AdminRoute>
+                <ShiftAssignmentPage />
+              </AdminRoute>
+            }
+          />
+
           {/* Employees list (admin) */}
           <Route
             path="employees"
@@ -86,12 +134,38 @@ export default function App() {
             }
           />
 
-          {/* Edit user (admin) */}
+          {/* Employee profile (admin) */}
           <Route
-            path="admin/users/:id/edit"
+            path="employees/:id"
+            element={
+              <AdminRoute>
+                <EmployeeProfilePage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Edit employee (admin) */}
+          <Route
+            path="employees/edit/:id"
             element={
               <AdminRoute>
                 <EditUserPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Time-Off Request (all employees) */}
+          <Route path="time-off/request" element={<TimeOffRequestPage />} />
+          
+          {/* My Time-Off Requests (all employees) */}
+          <Route path="time-off/my-requests" element={<MyTimeOffPage />} />
+
+          {/* Time-Off Management (admin/manager only) */}
+          <Route
+            path="admin/time-off"
+            element={
+              <AdminRoute>
+                <TimeOffManagementPage />
               </AdminRoute>
             }
           />

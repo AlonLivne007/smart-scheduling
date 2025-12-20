@@ -6,7 +6,7 @@
 
 ## 1. NOTIFICATIONS & FEEDBACK SYSTEM 🔴 (Quick Win)
 
-### US-001: Toast Notifications for User Actions
+### US-001: Toast Notifications for User Actions ✅
 **Priority:** 🔴 Critical  
 **Story Points:** 3  
 **As a** user  
@@ -14,14 +14,14 @@
 **So that** I receive immediate feedback on success or errors  
 
 **Acceptance Criteria:**
-- [ ] Implement toast notification library (e.g., react-hot-toast or sonner)
-- [ ] Toast appears for successful operations (create, update, delete)
-- [ ] Toast appears for error operations with meaningful error message
-- [ ] Toast appears for info messages (e.g., "Loading...")
-- [ ] Notifications auto-dismiss after 3-5 seconds
-- [ ] Multiple notifications can stack vertically
-- [ ] Different color/icon for success (green), error (red), info (blue), warning (yellow)
-- [ ] Notifications are dismissible with X button
+- [x] Implement toast notification library (e.g., react-hot-toast or sonner)
+- [x] Toast appears for successful operations (create, update, delete)
+- [x] Toast appears for error operations with meaningful error message
+- [x] Toast appears for info messages (e.g., "Loading...")
+- [x] Notifications auto-dismiss after 3-5 seconds
+- [x] Multiple notifications can stack vertically
+- [x] Different color/icon for success (green), error (red), info (blue), warning (yellow)
+- [x] Notifications are dismissible with X button
 
 **Technical Notes:**
 - Install: `npm install react-hot-toast`
@@ -30,7 +30,7 @@
 
 ---
 
-### US-002: Error Boundary Component
+### US-002: Error Boundary Component ✅
 **Priority:** 🔴 Critical  
 **Story Points:** 5  
 **As a** user  
@@ -38,13 +38,13 @@
 **So that** I can understand what went wrong and recover  
 
 **Acceptance Criteria:**
-- [ ] Error Boundary component created to wrap all pages
-- [ ] Displays error message, stack trace (dev only), and error code
-- [ ] "Retry" button to reload the page
-- [ ] "Go Home" button to navigate back to dashboard
-- [ ] Styled consistently with app theme
-- [ ] Logs errors to console for debugging
-- [ ] Different UI for 404 (Not Found) vs 500 (Server Error)
+- [x] Error Boundary component created to wrap all pages
+- [x] Displays error message, stack trace (dev only), and error code
+- [x] "Retry" button to reload the page
+- [x] "Go Home" button to navigate back to dashboard
+- [x] Styled consistently with app theme
+- [x] Logs errors to console for debugging
+- [x] Different UI for 404 (Not Found) vs 500 (Server Error)
 
 **Technical Notes:**
 - React docs: https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
@@ -54,7 +54,7 @@
 
 ## 2. LOADING STATES & SKELETONS 🔴 (Quick Win)
 
-### US-003: Loading Skeleton Components
+### US-003: Loading Skeleton Components ✅
 **Priority:** 🔴 Critical  
 **Story Points:** 5  
 **As a** user  
@@ -62,13 +62,13 @@
 **So that** I perceive the app as responsive and know something is happening  
 
 **Acceptance Criteria:**
-- [ ] Create Skeleton component with animated placeholder
-- [ ] Skeleton component supports different sizes (small, medium, large)
-- [ ] MetricCard shows skeleton state while loading
-- [ ] Employee list shows multiple skeleton rows while loading
-- [ ] Skeleton animates with pulse effect
-- [ ] Skeleton color matches card background (light gray shimmer)
-- [ ] When data loads, skeleton smoothly transitions to content
+- [x] Create Skeleton component with animated placeholder
+- [x] Skeleton component supports different sizes (small, medium, large)
+- [x] MetricCard shows skeleton state while loading
+- [x] Employee list shows multiple skeleton rows while loading
+- [x] Skeleton animates with pulse effect
+- [x] Skeleton color matches card background (light gray shimmer)
+- [x] When data loads, skeleton smoothly transitions to content
 
 **Technical Notes:**
 - Install: `npm install react-loading-skeleton`
@@ -77,7 +77,7 @@
 
 ---
 
-### US-004: Loading Spinners for Page Transitions
+### US-004: Loading Spinners for Page Transitions ✅
 **Priority:** 🟠 High  
 **Story Points:** 3  
 **As a** user  
@@ -85,11 +85,11 @@
 **So that** I know a page is loading and not frozen  
 
 **Acceptance Criteria:**
-- [ ] Spinner appears when route changes
-- [ ] Spinner displays in center of page or in header
-- [ ] Spinner disappears when page content loads
-- [ ] Spinner styled to match app theme (blue gradient)
-- [ ] Optional: Smooth fade in/out of spinner
+- [x] Spinner appears when route changes
+- [x] Spinner displays in center of page or in header
+- [x] Spinner disappears when page content loads
+- [x] Spinner styled to match app theme (blue gradient)
+- [x] Optional: Smooth fade in/out of spinner
 
 **Technical Notes:**
 - Create `components/LoadingSpinner.jsx` with animated icon
@@ -99,7 +99,7 @@
 
 ## 3. DASHBOARD IMPROVEMENTS 🟠 (High Priority)
 
-### US-005: Connect Dashboard Metrics to Backend
+### US-005: Connect Dashboard Metrics to Backend ✅
 **Priority:** 🟠 High  
 **Story Points:** 5  
 **As a** manager  
@@ -107,13 +107,13 @@
 **So that** I have an accurate overview of my workforce  
 
 **Acceptance Criteria:**
-- [ ] "Total Employees" metric fetches from `GET /users/`
-- [ ] "Upcoming Shifts" metric fetches shifts for next 7 days from `GET /planned-shifts/`
-- [ ] "Coverage Rate" calculated as: (total assignments / total required assignments) * 100
-- [ ] Metrics update with loading skeleton while fetching
-- [ ] Error state shows if API calls fail
-- [ ] Metrics display with proper formatting (numbers, percentages)
-- [ ] Metrics clickable to drill into details (future phase)
+- [x] "Total Employees" metric fetches from `GET /users/`
+- [x] "Upcoming Shifts" metric fetches shifts for next 7 days from `GET /planned-shifts/`
+- [x] "Coverage Rate" calculated as: (total assignments / total required assignments) * 100
+- [x] Metrics update with loading skeleton while fetching
+- [x] Error state shows if API calls fail
+- [x] Metrics display with proper formatting (numbers, percentages)
+- [x] Metrics clickable to drill into details (future phase)
 
 **API Calls:**
 ```
@@ -129,7 +129,7 @@ GET /shift-assignments/ → count for coverage
 
 ---
 
-### US-006: Dynamic Recent Activity Feed
+### US-006: Dynamic Recent Activity Feed ✅
 **Priority:** 🟡 Medium  
 **Story Points:** 8  
 **As a** manager  
@@ -137,22 +137,29 @@ GET /shift-assignments/ → count for coverage
 **So that** I'm aware of important changes  
 
 **Acceptance Criteria:**
-- [ ] Activity feed shows last 5-10 recent actions
-- [ ] Activity types: User Created, Shift Assigned, Time-off Approved/Rejected, Schedule Created
-- [ ] Each activity shows: Action description, User who performed it, Timestamp
-- [ ] Timestamp displays as relative time (e.g., "2 minutes ago")
-- [ ] Activities refresh every 30 seconds (or on manual refresh)
-- [ ] Icon/color coding by activity type
-- [ ] "View All" link to expanded activity page (future)
+- [x] Activity feed shows last 5-10 recent actions
+- [x] Activity types: User Created, Shift Assigned, Time-off Approved/Rejected, Schedule Created
+- [x] Each activity shows: Action description, User who performed it, Timestamp
+- [x] Timestamp displays as relative time (e.g., "2 minutes ago")
+- [x] Activities refresh every 30 seconds (or on manual refresh)
+- [x] Icon/color coding by activity type
+- [x] "View All" link to expanded activity page (future)
 
-**Technical Notes:**
-- Might require new backend endpoint: `GET /activity-log/` (future feature)
-- For now: Mock with static data
-- Use library for relative timestamps: `date-fns` (already in deps)
+**API Calls:**
+```
+GET /activities/recent → fetch recent activities
+```
+
+**Implementation Notes:**
+- ActivityFeed component with icon mapping for activity types
+- Displays on HomePage with loading states and empty state
+- Color-coded icons: UserPlus, ClipboardList, CheckCircle, XCircle, Calendar
+- Uses date-fns formatDistanceToNow for relative timestamps
+- Supports refresh functionality
 
 ---
 
-### US-007: Weekly Schedule Widget
+### US-007: Weekly Schedule Widget ✅
 **Priority:** 🟡 Medium  
 **Story Points:** 8  
 **As a** manager  
@@ -160,13 +167,13 @@ GET /shift-assignments/ → count for coverage
 **So that** I can quickly check coverage for the next 7 days  
 
 **Acceptance Criteria:**
-- [ ] Widget displays Mon-Sun of next week
-- [ ] Shows count of planned shifts per day
-- [ ] Shows count of assigned vs. unassigned for each day
-- [ ] Days with gaps highlighted in different color
-- [ ] Clicking a day navigates to Schedule page filtered for that day
-- [ ] Responsive on mobile (scrollable if needed)
-- [ ] Shows total shifts and coverage % for the week
+- [x] Widget displays Mon-Sun of next week
+- [x] Each day shows all planned shifts for that day
+- [x] Each day shows count of assigned vs. unassigned for each day
+- [x] Days with gaps highlighted in different color
+- [x] Clicking a day navigates to Schedule page filtered for that day
+- [x] Responsive on mobile (scrollable if needed)
+- [x] Shows total shifts and coverage % for the week
 
 **API Calls:**
 ```
@@ -245,7 +252,7 @@ GET /shift-assignments/ to count assignments
 
 ## 5. EMPLOYEE/USER MANAGEMENT 🟠 (High Priority)
 
-### US-010: Employee Directory with Search & Filters
+### US-010: Employee Directory with Search & Filters ✅
 **Priority:** 🟠 High  
 **Story Points:** 8  
 **As a** manager  
@@ -253,15 +260,15 @@ GET /shift-assignments/ to count assignments
 **So that** I can quickly find employees by name or role  
 
 **Acceptance Criteria:**
-- [ ] List displays all employees from `GET /users/`
-- [ ] Search box filters by name/email in real-time
-- [ ] Filter dropdown by role
-- [ ] Sort options: Name (A-Z, Z-A), Joined (newest, oldest)
-- [ ] Column headers clickable to sort
-- [ ] Pagination (10 employees per page)
-- [ ] Each employee row shows: Name, Email, Roles, Manager status
-- [ ] Click employee row to view detail page
-- [ ] Edit and Delete buttons for each row (manager only)
+- [x] List displays all employees from `GET /users/`
+- [x] Search box filters by name/email in real-time
+- [x] Filter dropdown by role
+- [x] Sort options: Name (A-Z, Z-A), Joined (newest, oldest)
+- [x] Column headers clickable to sort
+- [x] Pagination (10 employees per page)
+- [x] Each employee row shows: Name, Email, Roles, Manager status
+- [x] Click employee row to view detail page
+- [x] Edit and Delete buttons for each row (manager only)
 
 **API Calls:**
 ```
@@ -276,7 +283,7 @@ GET /roles/ → for filter dropdown
 
 ---
 
-### US-011: Employee Profile / Detail View
+### US-011: Employee Profile / Detail View ✅
 **Priority:** 🟡 Medium  
 **Story Points:** 5  
 **As a** manager  
@@ -284,24 +291,42 @@ GET /roles/ → for filter dropdown
 **So that** I can see the full picture of an employee's schedule and status  
 
 **Acceptance Criteria:**
-- [ ] Profile shows: Name, Email, Roles, Manager status
-- [ ] Displays assigned shifts for current week
-- [ ] Shows pending time-off requests
-- [ ] Shows approved time-off periods
-- [ ] Edit button to modify employee info
-- [ ] Navigation back to employee list
-- [ ] Responsive layout
+- [x] Profile shows: Name, Email, Roles, Manager status
+- [x] Displays assigned shifts for current week
+- [x] Shows pending time-off requests
+- [x] Shows approved time-off periods
+- [x] Edit button to modify employee info
+- [x] Navigation back to employee list
+- [x] Responsive layout
+- [x] **Tabs to organize sections:** "Info" | "Schedule" | "Preferences" | "Time-Off"
+- [ ] **Preferences tab:** View/edit shift preferences (preferred templates, days, time ranges) - *Waiting for Backend US-2*
+- [ ] **Preferences tab:** Set preference weights/importance - *Waiting for Backend US-2*
+- [ ] **Availability tab:** View/edit recurring weekly availability - *Waiting for Backend US-2*
+- [x] Manager view shows all tabs, employee view limited to own profile
 
 **API Calls:**
 ```
 GET /users/{user_id} → employee details
 GET /shift-assignments/by-user/{user_id} → their assignments
 GET /time-off/requests/ filtered by user_id → their time-off
+GET /employees/{user_id}/preferences → shift preferences (not yet implemented)
+PUT /employees/{user_id}/preferences → update preferences (not yet implemented)
+GET /employees/{user_id}/availability → availability schedule (not yet implemented)
+PUT /employees/{user_id}/availability → update availability (not yet implemented)
 ```
+
+**Implementation Notes:**
+- EmployeeProfilePage.jsx: Tab-based layout with Info, Schedule, Time-Off, and Preferences sections
+- Info tab: Displays all employee details with Edit button
+- Schedule tab: Shows assigned shifts from GET /shift-assignments/by-user/{user_id}
+- Time-Off tab: Grouped by status (Pending, Approved, Rejected)
+- Preferences tab: Placeholder UI explaining feature awaits backend implementation
+- Accessible via row click in EmployeesPage
+- Route: /employees/:id
 
 ---
 
-### US-012: Add/Edit User Form with Validation
+### US-012: Add/Edit User Form with Validation ✅
 **Priority:** 🟡 Medium  
 **Story Points:** 5  
 **As a** manager  
@@ -309,14 +334,14 @@ GET /time-off/requests/ filtered by user_id → their time-off
 **So that** I maintain data quality and avoid duplicate emails  
 
 **Acceptance Criteria:**
-- [ ] Form fields: Full name, Email, Password (create only), Roles (multi-select), Manager checkbox
-- [ ] Email validated as unique (check with backend)
-- [ ] Password required on create, optional on edit
-- [ ] Roles shown as multi-select checkboxes
-- [ ] Form validation before submit (all required fields filled, email valid)
-- [ ] Success toast on save
-- [ ] Error handling with field-level errors
-- [ ] Cancel button to discard changes
+- [x] Form fields: Full name, Email, Password (create only), Roles (multi-select), Manager checkbox
+- [x] Email validated as unique (check with backend)
+- [x] Password required on create, optional on edit
+- [x] Roles shown as multi-select checkboxes
+- [x] Form validation before submit (all required fields filled, email valid)
+- [x] Success toast on save
+- [x] Error handling with field-level errors
+- [x] Cancel button to discard changes
 
 **API Calls:**
 ```
@@ -325,11 +350,17 @@ PUT /users/{user_id} → update
 GET /roles/ → for role selection
 ```
 
+**Implementation Notes:**
+- AddUserPage.jsx: Multi-select role checkboxes, email/password validation (min 6 chars), field-level errors, toast notifications
+- EditUserPage.jsx: Same validation, optional password field, pre-populated form data
+- Email uniqueness validated on submit with specific error message
+- Uses InputField validators.email for format validation
+
 ---
 
 ## 6. TIME-OFF MANAGEMENT 🟠 (High Priority)
 
-### US-013: Employee Time-Off Request Form
+### US-013: Employee Time-Off Request Form ✅
 **Priority:** 🟠 High  
 **Story Points:** 5  
 **As an** employee  
@@ -337,14 +368,14 @@ GET /roles/ → for role selection
 **So that** managers know when I'm unavailable  
 
 **Acceptance Criteria:**
-- [ ] Form fields: Start date, End date, Request type (Vacation/Sick/Personal/Other)
-- [ ] Date range picker (can use existing input or library)
-- [ ] Type dropdown with 4 options
-- [ ] Submit button creates request via `POST /time-off/requests/`
-- [ ] Success message shows request submitted
-- [ ] Form clears or redirects after successful submission
-- [ ] Validation: start_date before end_date, dates in future
-- [ ] Cancel button
+- [x] Form fields: Start date, End date, Request type (Vacation/Sick/Personal/Other)
+- [x] Date range picker (can use existing input or library)
+- [x] Type dropdown with 4 options
+- [x] Submit button creates request via `POST /time-off/requests/`
+- [x] Success message shows request submitted
+- [x] Form clears or redirects after successful submission
+- [x] Validation: start_date before end_date, dates in future
+- [x] Cancel button
 
 **API Calls:**
 ```
@@ -353,7 +384,7 @@ POST /time-off/requests/ → create request (auto uses current user)
 
 ---
 
-### US-014: Time-Off Requests Management Page (Manager View)
+### US-014: Time-Off Requests Management Page (Manager View) ✅
 **Priority:** 🟠 High  
 **Story Points:** 8  
 **As a** manager  
@@ -361,15 +392,15 @@ POST /time-off/requests/ → create request (auto uses current user)
 **So that** I can manage workforce availability  
 
 **Acceptance Criteria:**
-- [ ] Table/list of all time-off requests
-- [ ] Columns: Employee name, Type, Start date, End date, Status (PENDING/APPROVED/REJECTED), Actions
-- [ ] Filter by status: All, Pending, Approved, Rejected
-- [ ] Filter by request type
-- [ ] Sort by date, name, status
-- [ ] Each pending request has "Approve" and "Reject" buttons
-- [ ] Approved/Rejected requests show approver name and date
-- [ ] Approve/Reject triggers API call with toast feedback
-- [ ] Approved requests show in employee profiles
+- [x] Table/list of all time-off requests
+- [x] Columns: Employee name, Type, Start date, End date, Status (PENDING/APPROVED/REJECTED), Actions
+- [x] Filter by status: All, Pending, Approved, Rejected
+- [x] Filter by request type
+- [x] Sort by date, name, status
+- [x] Each pending request has "Approve" and "Reject" buttons
+- [x] Approved/Rejected requests show approver name and date
+- [x] Approve/Reject triggers API call with toast feedback
+- [x] Approved requests show in employee profiles
 
 **API Calls:**
 ```
@@ -380,7 +411,7 @@ POST /time-off/requests/{request_id}/reject → reject
 
 ---
 
-### US-015: Employee Time-Off History
+### US-015: Employee Time-Off History ✅
 **Priority:** 🟡 Medium  
 **Story Points:** 5  
 **As an** employee  
@@ -388,13 +419,13 @@ POST /time-off/requests/{request_id}/reject → reject
 **So that** I know which requests are approved and upcoming  
 
 **Acceptance Criteria:**
-- [ ] Shows all my time-off requests (current user only)
-- [ ] Columns: Type, Start date, End date, Status, Submitted date
-- [ ] Filter by status: Pending, Approved, Rejected
-- [ ] Edit/Delete buttons for PENDING requests only
-- [ ] Approved requests show approver and approval date
-- [ ] Rejected requests show reason (if available)
-- [ ] Option to create new request via button
+- [x] Shows all my time-off requests (current user only)
+- [x] Columns: Type, Start date, End date, Status, Submitted date
+- [x] Filter by status: Pending, Approved, Rejected
+- [x] Edit/Delete buttons for PENDING requests only
+- [x] Approved requests show approver and approval date
+- [x] Rejected requests show reason (if available)
+- [x] Option to create new request via button
 
 **API Calls:**
 ```
@@ -405,7 +436,7 @@ GET /time-off/requests/ → filtered to show only current user's
 
 ## 7. SCHEDULE MANAGEMENT 🟠 (High Priority)
 
-### US-016: Schedule Page - List View
+### US-016: Schedule Page - List View ✅
 **Priority:** 🟠 High  
 **Story Points:** 8  
 **As a** manager  
@@ -413,102 +444,98 @@ GET /time-off/requests/ → filtered to show only current user's
 **So that** I can select and manage existing schedules or create new ones  
 
 **Acceptance Criteria:**
-- [ ] List of all weekly schedules from `GET /weekly-schedules/`
-- [ ] Columns: Week starting (date), Created by, Number of shifts, Coverage status
-- [ ] Sort by date (newest, oldest)
-- [ ] Create New Schedule button
-- [ ] Click row to view schedule detail
-- [ ] Edit and Delete buttons for each schedule
-- [ ] Pagination if more than 10 schedules
+- [x] List of all weekly schedules from `GET /weekly-schedules/`
+- [x] Columns: Week starting (date), Created by, Number of shifts, Coverage status
+- [x] Sort by date (newest, oldest)
+- [x] Create New Schedule button
+- [x] Click row to view schedule detail
+- [x] Edit and Delete buttons for each schedule
+- [x] Pagination if more than 10 schedules
 
 **API Calls:**
 ```
 GET /weekly-schedules/ → all schedules
 ```
 
----
-
-### US-017: Create Weekly Schedule Wizard
-**Priority:** 🟠 High  
-**Story Points:** 8  
-**As a** manager  
-**I want to** create a new weekly schedule through a step-by-step wizard  
-**So that** I can set up shifts for the coming week  
-
-**Acceptance Criteria:**
-- [ ] Step 1: Select week start date (date picker)
-- [ ] Step 2: Choose which shift templates to use (multi-select checkboxes)
-- [ ] Step 3: Set which days of week to create shifts (Mon-Sun checkboxes)
-- [ ] Step 4: Review and confirm
-- [ ] Form validation: week date selected, at least 1 template, at least 1 day
-- [ ] Submit creates WeeklySchedule and all PlannedShifts
-- [ ] Success message with link to view new schedule
-- [ ] Cancel button to go back
-
-**API Calls:**
-```
-POST /weekly-schedules/ → create schedule
-POST /planned-shifts/ → create shifts for selected days/templates
-GET /shift-templates/ → for template selection
-```
+**Implementation Notes:**
+- ScheduleListPage.jsx with sortable columns (date, shifts count, coverage %)
+- Coverage calculated as (totalAssigned / totalRequired) * 100 with color-coded progress bar
+- Delete confirmation with side effects warning (shows planned shifts count)
+- Empty state with "Create First Schedule" CTA
+- Navigation link added to sidebar for managers
+- Route: /schedules
 
 ---
 
-### US-018: Schedule Detail - Calendar View
-**Priority:** 🟠 High  
-**Story Points:** 13  
-**As a** manager  
-**I want to** view a weekly schedule in calendar format  
-**So that** I can see shifts visually and manage assignments  
+### ✅ US-017: Create Weekly Schedule Wizard (8 pts)
+**Status:** ✅ Complete  
+**As a** manager, **I want to** create a new weekly schedule through a step-by-step wizard, **so that** I can set up shifts for the coming week.
 
 **Acceptance Criteria:**
-- [ ] Calendar shows one week (Mon-Sun)
-- [ ] Each day shows all planned shifts for that day
-- [ ] Each shift card shows: Template name, Time, Location, Assignment count/status
-- [ ] Shift card color indicates status: Green (fully assigned), Yellow (partial), Red (unassigned)
-- [ ] Click shift to view/edit assignments
-- [ ] Drag-and-drop to reassign employee (future phase)
-- [ ] Button to edit shift details
-- [ ] Button to delete shift
-- [ ] Navigation arrows to view previous/next week
+- [x] Step 1: Select week start date (date picker) with suggestion for next Monday
+- [x] Step 2: Choose which shift templates to use (multi-select checkboxes with details)
+- [x] Step 3: Set which days of week to create shifts (Mon-Sun checkboxes with helpers)
+- [x] Step 4: Review and confirm with summary and total shifts count
+- [x] Form validation: week date selected, at least 1 template, at least 1 day
+- [x] Submit creates WeeklySchedule and all PlannedShifts
+- [x] Success message with redirect to schedule detail view
+- [x] Cancel/Back navigation
+- [x] Step indicator with progress visualization
 
-**API Calls:**
-```
-GET /weekly-schedules/{schedule_id} → full schedule with shifts
-```
-
-**Technical Notes:**
-- Library: `react-calendar` or `@fullcalendar/react`
-- Or build custom calendar with Tailwind
+**Implementation Details:**
+- Component: CreateScheduleWizardPage.jsx (470+ lines)
+- Route: /schedules/create (admin-only)
+- API: POST /weekly-schedules/, POST /planned-shifts/, GET /shift-templates/
+- Features: 4-step wizard with visual progress bar, emoji icons for each step, date helpers (next Monday), day selection shortcuts (Weekdays/Weekend/All/Clear), template cards with time/location details, review screen with complete summary and total calculations
+- Creates schedule then batch creates all planned shifts (templates × days combinations)
 
 ---
 
-### US-019: Shift Assignment Management
-**Priority:** 🟠 High  
-**Story Points:** 8  
-**As a** manager  
-**I want to** assign employees to shifts from a detail view  
-**So that** I can fill positions and track coverage  
+### ✅ US-018: Schedule Detail - Calendar View (13 pts)
+**Status:** ✅ Complete  
+**As a** manager, **I want to** view a weekly schedule in calendar format, **so that** I can see shifts visually and manage assignments.
 
 **Acceptance Criteria:**
-- [ ] Modal/side panel shows shift details and list of current assignments
-- [ ] Add Assignment button opens form to add employee
-- [ ] Form shows: Employee dropdown, Role dropdown (filtered by shift's required roles)
-- [ ] Validation: Employee and Role selected, no duplicate employee per shift
-- [ ] Submit creates assignment via `POST /shift-assignments/`
-- [ ] Success message and assignment appears in list
-- [ ] Delete button removes each assignment with confirmation
-- [ ] Unassigned roles highlighted
-- [ ] Shift status updates automatically based on assignments
+- [x] Calendar shows one week (Mon-Sun) in grid layout
+- [x] Each day shows all planned shifts for that day
+- [x] Each shift card shows: Template name, Time, Location, Assignment count/status
+- [x] Shift card color indicates status: Green (fully assigned), Yellow (partial), Red (unassigned)
+- [x] Click shift to view/edit assignments (navigate to shift detail)
+- [x] Edit and delete buttons on each shift card
+- [x] Delete shift with ConfirmDialog showing assignment cascade warning
+- [x] Header shows week date range with back to list button
 
-**API Calls:**
-```
-GET /planned-shifts/{shift_id} → shift details with assignments
-POST /shift-assignments/ → add assignment
-DELETE /shift-assignments/{assignment_id} → remove assignment
-GET /users/ → for employee selection
-GET /roles/ → for role selection (could filter by shift's required_roles)
-```
+**Implementation Details:**
+- Component: ScheduleCalendarPage.jsx (290+ lines)
+- Route: /schedules/:id (admin-only)
+- API: GET /weekly-schedules/{id}, DELETE /planned-shifts/{id}
+- Features: 7-column grid (Mon-Sun), color-coded shift cards based on assignment coverage (green ≥100%, yellow >0%, red 0%, gray if no required employees), inline edit/delete actions, empty state per day ("No shifts scheduled"), click card to navigate to /schedules/{id}/shifts/{shift_id}
+- Status calculation: (assigned/required) × 100 with visual color coding on border and background
+- Custom calendar built with Tailwind CSS (no external library needed)
+
+---
+
+### ✅ US-019: Shift Assignment Management (8 pts)
+**Status:** ✅ Complete  
+**As a** manager, **I want to** assign employees to shifts from a detail view, **so that** I can fill positions and track coverage.
+
+**Acceptance Criteria:**
+- [x] Page shows shift details (date, time, location, template name)
+- [x] List of current assignments with employee name and role
+- [x] Add Assignment button opens form to add employee
+- [x] Form shows: Employee dropdown (filtered to available employees), Role dropdown
+- [x] Validation: Employee and Role selected, no duplicate employee per shift
+- [x] Submit creates assignment via POST /shift-assignments/
+- [x] Success message and assignment appears in list
+- [x] Delete button removes each assignment with confirmation
+- [x] Assignment list updates automatically after add/delete
+
+**Implementation Details:**
+- Component: ShiftAssignmentPage.jsx (360+ lines)
+- Route: /schedules/:scheduleId/shifts/:shiftId (admin-only)
+- API: GET /planned-shifts/{id}, POST /shift-assignments/, DELETE /shift-assignments/{id}, GET /users/, GET /roles/
+- Features: Shift details header with back navigation, assignments list with employee/role info, inline add form with employee/role dropdowns (filters out already-assigned employees), duplicate prevention validation, delete with ConfirmDialog, proper error handling for all operations
+- Navigation: Click shift card in calendar view → assignment page
 
 ---
 
@@ -557,6 +584,43 @@ PUT /system-constraints/{constraint_id} → update constraint
 **Technical Notes:**
 - Requires backend endpoint (future: `GET/PUT /company-settings/`)
 - For now: Mock or make read-only display
+
+---
+
+### US-029: Optimization Configuration UI
+**Priority:** 🟠 High  
+**Story Points:** 8  
+**As a** manager  
+**I want to** configure optimization parameters through the UI  
+**So that** I can balance fairness, employee preferences, and operational needs  
+
+**Acceptance Criteria:**
+- [ ] Form to create/edit optimization configurations
+- [ ] Set weights for: Fairness, Preferences, Coverage, Cost
+- [ ] Sliders or numeric inputs for each weight (0.0 to 1.0)
+- [ ] Set solver timeout (max runtime in seconds)
+- [ ] Set optimality gap (MIP gap tolerance, e.g., 0.01 = 1%)
+- [ ] Select default configuration from dropdown
+- [ ] Save configuration with descriptive name
+- [ ] Load existing configurations for editing
+- [ ] Preview configuration summary before optimizing
+- [ ] Delete configuration with confirmation
+- [ ] Validation: weights sum to reasonable values, timeout > 0
+
+**API Calls:**
+```
+GET /optimization-configs/ → list all configs
+POST /optimization-configs/ → create new config
+PUT /optimization-configs/{id} → update config
+GET /optimization-configs/{id} → get single config
+DELETE /optimization-configs/{id} → delete config
+```
+
+**Technical Notes:**
+- Integrates with Backend US-4 (Optimization Configuration)
+- Configuration selected when triggering optimization in US-028
+- Default config used if none selected
+- Create `pages/Admin/OptimizationConfigPage.jsx`
 
 ---
 
@@ -702,8 +766,8 @@ DELETE /roles/{role_id}
 
 ---
 
-### US-028: Scheduling Optimization (Phase 2)
-**Priority:** 🟢 Low (Future Phase)  
+### US-028: Scheduling Optimization UI
+**Priority:** 🟠 High  
 **Story Points:** 21  
 **As a** manager  
 **I want to** run automated optimization to assign shifts optimally  
@@ -739,9 +803,9 @@ Priority: Critical features for baseline functionality
 - US-009: Confirmation Dialogs
 
 ### **Phase 2: Dashboard (Week 2)** 🔴
-- US-005: Connect Dashboard Metrics
+- ✅ US-005: Connect Dashboard Metrics
 - US-006: Recent Activity Feed
-- US-007: Weekly Schedule Widget
+- ✅ US-007: Weekly Schedule Widget
 
 ### **Phase 3: Employee Management (Week 3)** 🟠
 - US-010: Employee Directory
@@ -753,13 +817,15 @@ Priority: Critical features for baseline functionality
 - US-014: Manager Time-Off Management
 - US-015: Employee Time-Off History
 
-### **Phase 5: Schedule Management (Week 4-5)** 🟠
+### **Phase 5: Schedule Management & Optimization (Week 4-6)** 🟠
 - US-016: Schedule List View
 - US-017: Create Schedule Wizard
 - US-018: Calendar View
 - US-019: Shift Assignment Management
+- US-028: Scheduling Optimization UI (MOVED FROM PHASE 7)
+- US-029: Optimization Configuration UI (NEW)
 
-### **Phase 6: Settings & Polish (Week 5)** 🟡
+### **Phase 6: Settings & Polish (Week 6-7)** 🟡
 - US-020: System Constraints
 - US-021: Company Settings
 - US-022: Mobile Responsive (ongoing)
@@ -786,12 +852,14 @@ HIGH IMPACT + QUICK WIN:
 HIGH IMPACT + MODERATE EFFORT:
 ✅ US-005 Dashboard Metrics (5 pts)
 ✅ US-008 Input Validation (5 pts)
-✅ US-010 Employee Directory (8 pts)
-✅ US-013 Time-Off Form (5 pts)
-✅ US-014 Time-Off Manager (8 pts)
-✅ US-016 Schedule List (8 pts)
-✅ US-018 Calendar View (13 pts)
-✅ US-019 Shift Assignment (8 pts)
+⭐ US-010 Employee Directory (8 pts)
+⭐ US-013 Time-Off Form (5 pts)
+⭐ US-014 Time-Off Manager (8 pts)
+⭐ US-016 Schedule List (8 pts)
+⭐ US-018 Calendar View (13 pts)
+⭐ US-019 Shift Assignment (8 pts)
+⭐ US-028 Scheduling Optimization UI (21 pts) - REPRIORITIZED
+⭐ US-029 Optimization Configuration UI (8 pts) - NEW
 
 NICE-TO-HAVE:
 ⭐ US-006 Activity Feed (8 pts)

@@ -1,9 +1,11 @@
 // frontend/src/pages/Admin/Employees/EditUserPage.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../../../lib/axios";
 import InputField from "../../../components/ui/InputField.jsx";
 import Button from "../../../components/ui/Button.jsx";
+import { validators } from "../../../components/ui/InputField.jsx";
 
 export default function EditUserPage() {
   const { id } = useParams(); // user_id
@@ -11,7 +13,7 @@ export default function EditUserPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
 
   const [roles, setRoles] = useState([]);
   const [form, setForm] = useState({
@@ -26,7 +28,7 @@ export default function EditUserPage() {
     let canceled = false;
     (async () => {
       setLoading(true);
-      setError("");
+      setErrors({});
       try {
         const [userRes, rolesRes] = await Promise.all([
           api.get(`/users/${id}`),
@@ -49,7 +51,7 @@ export default function EditUserPage() {
       } catch (e) {
         if (!canceled) {
           const m = e?.response?.data?.detail || e.message || "Failed to load user";
-          setError(m);
+          toast.error(m);
         }
       } finally {
         if (!canceled) setLoading(false);
@@ -60,33 +62,74 @@ export default function EditUserPage() {
     };
   }, [id]);
 
-  const roleIndexById = useMemo(() => {
-    const map = new Map();
-    roles.forEach((r, i) => map.set(r.role_id, i));
-    return map;
-  }, [roles]);
-
   function onChange(e) {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+    // Clear field error when user types
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   }
 
-  function onChangeRoles(e) {
-    const selected = Array.from(e.target.selectedOptions).map((o) => Number(o.value));
-    setForm((p) => ({ ...p, roles_selected: selected }));
+  function toggleRole(roleId) {
+    setForm((prev) => {
+      const selected = prev.roles_selected.includes(roleId)
+        ? prev.roles_selected.filter((id) => id !== roleId)
+        : [...prev.roles_selected, roleId];
+      return { ...prev, roles_selected: selected };
+    });
+    // Clear role error when user selects
+    if (errors.roles_selected) {
+      setErrors((prev) => ({ ...prev, roles_selected: "" }));
+    }
+  }
+
+  function validateForm() {
+    const newErrors = {};
+
+    // Full name
+    if (!form.user_full_name.trim()) {
+      newErrors.user_full_name = "Full name is required.";
+    }
+
+    // Email
+    if (!form.user_email.trim()) {
+      newErrors.user_email = "Email is required.";
+    } else {
+      const emailError = validators.email()(form.user_email);
+      if (emailError) newErrors.user_email = emailError;
+    }
+
+    // Password (optional on edit)
+    if (form.new_password && form.new_password.length < 6) {
+      newErrors.new_password = "Password must be at least 6 characters.";
+    }
+
+    // Roles
+    if (form.roles_selected.length === 0) {
+      newErrors.roles_selected = "Please select at least one role.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   }
 
   async function onSubmit(e) {
     e.preventDefault();
-    setError("");
+    
+    if (!validateForm()) {
+      toast.error("Please fix the errors before submitting.");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
-        user_full_name: form.user_full_name,
-        user_email: form.user_email,
+        user_full_name: form.user_full_name.trim(),
+        user_email: form.user_email.trim(),
         is_manager: form.is_manager,
         roles_by_id: form.roles_selected,
       };
@@ -95,13 +138,17 @@ export default function EditUserPage() {
       }
 
       await api.put(`/users/${id}`, payload);
+      toast.success("Employee updated successfully!");
       navigate("/employees", { replace: true });
     } catch (e) {
-      const m =
-        e?.response?.data?.detail ||
-        e.message ||
-        "Failed to update user. Please try again.";
-      setError(m);
+      // Check for email uniqueness error
+      if (e?.response?.status === 400 && e?.response?.data?.detail?.includes("email")) {
+        setErrors((prev) => ({ ...prev, user_email: "This email is already in use." }));
+        toast.error("Email already exists.");
+      } else {
+        const m = e?.response?.data?.detail || e.message || "Failed to update user. Please try again.";
+        toast.error(m);
+      }
     } finally {
       setSaving(false);
     }
@@ -110,12 +157,6 @@ export default function EditUserPage() {
   return (
     <div className="max-w-3xl">
       <h1 className="mb-4 text-2xl font-semibold">Edit Employee</h1>
-
-      {error && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       {loading ? (
         <div className="text-gray-600">Loading…</div>
@@ -128,6 +169,7 @@ export default function EditUserPage() {
               type="text"
               value={form.user_full_name}
               onChange={onChange}
+              error={errors.user_full_name}
               required
               disabled={saving}
             />
@@ -138,23 +180,10 @@ export default function EditUserPage() {
               type="email"
               value={form.user_email}
               onChange={onChange}
+              error={errors.user_email}
               required
               disabled={saving}
             />
-
-            <div className="flex items-center gap-2">
-              <input
-                id="is_manager"
-                name="is_manager"
-                type="checkbox"
-                checked={form.is_manager}
-                onChange={onChange}
-                disabled={saving}
-              />
-              <label htmlFor="is_manager" className="text-sm text-gray-700">
-                Manager
-              </label>
-            </div>
 
             <InputField
               label="New Password (optional)"
@@ -163,28 +192,51 @@ export default function EditUserPage() {
               placeholder="Leave blank to keep current password"
               value={form.new_password}
               onChange={onChange}
+              error={errors.new_password}
               disabled={saving}
             />
 
-            <div className="flex flex-col md:col-span-2">
-              <label className="mb-1 text-sm font-medium text-gray-700">Roles</label>
-              <select
-                multiple
-                className="rounded border px-3 py-2 min-h-28"
-                value={form.roles_selected}
-                onChange={onChangeRoles}
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                id="is_manager"
+                name="is_manager"
+                type="checkbox"
+                checked={form.is_manager}
+                onChange={onChange}
                 disabled={saving}
-              >
-                {roles.map((r) => (
-                  <option key={r.role_id} value={r.role_id}>
-                    {r.role_name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Hold Ctrl/Command to select multiple roles.
-              </p>
+                className="h-4 w-4"
+              />
+              <label htmlFor="is_manager" className="text-sm text-gray-700">
+                Manager
+              </label>
             </div>
+          </div>
+
+          {/* Roles - Multi-select checkboxes */}
+          <div className="flex flex-col">
+            <label className="mb-2 text-sm font-medium text-gray-700">
+              Roles <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3 p-4 border rounded-lg">
+              {roles.map((role) => (
+                <label
+                  key={role.role_id}
+                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.roles_selected.includes(role.role_id)}
+                    onChange={() => toggleRole(role.role_id)}
+                    disabled={saving}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm text-gray-700">{role.role_name}</span>
+                </label>
+              ))}
+            </div>
+            {errors.roles_selected && (
+              <p className="mt-1 text-sm text-red-600">{errors.roles_selected}</p>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

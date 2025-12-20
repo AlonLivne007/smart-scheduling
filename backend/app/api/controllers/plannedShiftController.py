@@ -39,10 +39,20 @@ def _serialize_planned_shift(db: Session, shift: PlannedShiftModel) -> PlannedSh
     if shift.shift_template:
         shift_template_name = shift.shift_template.shift_template_name
 
-    # Convert assignments using model_validate
-    assignments = [
-        ShiftAssignmentRead.model_validate(a) for a in shift.assignments
-    ] if shift.assignments else []
+    # Convert assignments with proper user and role data
+    assignments = []
+    if shift.assignments:
+        for a in shift.assignments:
+            user_full_name = a.user.user_full_name if a.user else None
+            role_name = a.role.role_name if a.role else None
+            assignments.append(ShiftAssignmentRead(
+                assignment_id=a.assignment_id,
+                planned_shift_id=a.planned_shift_id,
+                user_id=a.user_id,
+                role_id=a.role_id,
+                user_full_name=user_full_name,
+                role_name=role_name,
+            ))
 
     return PlannedShiftRead(
         planned_shift_id=shift.planned_shift_id,
