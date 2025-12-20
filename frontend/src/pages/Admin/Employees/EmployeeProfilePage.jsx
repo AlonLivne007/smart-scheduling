@@ -1,7 +1,7 @@
 // frontend/src/pages/Admin/Employees/EmployeeProfilePage.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import toast from "react-hot-toast";
 import api from "../../../lib/axios";
 import Button from "../../../components/ui/Button";
@@ -149,17 +149,56 @@ function ScheduleTab({ employeeId }) {
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState([]);
 
+  function extractErrorMessage(e, fallback) {
+    if (e?.response?.data?.detail) {
+      const detail = e.response.data.detail;
+      if (Array.isArray(detail)) {
+        return detail.map((err) => err?.msg || JSON.stringify(err)).join(", ");
+      }
+      if (typeof detail === "string") return detail;
+      return JSON.stringify(detail);
+    }
+    return e?.message || fallback;
+  }
+
   useEffect(() => {
     let canceled = false;
     (async () => {
       setLoading(true);
       try {
         const { data } = await api.get(`/shift-assignments/by-user/${employeeId}`);
-        if (!canceled) setAssignments(data || []);
+
+        // Axios will normally give an array here, but be defensive.
+        const baseAssignments = Array.isArray(data) ? data : (data?.value || []);
+        const shiftIds = Array.from(
+          new Set(
+            baseAssignments
+              .map((a) => a?.planned_shift_id)
+              .filter((v) => v !== null && v !== undefined)
+              .map((v) => Number(v))
+          )
+        ).filter((v) => Number.isFinite(v) && v > 0);
+
+        const shiftResponses = await Promise.all(
+          shiftIds.map((sid) => api.get(`/planned-shifts/${sid}`))
+        );
+        const plannedShiftById = shiftResponses.reduce((acc, res) => {
+          const ps = res?.data;
+          if (ps?.planned_shift_id) {
+            acc[Number(ps.planned_shift_id)] = ps;
+          }
+          return acc;
+        }, {});
+
+        const enriched = baseAssignments.map((a) => ({
+          ...a,
+          planned_shift: plannedShiftById[Number(a.planned_shift_id)] || null,
+        }));
+
+        if (!canceled) setAssignments(enriched);
       } catch (e) {
         if (!canceled) {
-          const msg = e?.response?.data?.detail || e.message || "Failed to load shifts";
-          toast.error(msg);
+          toast.error(extractErrorMessage(e, "Failed to load shifts"));
         }
       } finally {
         if (!canceled) setLoading(false);
@@ -199,28 +238,35 @@ function ScheduleTab({ employeeId }) {
             {assignments.map((assignment) => (
               <tr key={assignment.assignment_id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-sm">
-                  {assignment.planned_shift?.shift_date
-                    ? format(new Date(assignment.planned_shift.shift_date), "EEE, MMM dd")
+                  {assignment.planned_shift?.date
+                    ? format(parseISO(assignment.planned_shift.date), "EEE, MMM dd")
                     : "N/A"}
                 </td>
                 <td className="px-4 py-3 text-sm">
-                  {assignment.planned_shift?.template?.template_name || "N/A"}
+                  {assignment.planned_shift?.shift_template_name || "N/A"}
+                  {assignment.role_name ? (
+                    <div className="text-xs text-gray-500">Role: {assignment.role_name}</div>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-600">
-                  {assignment.planned_shift?.template?.start_time || "N/A"} -{" "}
-                  {assignment.planned_shift?.template?.end_time || "N/A"}
+                  {assignment.planned_shift?.start_time
+                    ? format(new Date(assignment.planned_shift.start_time), "HH:mm")
+                    : "N/A"} -{" "}
+                  {assignment.planned_shift?.end_time
+                    ? format(new Date(assignment.planned_shift.end_time), "HH:mm")
+                    : "N/A"}
                 </td>
                 <td className="px-4 py-3 text-sm">
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      assignment.assignment_status === "CONFIRMED"
+                      assignment.planned_shift?.status === "FULLY_ASSIGNED"
                         ? "bg-green-100 text-green-800"
-                        : assignment.assignment_status === "PENDING"
+                        : assignment.planned_shift?.status === "PARTIALLY_ASSIGNED"
                         ? "bg-yellow-100 text-yellow-800"
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    {assignment.assignment_status || "N/A"}
+                    {assignment.planned_shift?.status || "N/A"}
                   </span>
                 </td>
               </tr>
@@ -272,9 +318,11 @@ function TimeOffTab({ employeeId }) {
     );
   }
 
-  const pending = requests.filter((r) => r.request_status === "PENDING");
-  const approved = requests.filter((r) => r.request_status === "APPROVED");
-  const rejected = requests.filter((r) => r.request_status === "REJECTED");
+  const getStatus = (r) => r?.status || r?.request_status;
+
+  const pending = requests.filter((r) => getStatus(r) === "PENDING");
+  const approved = requests.filter((r) => getStatus(r) === "APPROVED");
+  const rejected = requests.filter((r) => getStatus(r) === "REJECTED");
 
   return (
     <div className="space-y-6">
@@ -308,9 +356,14 @@ function TimeOffTab({ employeeId }) {
 function RequestList({ requests }) {
   return (
     <div className="space-y-3">
-      {requests.map((request) => (
+      {requests.map((request) => {
+        const requestId = request?.request_id ?? request?.time_off_request_id;
+        const status = request?.status || request?.request_status || "UNKNOWN";
+        const reviewer = request?.approved_by_name || request?.approver_name;
+
+        return (
         <div
-          key={request.request_id}
+          key={requestId}
           className="border rounded-lg p-4 flex items-center justify-between"
         >
           <div>
@@ -321,25 +374,26 @@ function RequestList({ requests }) {
               </span>
               <span
                 className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  request.request_status === "APPROVED"
+                  status === "APPROVED"
                     ? "bg-green-100 text-green-800"
-                    : request.request_status === "PENDING"
+                    : status === "PENDING"
                     ? "bg-yellow-100 text-yellow-800"
                     : "bg-red-100 text-red-800"
                 }`}
               >
-                {request.request_status}
+                {status}
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-1">
               Type: {request.request_type}
-              {request.approver_name && (
-                <span className="ml-4">Reviewed by: {request.approver_name}</span>
+              {reviewer && (
+                <span className="ml-4">Reviewed by: {reviewer}</span>
               )}
             </p>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -12,7 +12,8 @@ import apiClient from '../lib/axios';
 export async function fetchTimeOffRequests(filters = {}) {
   const params = new URLSearchParams();
   if (filters.user_id) params.append('user_id', filters.user_id);
-  if (filters.status) params.append('status', filters.status);
+  // Backend expects `status_filter`.
+  if (filters.status) params.append('status_filter', filters.status);
   
   const response = await apiClient.get(`/time-off/requests/?${params.toString()}`);
   return response.data;
@@ -47,7 +48,7 @@ export async function createTimeOffRequest(requestData) {
  * @returns {Promise<Object>} Updated request
  */
 export async function approveTimeOffRequest(requestId) {
-  const response = await apiClient.post(`/time-off/requests/${requestId}/approve`);
+  const response = await apiClient.put(`/time-off/requests/${requestId}/approve`);
   return response.data;
 }
 
@@ -58,7 +59,7 @@ export async function approveTimeOffRequest(requestId) {
  * @returns {Promise<Object>} Updated request
  */
 export async function rejectTimeOffRequest(requestId, reason = '') {
-  const response = await apiClient.post(`/time-off/requests/${requestId}/reject`, { reason });
+  const response = await apiClient.put(`/time-off/requests/${requestId}/reject`, { reason });
   return response.data;
 }
 
@@ -76,7 +77,17 @@ export async function deleteTimeOffRequest(requestId) {
  * @returns {Promise<Array>} List of user's requests
  */
 export async function fetchMyTimeOffRequests() {
-  // Backend should filter by current user automatically
-  const response = await apiClient.get('/time-off/requests/');
+  // Backend filters for non-managers automatically, but managers would otherwise receive all requests.
+  // To make "My Time-Off" always be "mine", explicitly pass user_id when available.
+  let userId = null;
+  try {
+    const authUser = JSON.parse(localStorage.getItem('auth_user') || 'null');
+    userId = authUser?.user_id ?? null;
+  } catch {
+    userId = null;
+  }
+
+  const url = userId ? `/time-off/requests/?user_id=${encodeURIComponent(String(userId))}` : '/time-off/requests/';
+  const response = await apiClient.get(url);
   return response.data;
 }

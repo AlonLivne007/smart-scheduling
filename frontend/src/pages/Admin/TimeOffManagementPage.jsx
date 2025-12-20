@@ -82,7 +82,9 @@ export default function TimeOffManagementPage() {
       if (sortBy === 'date') {
         comparison = new Date(a.start_date) - new Date(b.start_date);
       } else if (sortBy === 'name') {
-        comparison = (a.user?.user_full_name || '').localeCompare(b.user?.user_full_name || '');
+        const aName = a.user_full_name || a.user?.user_full_name || '';
+        const bName = b.user_full_name || b.user?.user_full_name || '';
+        comparison = aName.localeCompare(bName);
       } else if (sortBy === 'status') {
         comparison = a.status.localeCompare(b.status);
       }
@@ -249,18 +251,21 @@ export default function TimeOffManagementPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAndSortedRequests.map((request) => {
+                  const requestId = request.time_off_request_id ?? request.request_id;
+                  const employeeName = request.user_full_name || request.user?.user_full_name || 'Unknown';
+                  const employeeEmail = request.user?.user_email || request.user_email || '';
                   const days = Math.ceil((new Date(request.end_date) - new Date(request.start_date)) / (1000 * 60 * 60 * 24)) + 1;
-                  const isProcessing = processingIds.has(request.time_off_request_id);
+                  const isProcessing = processingIds.has(requestId);
 
                   return (
-                    <tr key={request.time_off_request_id} className="hover:bg-gray-50">
+                    <tr key={requestId} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {request.user?.user_full_name || 'Unknown'}
+                          {employeeName}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {request.user?.user_email}
-                        </div>
+                        {employeeEmail ? (
+                          <div className="text-sm text-gray-500">{employeeEmail}</div>
+                        ) : null}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getTypeBadgeClass(request.request_type)}`}>
@@ -280,18 +285,20 @@ export default function TimeOffManagementPage() {
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(request.status)}`}>
                           {request.status}
                         </span>
-                        {request.status !== 'PENDING' && request.approved_by && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            by {request.approved_by.user_full_name}
-                          </div>
-                        )}
+                        {request.status !== 'PENDING' ? (
+                          request.approved_by_name || request.approved_by?.user_full_name ? (
+                            <div className="text-xs text-gray-500 mt-1">
+                              by {request.approved_by_name || request.approved_by?.user_full_name}
+                            </div>
+                          ) : null
+                        ) : null}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {request.status === 'PENDING' ? (
                           <div className="flex gap-2">
                             <Button
                               size="sm"
-                              onClick={() => handleApprove(request.time_off_request_id)}
+                              onClick={() => handleApprove(requestId)}
                               disabled={isProcessing}
                               isLoading={isProcessing}
                               className="bg-green-600 hover:bg-green-700 text-white"
@@ -301,7 +308,7 @@ export default function TimeOffManagementPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleReject(request.time_off_request_id)}
+                              onClick={() => handleReject(requestId)}
                               disabled={isProcessing}
                               className="border-red-300 text-red-700 hover:bg-red-50"
                             >

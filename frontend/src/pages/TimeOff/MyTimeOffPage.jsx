@@ -44,7 +44,8 @@ export default function MyTimeOffPage() {
 
     setDeleting(true);
     try {
-      await deleteTimeOffRequest(requestToDelete.time_off_request_id);
+      const requestId = requestToDelete.request_id ?? requestToDelete.time_off_request_id;
+      await deleteTimeOffRequest(requestId);
       toast.success('Request deleted successfully');
       setDeleteDialogOpen(false);
       setRequestToDelete(null);
@@ -204,11 +205,12 @@ export default function MyTimeOffPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredRequests.map((request) => {
+                  const requestId = request.request_id ?? request.time_off_request_id;
                   const days = Math.ceil((new Date(request.end_date) - new Date(request.start_date)) / (1000 * 60 * 60 * 24)) + 1;
                   const isPending = request.status === 'PENDING';
 
                   return (
-                    <tr key={request.time_off_request_id} className="hover:bg-gray-50">
+                    <tr key={requestId} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getTypeBadgeClass(request.request_type)}`}>
                           {request.request_type}
