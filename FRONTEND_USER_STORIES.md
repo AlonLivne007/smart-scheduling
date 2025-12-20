@@ -697,7 +697,7 @@ DELETE /optimization-configs/{id} → delete config
 
 ## 10. ADVANCED FEATURES 🟢 (Future/Low Priority)
 
-### US-025: Shift Template Management UI
+### US-025: Shift Template Management UI ✅
 **Priority:** 🟢 Low  
 **Story Points:** 8  
 **As a** manager  
@@ -705,11 +705,11 @@ DELETE /optimization-configs/{id} → delete config
 **So that** I can quickly reuse common shift patterns  
 
 **Acceptance Criteria:**
-- [ ] List of all shift templates
-- [ ] Create new template form: Name, Start time, End time, Location, Required roles (multi-select)
-- [ ] Edit existing template
-- [ ] Delete template (with confirmation)
-- [ ] Validation: Template name unique, times valid
+- [x] List of all shift templates
+- [x] Create new template form: Name, Start time, End time, Location, Required roles (multi-select)
+- [x] Edit existing template
+- [x] Delete template (with confirmation)
+- [x] Validation: Template name unique, times valid
 
 **API Calls:**
 ```
@@ -720,9 +720,14 @@ DELETE /shift-templates/{template_id}
 GET /roles/ → for role selection
 ```
 
+**✅ IMPLEMENTED:**
+- Manager-only page: `/admin/shift-templates`
+- UI: `frontend/src/pages/Admin/ShiftTemplatesManagementPage.jsx`
+- Wired in router + sidebar links
+
 ---
 
-### US-026: Role Management UI
+### US-026: Role Management UI ✅
 **Priority:** 🟢 Low  
 **Story Points:** 5  
 **As a** manager  
@@ -730,11 +735,11 @@ GET /roles/ → for role selection
 **So that** I can define job positions for the company  
 
 **Acceptance Criteria:**
-- [ ] List of all roles
-- [ ] Create new role form: Role name (unique)
-- [ ] Edit role name
-- [ ] Delete role (with confirmation)
-- [ ] Delete prevented if role is in use
+- [x] List of all roles
+- [x] Create new role form: Role name (unique)
+- [x] Edit role name
+- [x] Delete role (with confirmation)
+- [x] Delete prevented if role is in use
 
 **API Calls:**
 ```
@@ -743,6 +748,12 @@ POST /roles/
 PUT /roles/{role_id}
 DELETE /roles/{role_id}
 ```
+
+**✅ IMPLEMENTED:**
+- Manager-only page: `/admin/roles`
+- UI: `frontend/src/pages/Admin/RolesManagementPage.jsx`
+- Backend: added `PUT /roles/{role_id}` for editing
+- Note: If a role is referenced, deletion may be blocked by DB constraints; UI shows backend error.
 
 ---
 
@@ -833,8 +844,8 @@ Priority: Critical features for baseline functionality
 
 ### **Phase 7: Advanced (Future)** 🟢
 - US-024: Accessibility
-- US-025: Shift Template UI
-- US-026: Role Management UI
+- ✅ US-025: Shift Template UI
+- ✅ US-026: Role Management UI
 - US-027: Export
 - US-028: Optimization (Phase 2 backend feature)
 

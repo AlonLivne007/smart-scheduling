@@ -24,6 +24,16 @@ class RoleCreate(RoleBase):
     pass
 
 
+class RoleUpdate(BaseModel):
+    """Schema for updating an existing role."""
+    role_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Updated name of the role"
+    )
+
+
 class RoleRead(RoleBase):
     """Schema for role data in API responses."""
     role_id: int

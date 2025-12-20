@@ -28,6 +28,8 @@ import ConfirmDialogDemo from "./pages/debug/ConfirmDialogDemo.jsx";
 import TimeOffRequestPage from "./pages/TimeOff/TimeOffRequestPage.jsx";
 import MyTimeOffPage from "./pages/TimeOff/MyTimeOffPage.jsx";
 import TimeOffManagementPage from "./pages/Admin/TimeOffManagementPage.jsx";
+import RolesManagementPage from "./pages/Admin/RolesManagementPage.jsx";
+import ShiftTemplatesManagementPage from "./pages/Admin/ShiftTemplatesManagementPage.jsx";
 
 
 function getAuth() {
@@ -166,6 +168,26 @@ export default function App() {
             element={
               <AdminRoute>
                 <TimeOffManagementPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Role Management (admin/manager only) */}
+          <Route
+            path="admin/roles"
+            element={
+              <AdminRoute>
+                <RolesManagementPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Shift Template Management (admin/manager only) */}
+          <Route
+            path="admin/shift-templates"
+            element={
+              <AdminRoute>
+                <ShiftTemplatesManagementPage />
               </AdminRoute>
             }
           />

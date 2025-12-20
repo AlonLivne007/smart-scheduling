@@ -151,6 +151,20 @@ export default function MainLayout() {
               <NavLink to="/employees" className={linkClass} onClick={(e) => handleNavClick(e, "/employees")}>
                 Employees
               </NavLink>
+              <NavLink
+                to="/admin/shift-templates"
+                className={linkClass}
+                onClick={(e) => handleNavClick(e, "/admin/shift-templates")}
+              >
+                Shift Templates
+              </NavLink>
+              <NavLink
+                to="/admin/roles"
+                className={linkClass}
+                onClick={(e) => handleNavClick(e, "/admin/roles")}
+              >
+                Roles
+              </NavLink>
               <NavLink to="/admin/time-off" className={linkClass} onClick={(e) => handleNavClick(e, "/admin/time-off")}>
                 Manage Time-Off
               </NavLink>

@@ -10,10 +10,15 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.roleController import (create_role, get_all_roles,
-                                                get_role, delete_role)
+from app.api.controllers.roleController import (
+    create_role,
+    get_all_roles,
+    get_role,
+    delete_role,
+    update_role,
+)
 from app.db.session import get_db
-from app.schemas.roleSchema import RoleRead, RoleCreate
+from app.schemas.roleSchema import RoleRead, RoleCreate, RoleUpdate
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
@@ -65,6 +70,14 @@ async def get_single_role(role_id: int, db: Session = Depends(get_db)):
         Role data
     """
     role = await get_role(db, role_id)
+    return role
+
+
+@router.put("/{role_id}", response_model=RoleRead, status_code=status.HTTP_200_OK,
+            summary="Update a role")
+async def update_single_role(role_id: int, payload: RoleUpdate, db: Session = Depends(get_db)):
+    """Update an existing role's name."""
+    role = await update_role(db, role_id, payload)
     return role
 
 

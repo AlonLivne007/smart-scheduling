@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.models.roleModel import RoleModel
-from app.schemas.roleSchema import RoleCreate
+from app.schemas.roleSchema import RoleCreate, RoleUpdate
 
 
 async def create_role(db: Session, role_data: RoleCreate) -> RoleModel:
@@ -136,6 +136,40 @@ async def delete_role(db: Session, role_id: int) -> dict:
         return {
             "message": "Role deleted successfully"
         }
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database constraint violation: {error_str}"
+        )
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
+
+
+async def update_role(db: Session, role_id: int, role_data: RoleUpdate) -> RoleModel:
+    """Update an existing role's name."""
+    try:
+        role = db.get(RoleModel, role_id)
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Role not found"
+            )
+
+        role.role_name = role_data.role_name
+        db.add(role)
+        db.commit()
+        db.refresh(role)
+        return role
 
     except HTTPException:
         db.rollback()
