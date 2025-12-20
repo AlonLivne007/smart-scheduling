@@ -16,12 +16,27 @@
  * @component
  * @returns {JSX.Element} The settings configuration page
  */
+import Button from '../components/ui/Button.jsx';
 import Card from '../components/ui/Card.jsx';
 import PageLayout from '../layouts/PageLayout.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { showSuccess, showError, showInfo, showWarning, showLoading, dismissToast } from '../lib/notifications.jsx';
 import { Building2, Users, Bell, Shield, Database, Mail } from 'lucide-react';
 
 export default function Settings() {
+  const handleTestSuccess = () => showSuccess('Settings saved successfully!');
+  const handleTestError = () => showError('Failed to save settings. Please try again.');
+  const handleTestInfo = () => showInfo('This is an informational message.');
+  const handleTestWarning = () => showWarning('This action cannot be undone.');
+  
+  const handleTestLoading = () => {
+    const toastId = showLoading('Processing your request...');
+    setTimeout(() => {
+      dismissToast(toastId);
+      showSuccess('Request completed!');
+    }, 2000);
+  };
+
   return (
     <PageLayout>
       <PageHeader 
@@ -30,6 +45,22 @@ export default function Settings() {
       />
       
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Notification Testing - Demo Section */}
+          <div className="lg:col-span-2 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg p-6 border border-blue-200">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2 flex items-center">
+              <Bell className="w-5 h-5 mr-2 text-blue-600" />
+              Toast Notifications Demo
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">Click buttons below to test different notification types:</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <Button variant="primarySolid" onClick={handleTestSuccess} size="small">✓ Success</Button>
+              <Button variant="danger" onClick={handleTestError} size="small">✗ Error</Button>
+              <Button variant="primary" onClick={handleTestInfo} size="small">ℹ Info</Button>
+              <Button variant="secondarySolid" onClick={handleTestWarning} size="small">⚠ Warning</Button>
+              <Button variant="success" onClick={handleTestLoading} size="small">⏳ Loading</Button>
+            </div>
+          </div>
+
           {/* Company Settings */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
@@ -75,7 +106,7 @@ export default function Settings() {
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
               <Bell className="w-5 h-5 mr-2 text-yellow-600" />
-              Notifications
+              Notifications Preferences
             </h3>
             <div className="space-y-3">
               <label className="flex items-center p-3 rounded-lg hover:bg-blue-50 transition-colors">

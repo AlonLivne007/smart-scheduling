@@ -71,6 +71,7 @@ def seed_test_data(db: Session) -> dict:
         user = UserModel(
             user_full_name=f"Test User {i}",
             user_email=f"user{i}@example.com",
+            user_status="ACTIVE",
             # Simple/fake hash; for local dev only
             hashed_password="hashedpassword123",
             is_manager=(i <= 2),  # first two are managers

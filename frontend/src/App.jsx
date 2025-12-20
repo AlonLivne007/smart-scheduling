@@ -7,6 +7,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./styles/global.css";
 
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import { LoadingProvider } from "./contexts/LoadingContext.jsx";
 import MainLayout from "./layouts/MainLayout.jsx";
 import LoginPage from "./pages/login/LoginPage.jsx";
 import AddUserPage from "./pages/Admin/AddUser/AddUserPage.jsx";
@@ -15,6 +17,9 @@ import EditUserPage from "./pages/Admin/Employees/EditUserPage.jsx"; // <-- NEW
 import HomePage from "./pages/HomePage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
+import ErrorTestPage from "./pages/debug/ErrorTestPage.jsx";
+import InputFieldDemo from "./pages/debug/InputFieldDemo.jsx";
+import ConfirmDialogDemo from "./pages/debug/ConfirmDialogDemo.jsx";
 
 
 function getAuth() {
@@ -38,22 +43,27 @@ function AdminRoute({ children }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public entry */}
-        <Route path="/login" element={<LoginPage />} />
+    <ErrorBoundary>
+      <LoadingProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public entry */}
+            <Route path="/login" element={<LoginPage />} />
 
-        {/* Admin only pages (UI guard; backend also enforces) */}
-        <Route
-          path="/admin/add-user"
-          element={
-            <AdminRoute>
-              <AddUserPage />
-            </AdminRoute>
-          }
-        />
+          {/* Debug/Testing Routes (development) */}
+          <Route path="/debug/error" element={<ErrorTestPage />} />
+          <Route path="/debug/input-validation" element={<InputFieldDemo />} />
+          <Route path="/debug/confirm-dialog" element={<ConfirmDialogDemo />} />
 
-        {/* Protected app shell */}
+          {/* Admin only pages (UI guard; backend also enforces) */}
+          <Route
+            path="/admin/add-user"
+            element={
+              <AdminRoute>
+                <AddUserPage />
+              </AdminRoute>
+            }
+          />        {/* Protected app shell */}
         <Route
           path="/"
           element={
@@ -92,5 +102,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+      </LoadingProvider>
+    </ErrorBoundary>
   );
 }
