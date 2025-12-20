@@ -63,11 +63,13 @@ This document outlines the architecture for implementing optimal shift schedulin
 
 ---
 
-### 2. **EmployeePreferences** (New Table)
+### 2. **EmployeePreferences** (Future Enhancement - Not in MVP)
 
 **Purpose:** Store employee shift preferences and constraints
 
-**Fields:**
+**Status:** Removed from MVP. Can be added later if needed.
+
+**Fields (for future reference):**
 
 - `preference_id` (PK)
 - `user_id` (FK → users)
@@ -84,6 +86,8 @@ This document outlines the architecture for implementing optimal shift schedulin
 - Employee prefers morning shifts
 - Employee prefers certain days
 - Weight preferences for optimization
+
+**Note:** Without preferences, optimization will focus on fairness, coverage, and constraint satisfaction only.
 
 ---
 
@@ -163,17 +167,18 @@ This document outlines the architecture for implementing optimal shift schedulin
 
 ---
 
-### 6. **OptimizationConfig** (New Table)
+### 6. **OptimizationConfig** (Future Enhancement - Not in MVP)
 
 **Purpose:** Store optimization parameters and weights
 
-**Fields:**
+**Status:** Removed from MVP. Can be added later if needed. For now, use hardcoded default weights.
+
+**Fields (for future reference):**
 
 - `config_id` (PK)
-- `config_name` (String, unique) - e.g., "default", "fairness_focused", "cost_minimization"
+- `config_name` (String, unique) - e.g., "default", "fairness_focused", "coverage_priority"
 - `weight_fairness` (Float, default=1.0) - Weight for workload fairness
-- `weight_preferences` (Float, default=1.0) - Weight for employee preferences
-- `weight_cost` (Float, default=0.0) - Weight for cost minimization
+- `weight_preferences` (Float, default=0.0) - Weight for employee preferences (future)
 - `weight_coverage` (Float, default=1.0) - Weight for shift coverage
 - `max_runtime_seconds` (Integer, default=300) - Solver timeout
 - `mip_gap` (Float, default=0.01) - Acceptable optimality gap (1%)
@@ -183,9 +188,14 @@ This document outlines the architecture for implementing optimal shift schedulin
 
 **Use Cases:**
 
-- Different optimization strategies
+- Different optimization strategies (e.g., prioritize fairness vs coverage)
 - Tune optimization priorities
 - A/B test different configurations
+
+**Note:**
+
+- Without OptimizationConfig, the system will use hardcoded default weights: `weight_fairness=1.0`, `weight_coverage=1.0`
+- Cost optimization has been removed from the system
 
 ---
 
@@ -208,31 +218,36 @@ This document outlines the architecture for implementing optimal shift schedulin
 ```
 Minimize:
   w1 * (Workload Imbalance Penalty)
-+ w2 * (Preference Violation Penalty)
-+ w3 * (Cost Penalty)
++ w2 * (Preference Violation Penalty)  [Future: when preferences are added]
 + w4 * (Coverage Gap Penalty)
 ```
 
+**Default Weights:**
+
+- `w1 = 1.0` (Workload Fairness)
+- `w2 = 0.0` (Preferences - not in MVP)
+- `w4 = 1.0` (Coverage)
+
 **Components:**
 
-1. **Workload Fairness:**
+1. **Workload Fairness (w1 = 1.0):**
 
    - Minimize variance in hours worked across employees
    - Penalize employees working too many/few hours
+   - Goal: Balance workload evenly across all employees
 
-2. **Preference Satisfaction:**
+2. **Preference Satisfaction (w2 = 0.0):** (Future Enhancement)
 
    - Reward assignments matching employee preferences
    - Penalize assignments against preferences
+   - _Note: Removed from MVP - w2 is 0 initially_
 
-3. **Cost Optimization (optional):**
-
-   - Minimize total labor cost
-   - Consider different pay rates per role/user
-
-4. **Coverage:**
+3. **Coverage (w4 = 1.0):**
    - Ensure all required roles are filled
    - Penalize unfilled shifts
+   - Goal: Fill all required roles for all shifts
+
+**Note:** Cost optimization has been removed from the system. The optimizer focuses solely on fairness and coverage.
 
 ### Constraints
 
@@ -314,9 +329,10 @@ Minimize:
 
    - Add penalty if employee has fewer than minimum shifts
 
-3. **Preference Satisfaction:**
+3. **Preference Satisfaction:** (Future Enhancement)
 
    - Penalize assignments that don't match preferences
+   - _Note: Removed from MVP_
 
 4. **Workload Balance:**
    - Penalize high variance in hours across employees
@@ -342,6 +358,13 @@ Minimize:
 - `solve_mip_model(model, config)` - Run solver
 - `apply_solution(run_id, solution_id)` - Create ShiftAssignments from solution
 - `validate_solution(solution)` - Check constraint satisfaction
+
+**Default Optimization Weights:**
+
+- `weight_fairness = 1.0` - Balance workload evenly across employees
+- `weight_coverage = 1.0` - Fill all required roles for all shifts
+- _(Cost optimization removed - not used)_
+- _(Preferences removed from MVP - weight = 0.0)_
 
 ---
 
@@ -377,8 +400,8 @@ Minimize:
 - `build_shift_set(weekly_schedule_id)` - List of planned shifts
 - `build_role_requirements(shift_id)` - Required roles and counts
 - `build_availability_matrix()` - Employee-shift availability
-- `build_preference_scores()` - Preference weights
 - `build_overlap_matrix()` - Shift overlap detection
+- `build_preference_scores()` - Preference weights (Future: when preferences are added)
 
 ---
 
@@ -416,15 +439,17 @@ Minimize:
 
 ### Employee Preferences & Constraints Endpoints
 
-6. **GET /api/employees/{user_id}/preferences**
+6. **GET /api/employees/{user_id}/preferences** (Future Enhancement)
 
    - Get employee preferences
    - Returns: List of `EmployeePreferences` objects
+   - _Status: Removed from MVP_
 
-7. **POST /api/employees/{user_id}/preferences**
+7. **POST /api/employees/{user_id}/preferences** (Future Enhancement)
 
    - Set/update employee preferences
    - Body: `EmployeePreferences` data
+   - _Status: Removed from MVP_
 
 8. **GET /api/system/constraints**
 
@@ -474,21 +499,24 @@ Minimize:
 
 ---
 
-### Configuration Endpoints
+### Configuration Endpoints (Future Enhancement)
 
-16. **GET /api/optimization/configs**
+16. **GET /api/optimization/configs** (Future Enhancement)
 
     - List all optimization configurations
     - Returns: List of `OptimizationConfig` objects
+    - _Status: Removed from MVP_
 
-17. **POST /api/optimization/configs**
+17. **POST /api/optimization/configs** (Future Enhancement)
 
     - Create optimization configuration
     - Body: `OptimizationConfig` data
+    - _Status: Removed from MVP_
 
-18. **PUT /api/optimization/configs/{config_id}**
+18. **PUT /api/optimization/configs/{config_id}** (Future Enhancement)
     - Update optimization configuration
     - Body: `OptimizationConfig` data
+    - _Status: Removed from MVP_
 
 ---
 
@@ -540,7 +568,8 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
    - Role requirements
    - Availability data
    - Time-off requests
-   - Preferences and constraints
+   - System constraints
+   - _(Preferences removed from MVP - can be added later)_
 4. **SchedulingService** builds MIP model:
    - Creates decision variables
    - Adds hard constraints
@@ -561,30 +590,34 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
 
 #### Phase 1: Foundation (Data Models)
 
-**US-1: Time-Off Request System**
+**US-1: Time-Off Request System** ✅ **COMPLETED**
 
 - As an employee, I want to request time off so managers can approve it
 - As a manager, I want to approve/reject time-off requests
 - Acceptance: Employees can create requests, managers can approve/reject, system respects approved time-off
 - Entities: `TimeOffRequest`
+- _Status: ✅ Implemented (Model, Schema, Controller, Routes)_
 
-**US-2: Employee Preferences**
+**US-2: Employee Preferences** (Removed from MVP - Future Enhancement)
 
 - As an employee, I want to set my shift preferences so the optimizer considers them
 - Acceptance: Can set preferred shifts, days, times with weights
 - Entities: `EmployeePreferences`
+- _Status: Deferred to future release_
 
-**US-3: System Constraints**
+**US-3: System Constraints** ✅ **COMPLETED**
 
 - As a manager, I want to set system-wide work rules (max hours, rest periods) so the optimizer respects them for all employees
 - Acceptance: Can set hard/soft constraints that apply to all employees
 - Entities: `SystemConstraints`
+- _Status: ✅ Implemented (Model, Schema, Controller, Routes)_
 
-**US-4: Optimization Configuration**
+**US-4: Optimization Configuration** (Removed from MVP - Future Enhancement)
 
 - As a manager, I want to configure optimization weights so I can prioritize different objectives
 - Acceptance: Can create/update optimization configs with different weights
 - Entities: `OptimizationConfig`
+- _Status: Deferred to future release. System will use hardcoded default weights._
 
 ---
 
@@ -630,11 +663,12 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
 - Acceptance: POST /api/scheduling/runs/{id}/apply creates ShiftAssignments
 - Routes: Scheduling routes
 
-**US-11: Employee Preferences API**
+**US-12: Employee Preferences API** (Removed from MVP - Future Enhancement)
 
 - As an employee, I want to manage my preferences via API
 - Acceptance: CRUD endpoints for preferences
 - Routes: New employee management routes
+- _Status: Deferred to future release_
 
 **US-12: System Constraints API**
 
@@ -658,11 +692,12 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
 - Acceptance: Button to optimize, view run status, review solutions, apply solution
 - Frontend: New optimization page/component
 
-**US-15: Employee Preferences UI**
+**US-15: Employee Preferences UI** (Removed from MVP - Future Enhancement)
 
 - As an employee, I want to set my preferences in the UI
 - Acceptance: Forms for availability, preferences, time-off requests
 - Frontend: Employee settings page
+- _Status: Deferred to future release_
 
 **US-16: Time-Off Management UI**
 
@@ -681,8 +716,9 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
 
 **US-18: Multi-Objective Optimization**
 
-- As a manager, I want to balance multiple objectives (fairness, cost, preferences)
+- As a manager, I want to balance multiple objectives (fairness, coverage, preferences)
 - Acceptance: Configurable objective weights, Pareto frontier analysis
+- _Note: Cost optimization removed from system_
 
 **US-19: Optimization Analytics**
 
@@ -698,20 +734,21 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
 
 ## Database Migration Plan
 
-### Migration 1: Employee Preferences & System Constraints
-
-- Create `employee_preferences` table
-- Create `system_constraints` table
-
-### Migration 2: Time-Off System
+### Migration 1: Time-Off System ✅ **COMPLETED**
 
 - Create `time_off_requests` table
+- _Status: ✅ Implemented_
 
-### Migration 3: Optimization Infrastructure
+### Migration 2: System Constraints ✅ **COMPLETED**
 
-- Create `optimization_configs` table
+- Create `system_constraints` table
+- _Status: ✅ Implemented_
+
+### Migration 3: Optimization Infrastructure (Future)
+
 - Create `scheduling_runs` table
 - Create `scheduling_solutions` table
+- _(OptimizationConfig removed from MVP - migration deferred)_
 
 ### Migration 4: Indexes & Performance
 
@@ -792,7 +829,7 @@ pandas>=2.0.0        # Data manipulation (optional, for analysis)
 
 ## Questions to Consider
 
-1. **Pay Rates:** Do different roles/users have different pay rates? (affects cost optimization)
+1. **Pay Rates:** Do different roles/users have different pay rates? _(Note: Cost optimization removed from system - not considered)_
 2. **Skill Levels:** Are there seniority/skill levels within roles? (affects assignment quality)
 3. **Shift Bidding:** Do employees bid on shifts? (affects preference system)
 4. **Break Requirements:** Are there mandatory breaks during shifts? (affects shift duration)

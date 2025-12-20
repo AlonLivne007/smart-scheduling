@@ -2,11 +2,29 @@
 
 ## Epic: Optimal Scheduling with MIP Solver
 
+## 📊 Implementation Status
+
+### ✅ Completed (Phase 1)
+
+- **US-1: Time-Off Request System** (8 points) - Model, Schema, Controller, Routes implemented
+- **US-3: System Constraints** (5 points) - Model, Schema, Controller, Routes implemented
+
+### 🚀 Next Up (Phase 2)
+
+- **US-6: MIP Model Builder** (13 points) - Ready to start
+
+### 🔮 Future Enhancements
+
+- **US-2: Employee Preferences** (5 points) - Deferred
+- **US-4: Optimization Configuration** (5 points) - Deferred
+
+**Total MVP Progress: 13/118 story points (11%)**
+
 ---
 
 ## Phase 1: Foundation - Data Models & Entities
 
-### US-1: Time-Off Request System
+### US-1: Time-Off Request System ✅ **COMPLETED**
 
 **Story:** As an employee, I want to request time off, and as a manager, I want to approve/reject requests.
 
@@ -31,33 +49,9 @@
 
 ---
 
-### US-2: Employee Preferences
+### US-3: System Constraints ✅ **COMPLETED**
 
-**Story:** As an employee, I want to set my shift preferences so the optimizer considers them.
-
-**Alternative:** As an employee, I want to set my shift preferences so that the system can assign me to shifts that match my availability and preferences.
-
-**Acceptance Criteria:**
-
-- Employee can set preferred shift templates
-- Employee can set preferred days of week
-- Employee can set preferred time ranges
-- Employee can weight preferences (importance)
-- Preferences are used in optimization objective function
-
-**Technical:**
-
-- New entity: `EmployeePreferences`
-- Fields: user_id, preferred_shift_template_id, preferred_day_of_week, preferred_start_time, preferred_end_time, preference_weight
-- API: GET/POST /api/employees/{id}/preferences
-
-**Estimate:** 5 story points
-
----
-
-### US-3: Employee Constraints
-
-**Story:** As a manager, I want to set employee constraints so the optimizer respects work rules.
+**Story:** As a manager, I want to set system-wide work rules so the optimizer respects work rules.
 
 **Alternative:** As a manager, I want to set system-wide work rules so that all employee schedules comply with labor laws and company policies.
 
@@ -82,30 +76,6 @@
 
 ---
 
-### US-4: Optimization Configuration
-
-**Story:** As a manager, I want to configure optimization parameters so I can prioritize different objectives.
-
-**Alternative:** As a manager, I want to configure optimization parameters so that I can balance fairness, employee preferences, and operational needs when generating schedules.
-
-**Acceptance Criteria:**
-
-- Manager can create optimization configurations
-- Manager can set weights for: fairness, preferences, cost, coverage
-- Manager can set solver timeout and optimality gap
-- System has a default configuration
-- Manager can select configuration when optimizing
-
-**Technical:**
-
-- New entity: `OptimizationConfig`
-- Fields: config_name, weight_fairness, weight_preferences, weight_cost, weight_coverage, max_runtime_seconds, mip_gap
-- API: CRUD endpoints for configs
-
-**Estimate:** 5 story points
-
----
-
 ## Phase 2: Core Optimization Engine
 
 ### US-6: MIP Model Builder
@@ -120,16 +90,16 @@
 - System extracts planned shifts from weekly schedule
 - System builds role requirements matrix
 - System builds availability matrix (employee × shift)
-- System builds preference scores
 - System detects shift overlaps
 - System prepares all data for MIP solver
+- _(Note: Employee preferences removed from MVP - can be added later)_
 
 **Technical:**
 
 - New service: `OptimizationDataBuilder`
-- Methods: build_employee_set(), build_shift_set(), build_availability_matrix(), build_preference_scores()
+- Methods: build_employee_set(), build_shift_set(), build_availability_matrix(), build_overlap_matrix()
 - Input: weekly_schedule_id
-- Output: Structured data for MIP model
+- Output: Structured data for MIP model (without preference scores)
 
 **Estimate:** 13 story points
 
@@ -401,23 +371,25 @@
 
 ### Total Story Points by Phase:
 
-- **Phase 1 (Foundation):** 23 points
+- **Phase 1 (Foundation):** 13 points (US-1, US-3) ✅
 - **Phase 2 (Optimization Engine):** 42 points
 - **Phase 3 (API):** 29 points
 - **Phase 4 (Frontend):** 34 points
-- **Total:** 128 story points
+- **Total:** 118 story points (MVP)
+- **Future Enhancements:** +10 points (US-2: Employee Preferences, US-4: Optimization Configuration)
 
 ### Dependencies:
 
 - Phase 1 must complete before Phase 2
 - Phase 2 must complete before Phase 3
 - Phase 3 must complete before Phase 4
-- US-6, US-7, US-8 can be worked on in parallel after US-1 to US-5
+- US-6, US-7, US-8 can be worked on in parallel after US-1 and US-3 are complete
+- _(US-2 and US-4 removed from MVP - no longer dependencies)_
 
 ### Priority Order:
 
-1. US-1, US-2, US-3, US-4 (Foundation)
-2. US-5, US-6, US-7, US-8 (Core Engine)
+1. ✅ US-1, US-3 (Foundation) - **COMPLETED**
+2. US-6, US-7, US-8 (Core Engine) - **NEXT**
 3. US-9, US-10, US-11, US-12 (API)
 4. US-13, US-14, US-15 (Frontend)
 
@@ -433,6 +405,8 @@
 
 ### Future Enhancements (Not in MVP):
 
+- **US-2: Employee Preferences** - Allow employees to set shift preferences (preferred shifts, days, times) for optimization
+- **US-4: Optimization Configuration** - Allow managers to configure optimization parameters (weights, solver timeout, optimality gap) for different optimization strategies
 - Incremental optimization (preserve existing assignments)
 - Multi-objective optimization dashboard
 - Optimization analytics and reporting
