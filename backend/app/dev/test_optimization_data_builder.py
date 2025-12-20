@@ -17,7 +17,7 @@ from app.db.models import (
     timeOffRequestModel, systemConstraintsModel
 )
 from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
-from app.services.optimizationDataBuilder import OptimizationDataBuilder
+from app.services.optimization_data_services.optimization_data_builder import OptimizationDataBuilder
 
 
 def test_optimization_data_builder() -> None:
