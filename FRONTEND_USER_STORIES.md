@@ -299,8 +299,8 @@ GET /roles/ → for filter dropdown
 - [x] Navigation back to employee list
 - [x] Responsive layout
 - [x] **Tabs to organize sections:** "Info" | "Schedule" | "Preferences" | "Time-Off"
-- [ ] **Preferences tab:** View/edit shift preferences (preferred templates, days, time ranges) - *Waiting for Backend US-2*
-- [ ] **Preferences tab:** Set preference weights/importance - *Waiting for Backend US-2*
+- [x] **Preferences tab:** View/edit shift preferences (preferred templates, days, time ranges)
+- [x] **Preferences tab:** Set preference weights/importance
 - [ ] **Availability tab:** View/edit recurring weekly availability - *Waiting for Backend US-2*
 - [x] Manager view shows all tabs, employee view limited to own profile
 
@@ -309,8 +309,10 @@ GET /roles/ → for filter dropdown
 GET /users/{user_id} → employee details
 GET /shift-assignments/by-user/{user_id} → their assignments
 GET /time-off/requests/ filtered by user_id → their time-off
-GET /employees/{user_id}/preferences → shift preferences (not yet implemented)
-PUT /employees/{user_id}/preferences → update preferences (not yet implemented)
+GET /employees/{user_id}/preferences → shift preferences ✅
+POST /employees/{user_id}/preferences → create preferences ✅
+PUT /employees/{user_id}/preferences/{id} → update preferences ✅
+DELETE /employees/{user_id}/preferences/{id} → delete preferences ✅
 GET /employees/{user_id}/availability → availability schedule (not yet implemented)
 PUT /employees/{user_id}/availability → update availability (not yet implemented)
 ```
@@ -320,7 +322,7 @@ PUT /employees/{user_id}/availability → update availability (not yet implement
 - Info tab: Displays all employee details with Edit button
 - Schedule tab: Shows assigned shifts from GET /shift-assignments/by-user/{user_id}
 - Time-Off tab: Grouped by status (Pending, Approved, Rejected)
-- Preferences tab: Placeholder UI explaining feature awaits backend implementation
+- Preferences tab: ✅ Full CRUD interface for employee shift preferences
 - Accessible via row click in EmployeesPage
 - Route: /employees/:id
 
@@ -431,6 +433,49 @@ POST /time-off/requests/{request_id}/reject → reject
 ```
 GET /time-off/requests/ → filtered to show only current user's
 ```
+
+**Implementation Notes:**
+- MyTimeOffPage.jsx: List view with filter and CRUD operations
+- Route: /time-off/my-requests
+- Navigation: Accessible via sidebar "My Time-Off"
+
+---
+
+### US-015b: Employee Shift Preferences (Self-Service) ✅
+**Priority:** 🟡 Medium  
+**Story Points:** 5  
+**As an** employee  
+**I want to** set my shift preferences  
+**So that** the system can consider them when creating schedules  
+
+**Acceptance Criteria:**
+- [x] Employee can view all their shift preferences
+- [x] Employee can add new preferences (shift template, day of week, time range)
+- [x] Employee can set preference weight/importance (0.0-1.0 scale)
+- [x] Employee can edit existing preferences
+- [x] Employee can delete preferences
+- [x] Visual priority indicators (High/Medium/Low)
+- [x] Empty state with helpful messaging
+- [x] Toast notifications for all actions
+- [x] Info box explaining how preferences work
+- [x] Manager can view employee preferences in Employee Profile page
+
+**API Calls:**
+```
+GET /employees/{user_id}/preferences → get my preferences
+POST /employees/{user_id}/preferences → create preference
+PUT /employees/{user_id}/preferences/{id} → update preference
+DELETE /employees/{user_id}/preferences/{id} → delete preference
+GET /shift-templates/ → populate shift template dropdown
+```
+
+**Implementation Notes:**
+- MyPreferencesPage.jsx: Self-service preference management for employees
+- Route: /my-preferences
+- Navigation: Accessible via sidebar "My Preferences"
+- Backend authorization: Employees can only manage their own preferences
+- Manager view: Can also manage employee preferences in Employee Profile → Preferences tab
+- Similar UX to Time-Off requests (familiar pattern for employees)
 
 ---
 

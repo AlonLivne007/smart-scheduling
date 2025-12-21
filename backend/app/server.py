@@ -17,12 +17,13 @@ from app.api.routes import (
     shiftAssignmentRoutes,
     timeOffRequestRoutes,
     systemConstraintsRoutes,
+    employeePreferencesRoutes,
 )
 from app.db.session import engine, Base
 from app.db.models import (
     roleModel, userModel, userRoleModel, shiftTemplateModel,
     shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
-    timeOffRequestModel, systemConstraintsModel
+    timeOffRequestModel, systemConstraintsModel, employeePreferencesModel
 )
 from app.db.initMasterUser import init_master_user
 from app.db.seed_test_data import init_test_data
@@ -67,3 +68,5 @@ app.include_router(shiftAssignmentRoutes.router)
 app.include_router(timeOffRequestRoutes.router)
 
 app.include_router(systemConstraintsRoutes.router)
+
+app.include_router(employeePreferencesRoutes.router)

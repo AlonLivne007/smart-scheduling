@@ -139,6 +139,9 @@ export default function MainLayout() {
           <NavLink to="/time-off/my-requests" className={linkClass} onClick={(e) => handleNavClick(e, "/time-off/my-requests")}>
             My Time-Off
           </NavLink>
+          <NavLink to="/my-preferences" className={linkClass} onClick={(e) => handleNavClick(e, "/my-preferences")}>
+            My Preferences
+          </NavLink>
           <NavLink to="/settings" className={linkClass} onClick={(e) => handleNavClick(e, "/settings")}>
             Settings
           </NavLink>

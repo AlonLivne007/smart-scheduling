@@ -66,6 +66,13 @@ class UserModel(Base):
         lazy="selectin"
     )
 
+    preferences = relationship(
+        "EmployeePreferencesModel",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
     def __repr__(self):
         """String representation of the user."""
         return f"<User(name='{self.user_full_name}', email='{self.user_email}')>"
