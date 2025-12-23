@@ -35,6 +35,13 @@ class WeeklyScheduleModel(Base):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+    
+    scheduling_runs = relationship(
+        "SchedulingRunModel",
+        back_populates="weekly_schedule",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
 
     def __repr__(self):
         """String representation of the weekly schedule."""

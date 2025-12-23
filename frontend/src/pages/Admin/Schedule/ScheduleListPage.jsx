@@ -17,6 +17,9 @@ export default function ScheduleListPage() {
   const [sortOrder, setSortOrder] = useState("desc"); // 'asc' or 'desc'
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState(null);
+  const [optimizeScheduleId, setOptimizeScheduleId] = useState(null);
 
   useEffect(() => {
     loadSchedules();
@@ -82,7 +85,7 @@ export default function ScheduleListPage() {
     let totalAssigned = 0;
 
     schedule.planned_shifts.forEach((shift) => {
-      const required = shift.required_count || 1;
+      const required = typeof shift.required_positions === "number" ? shift.required_positions : 1;
       const assigned = shift.assignments?.length || 0;
       totalRequired += required;
       totalAssigned += assigned;
@@ -102,6 +105,27 @@ export default function ScheduleListPage() {
       toast.error(extractErrorMessage(e, "Failed to delete schedule"));
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleOptimize(scheduleId) {
+    setOptimizeScheduleId(scheduleId);
+    setOptimizing(true);
+    setOptimizationResult(null);
+    
+    try {
+      const { data } = await api.post(`/scheduling/optimize/${scheduleId}`);
+      
+      toast.success(`Schedule optimized successfully! ${data.total_assignments} assignments created.`);
+      setOptimizationResult(data);
+      
+      // Reload schedules to show updated coverage
+      loadSchedules();
+    } catch (e) {
+      toast.error(extractErrorMessage(e, "Optimization failed"));
+      setOptimizationResult({ error: extractErrorMessage(e, "Optimization failed") });
+    } finally {
+      setOptimizing(false);
     }
   }
 
@@ -241,6 +265,15 @@ export default function ScheduleListPage() {
                           >
                             <Button
                               size="sm"
+                              variant="primary"
+                              onClick={() => handleOptimize(schedule.weekly_schedule_id)}
+                              disabled={optimizing && optimizeScheduleId === schedule.weekly_schedule_id}
+                              title="Run AI optimization to assign employees to shifts"
+                            >
+                              {optimizing && optimizeScheduleId === schedule.weekly_schedule_id ? "Optimizing..." : "Optimize"}
+                            </Button>
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => navigate(`/schedules/${schedule.weekly_schedule_id}`)}
                               title="View schedule"
@@ -297,6 +330,103 @@ export default function ScheduleListPage() {
               : []
           }
         />
+      )}
+
+      {/* Optimization Results Modal */}
+      {optimizationResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {optimizationResult.error ? "Optimization Failed" : "Optimization Complete"}
+                </h2>
+                <button
+                  onClick={() => setOptimizationResult(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {optimizationResult.error ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-800">{optimizationResult.error}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Status:</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      optimizationResult.status === 'OPTIMAL' 
+                        ? 'bg-green-100 text-green-800'
+                        : optimizationResult.status === 'INFEASIBLE'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {optimizationResult.status}
+                    </span>
+                  </div>
+
+                  {/* Metrics Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="text-sm text-blue-600 font-medium">Total Assignments</div>
+                      <div className="text-2xl font-bold text-blue-900">{optimizationResult.total_assignments}</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <div className="text-sm text-green-600 font-medium">Coverage</div>
+                      <div className="text-2xl font-bold text-green-900">{optimizationResult.metrics?.coverage_percentage?.toFixed(1) || 0}%</div>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="text-sm text-purple-600 font-medium">Avg Preference Score</div>
+                      <div className="text-2xl font-bold text-purple-900">{optimizationResult.metrics?.average_preference_score?.toFixed(2) || 'N/A'}</div>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <div className="text-sm text-orange-600 font-medium">Employees Used</div>
+                      <div className="text-2xl font-bold text-orange-900">{optimizationResult.metrics?.employees_used || 0}</div>
+                    </div>
+                  </div>
+
+                  {/* Additional Info */}
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Runtime:</span>
+                      <span className="font-medium text-gray-900">{optimizationResult.runtime_seconds?.toFixed(2) || 0}s</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Objective Value:</span>
+                      <span className="font-medium text-gray-900">{optimizationResult.objective_value?.toFixed(2) || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Run ID:</span>
+                      <span className="font-medium text-gray-900">#{optimizationResult.run_id}</span>
+                    </div>
+                  </div>
+
+                  {/* Action Button */}
+                  <div className="flex justify-end gap-3 mt-6">
+                    <Button variant="outline" onClick={() => setOptimizationResult(null)}>
+                      Close
+                    </Button>
+                    <Button 
+                      variant="primary" 
+                      onClick={() => {
+                        setOptimizationResult(null);
+                        navigate(`/schedules/${optimizationResult.weekly_schedule_id}`);
+                      }}
+                    >
+                      View Schedule
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
