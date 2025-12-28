@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 import mip
 import numpy as np
 
-from app.services.optimizationDataBuilder import OptimizationDataBuilder, OptimizationData
+from app.services.optimization_data_services import OptimizationDataBuilder, OptimizationData
 from app.services.constraintService import ConstraintService
 from app.db.models.optimizationConfigModel import OptimizationConfigModel
 from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus, SolverStatus

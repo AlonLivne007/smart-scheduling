@@ -13,7 +13,7 @@ from app.db.models import (
 )
 
 from app.db.session import SessionLocal
-from app.services.optimizationDataBuilder import OptimizationDataBuilder, OptimizationData
+from app.services.optimization_data_services import OptimizationDataBuilder, OptimizationData
 
 def test_data_builder():
     """Test the data builder with a real weekly schedule."""

@@ -26,6 +26,7 @@ from app.db.models.roleModel import RoleModel
 from app.db.models.shiftTemplateModel import ShiftTemplateModel
 from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
 from app.db.models.plannedShiftModel import PlannedShiftModel, PlannedShiftStatus
+from app.db.models.optimizationConfigModel import OptimizationConfigModel
 
 
 def seed_test_data(db: Session) -> dict:
@@ -57,6 +58,7 @@ def seed_test_data(db: Session) -> dict:
             "shift_templates": 0,
             "weekly_schedules": 0,
             "planned_shifts": 0,
+            "optimization_configs": 0,
         }
 
     # --- Roles ---
@@ -98,6 +100,28 @@ def seed_test_data(db: Session) -> dict:
                 user.roles.append(role_by_name["Waiter"])
             else:
                 user.roles.append(role_by_name["Host"])
+
+    # --- Default optimization configuration ---
+    existing_default = db.query(OptimizationConfigModel).filter(
+        OptimizationConfigModel.is_default == True
+    ).first()
+    
+    config_created = False
+    if not existing_default:
+        default_config = OptimizationConfigModel(
+            config_name="Default Balanced",
+            weight_fairness=0.3,
+            weight_preferences=0.4,
+            weight_cost=0.1,
+            weight_coverage=0.2,
+            max_runtime_seconds=300,
+            mip_gap=0.01,
+            is_default=True
+        )
+        db.add(default_config)
+        db.flush()
+        config_created = True
+        print("✅ Created default optimization configuration")
 
     # --- Shift templates ---
     shift_templates_data = [
@@ -189,6 +213,7 @@ def seed_test_data(db: Session) -> dict:
         "shift_templates": len(shift_templates),
         "weekly_schedules": 1,
         "planned_shifts": len(planned_shifts),
+        "optimization_configs": 1 if config_created else 0,
     }
     return summary
 

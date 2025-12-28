@@ -270,6 +270,42 @@ def create_time_off_requests(db, employees):
     print(f"✅ Created {approved_count} approved time-off requests")
 
 
+def create_default_optimization_config(db):
+    """Create a default optimization configuration if one doesn't exist."""
+    print("\n⚙️  Creating default optimization configuration...")
+    
+    # Check if a default config already exists
+    existing_default = db.query(OptimizationConfigModel).filter(
+        OptimizationConfigModel.is_default == True
+    ).first()
+    
+    if existing_default:
+        print(f"   ℹ️  Default config already exists: {existing_default.config_name} (ID: {existing_default.config_id})")
+        return existing_default
+    
+    # Create default configuration
+    default_config = OptimizationConfigModel(
+        config_name="Default Balanced",
+        weight_fairness=0.3,
+        weight_preferences=0.4,
+        weight_cost=0.1,
+        weight_coverage=0.2,
+        max_runtime_seconds=300,
+        mip_gap=0.01,
+        is_default=True
+    )
+    
+    db.add(default_config)
+    db.commit()
+    db.refresh(default_config)
+    
+    print(f"   ✅ Created default optimization config: {default_config.config_name} (ID: {default_config.config_id})")
+    print(f"      Weights: Fairness={default_config.weight_fairness}, Preferences={default_config.weight_preferences}, Cost={default_config.weight_cost}, Coverage={default_config.weight_coverage}")
+    print(f"      Runtime limit: {default_config.max_runtime_seconds}s, MIP gap: {default_config.mip_gap}")
+    
+    return default_config
+
+
 def create_weekly_schedule(db, employees):
     """Create weekly schedule for current week with comprehensive shifts."""
     print("\n📋 Creating weekly schedule for Dec 23-29, 2025...")
@@ -407,6 +443,9 @@ def main():
         # Create time-off requests (3+ for current week)
         create_time_off_requests(db, employees)
         
+        # Create default optimization configuration
+        create_default_optimization_config(db)
+        
         # Create weekly schedule with shifts
         schedule = create_weekly_schedule(db, employees)
         
@@ -420,6 +459,7 @@ def main():
         print(f"   Preferences: {db.query(EmployeePreferencesModel).count()}")
         print(f"   Constraints: {db.query(SystemConstraintsModel).count()}")
         print(f"   Time-off requests (approved): {db.query(TimeOffRequestModel).filter(TimeOffRequestModel.status == TimeOffRequestStatus.APPROVED).count()}")
+        print(f"   Optimization configs: {db.query(OptimizationConfigModel).count()}")
         print(f"   Weekly schedule: {schedule.weekly_schedule_id}")
         print(f"   Planned shifts: {db.query(PlannedShiftModel).filter(PlannedShiftModel.weekly_schedule_id == schedule.weekly_schedule_id).count()}")
         
