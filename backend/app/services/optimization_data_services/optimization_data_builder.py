@@ -618,6 +618,7 @@ class OptimizationDataBuilder:
     ) -> float:
         """
         Calculate the percentage overlap between preferred time and shift time.
+        Handles overnight time ranges (end < start).
         
         Returns:
             Overlap percentage (0.0 to 1.0)
@@ -630,6 +631,12 @@ class OptimizationDataBuilder:
         pref_end_min = time_to_minutes(pref_end)
         shift_start_min = time_to_minutes(shift_start)
         shift_end_min = time_to_minutes(shift_end)
+        
+        # Handle overnight ranges: if end < start, end is next day (add 24*60 minutes)
+        if pref_end < pref_start:
+            pref_end_min += 24 * 60
+        if shift_end < shift_start:
+            shift_end_min += 24 * 60
         
         # Calculate overlap
         overlap_start = max(pref_start_min, shift_start_min)

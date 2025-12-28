@@ -6,7 +6,48 @@ No DB queries in this module.
 """
 
 from typing import Dict, List, Set, Tuple
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
+
+
+def normalize_shift_datetimes(shift: Dict) -> Tuple[datetime, datetime]:
+    """
+    Normalize shift start/end times to datetime objects, handling overnight shifts.
+    
+    If end_time < start_time (time-only), assumes end is next day.
+    If both are datetime objects, returns as-is.
+    
+    Args:
+        shift: Shift dictionary with 'date', 'start_time', and 'end_time'
+        
+    Returns:
+        Tuple of (start_dt, end_dt) as datetime objects
+    """
+    start = shift["start_time"]
+    end = shift["end_time"]
+    shift_date = shift.get("date")
+    
+    # Convert to datetime if needed
+    if isinstance(start, time):
+        if shift_date is None:
+            raise ValueError("Cannot normalize time without date")
+        start_dt = datetime.combine(shift_date, start)
+    else:
+        start_dt = start
+    
+    if isinstance(end, time):
+        if shift_date is None:
+            raise ValueError("Cannot normalize time without date")
+        end_dt = datetime.combine(shift_date, end)
+        # Handle overnight: if end < start, end is next day
+        if end < start:
+            end_dt += timedelta(days=1)
+    else:
+        end_dt = end
+        # If both are datetime and end < start on same date, assume overnight
+        if end_dt.date() == start_dt.date() and end_dt < start_dt:
+            end_dt += timedelta(days=1)
+    
+    return start_dt, end_dt
 
 
 def _shifts_overlap(shift1: Dict, shift2: Dict) -> bool:
@@ -24,10 +65,8 @@ def _shifts_overlap(shift1: Dict, shift2: Dict) -> bool:
     Returns:
         True if shifts overlap, False otherwise
     """
-    start1_dt = shift1["start_time"]
-    end1_dt = shift1["end_time"]
-    start2_dt = shift2["start_time"]
-    end2_dt = shift2["end_time"]
+    start1_dt, end1_dt = normalize_shift_datetimes(shift1)
+    start2_dt, end2_dt = normalize_shift_datetimes(shift2)
     
     # Shifts overlap if one starts before the other ends
     return start1_dt < end2_dt and start2_dt < end1_dt
@@ -84,11 +123,10 @@ def build_shift_durations(shifts: List[Dict]) -> Dict[int, float]:
     
     for shift in shifts:
         shift_id = shift["planned_shift_id"]
-        start_time = shift["start_time"]
-        end_time = shift["end_time"]
+        start_dt, end_dt = normalize_shift_datetimes(shift)
         
         # Compute duration in hours
-        duration_delta = end_time - start_time
+        duration_delta = end_dt - start_dt
         duration_hours = duration_delta.total_seconds() / 3600.0
         
         durations[shift_id] = duration_hours

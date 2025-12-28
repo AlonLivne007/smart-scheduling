@@ -283,39 +283,37 @@ class ConstraintService:
         existing_assignments: List[Dict],
         result: ValidationResult
     ):
-        """Check for overlapping shift assignments."""
+        """Check for overlapping shift assignments using datetime range overlap."""
         if not existing_assignments:
             existing_assignments = []
         
-        # Get all shifts for this employee on the same date
+        # Get all shifts for this employee (removed date filter to handle cross-day overlaps)
         shift_ids = [a['planned_shift_id'] for a in existing_assignments]
         
         if not shift_ids:
             return
         
         overlapping_shifts = self.db.query(PlannedShiftModel).filter(
-            PlannedShiftModel.planned_shift_id.in_(shift_ids),
-            PlannedShiftModel.date == shift.date
+            PlannedShiftModel.planned_shift_id.in_(shift_ids)
         ).all()
         
         for other_shift in overlapping_shifts:
             if other_shift.planned_shift_id == shift.planned_shift_id:
                 continue
             
-            # Check time overlap
-            if self._times_overlap(
-                shift.start_time, shift.end_time,
-                other_shift.start_time, other_shift.end_time
-            ):
+            # Check time overlap using full datetime comparison
+            if self._times_overlap(None, None, None, None, shift1=shift, shift2=other_shift):
                 result.add_error(ValidationError(
                     "SHIFT_OVERLAP",
                     "HARD",
-                    f"Employee {user.user_full_name} assigned to overlapping shifts on {shift.date}",
+                    f"Employee {user.user_full_name} assigned to overlapping shifts",
                     {
                         'user_id': user.user_id,
                         'shift1_id': shift.planned_shift_id,
+                        'shift1_date': str(shift.date),
                         'shift1_time': f"{shift.start_time}-{shift.end_time}",
                         'shift2_id': other_shift.planned_shift_id,
+                        'shift2_date': str(other_shift.date),
                         'shift2_time': f"{other_shift.start_time}-{other_shift.end_time}"
                     }
                 ))
@@ -537,43 +535,77 @@ class ConstraintService:
     
     # Helper methods
     
-    def _times_overlap(self, start1, end1, start2, end2) -> bool:
-        """Check if two time ranges overlap."""
-        # Convert to datetime if needed
-        if isinstance(start1, datetime):
-            start1 = start1.time()
-            end1 = end1.time()
-        if isinstance(start2, datetime):
-            start2 = start2.time()
-            end2 = end2.time()
+    def _normalize_shift_datetimes(self, shift: PlannedShiftModel) -> Tuple[datetime, datetime]:
+        """
+        Normalize shift start/end times to datetime objects, handling overnight shifts.
         
-        return start1 < end2 and start2 < end1
+        Args:
+            shift: PlannedShiftModel with date, start_time, and end_time
+            
+        Returns:
+            Tuple of (start_dt, end_dt) as datetime objects
+        """
+        if isinstance(shift.start_time, datetime):
+            start_dt = shift.start_time
+        else:
+            start_dt = datetime.combine(shift.date, shift.start_time)
+        
+        if isinstance(shift.end_time, datetime):
+            end_dt = shift.end_time
+        else:
+            end_dt = datetime.combine(shift.date, shift.end_time)
+            # Handle overnight: if end < start on same date, end is next day
+            if isinstance(shift.end_time, time) and isinstance(shift.start_time, time):
+                if shift.end_time < shift.start_time:
+                    end_dt += timedelta(days=1)
+            elif end_dt.date() == start_dt.date() and end_dt < start_dt:
+                end_dt += timedelta(days=1)
+        
+        return start_dt, end_dt
+    
+    def _times_overlap(self, start1, end1, start2, end2, shift1: PlannedShiftModel = None, shift2: PlannedShiftModel = None) -> bool:
+        """
+        Check if two time ranges overlap using full datetime comparison.
+        
+        If shift1 and shift2 are provided, uses their dates for proper normalization.
+        Otherwise, assumes start1/end1 and start2/end2 are already datetime objects.
+        """
+        if shift1 is not None and shift2 is not None:
+            # Use shift models for proper datetime normalization
+            start1_dt, end1_dt = self._normalize_shift_datetimes(shift1)
+            start2_dt, end2_dt = self._normalize_shift_datetimes(shift2)
+            return start1_dt < end2_dt and start2_dt < end1_dt
+        else:
+            # Fallback: assume datetime objects
+            if not isinstance(start1, datetime):
+                raise ValueError("start1 must be datetime when shift1 not provided")
+            if not isinstance(start2, datetime):
+                raise ValueError("start2 must be datetime when shift2 not provided")
+            return start1 < end2 and start2 < end1
     
     def _calculate_hours_between_shifts(self, shift1: PlannedShiftModel, shift2: PlannedShiftModel) -> float:
-        """Calculate hours between two shifts."""
-        # Combine date and time
-        if isinstance(shift1.start_time, datetime):
-            end1 = shift1.end_time
-            start2 = shift2.start_time
-        else:
-            end1 = datetime.combine(shift1.date, shift1.end_time)
-            start2 = datetime.combine(shift2.date, shift2.start_time)
+        """
+        Calculate hours between two shifts (rest period).
         
-        # Calculate difference
-        if end1 < start2:
-            diff = start2 - end1
+        Returns:
+            Hours between shifts. If negative, shifts overlap.
+        """
+        end1_dt, _ = self._normalize_shift_datetimes(shift1)
+        start2_dt, _ = self._normalize_shift_datetimes(shift2)
+        
+        # Rest period = (later.start - earlier.end)
+        # If negative, shifts overlap
+        if end1_dt < start2_dt:
+            # shift1 ends before shift2 starts
+            diff = start2_dt - end1_dt
         else:
-            diff = end1 - start2
+            # shift1 ends after shift2 starts (overlap)
+            diff = start2_dt - end1_dt  # Negative value indicates overlap
         
         return diff.total_seconds() / 3600.0
     
     def _calculate_shift_hours(self, shift: PlannedShiftModel) -> float:
-        """Calculate duration of a shift in hours."""
-        if isinstance(shift.start_time, datetime):
-            diff = shift.end_time - shift.start_time
-        else:
-            start = datetime.combine(shift.date, shift.start_time)
-            end = datetime.combine(shift.date, shift.end_time)
-            diff = end - start
-        
+        """Calculate duration of a shift in hours, handling overnight shifts."""
+        start_dt, end_dt = self._normalize_shift_datetimes(shift)
+        diff = end_dt - start_dt
         return diff.total_seconds() / 3600.0

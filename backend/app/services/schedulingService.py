@@ -212,11 +212,13 @@ class SchedulingService:
         n_employees = len(data.employees)
         n_shifts = len(data.shifts)
         
-        print(f"Creating decision variables ({n_employees} employees × {n_shifts} shifts)...")
+        print(f"Creating decision variables ({n_employees} employees × {n_shifts} shifts × roles)...")
         
-        # Decision variables: x[i,j,k] = 1 if employee i assigned to shift j in role k
-        # For simplicity, we create x[i,j] and assign a concrete role post-optimization.
-        # IMPORTANT: only create x[i,j] if employee i is eligible for at least one required role of shift j.
+        # Decision variables: x[i,j,r] = 1 if employee i assigned to shift j in role r
+        # Only create x[i,j,r] for eligible triples:
+        # - availability_matrix[i,j] == 1
+        # - shift.required_roles contains role r
+        # - employee has role r
         x = {}
         for i, emp in enumerate(data.employees):
             for j, shift in enumerate(data.shifts):
@@ -227,12 +229,13 @@ class SchedulingService:
                 if not required_roles:
                     continue
 
-                required_role_ids = {rr['role_id'] for rr in required_roles if rr.get('role_id') is not None}
                 emp_role_ids = set(emp.get('roles') or [])
-                if not required_role_ids.intersection(emp_role_ids):
-                    continue
-
-                x[i, j] = model.add_var(var_type=mip.BINARY, name=f'x_{i}_{j}')
+                
+                # Create variable for each role that employee has and shift requires
+                for role_req in required_roles:
+                    role_id = role_req['role_id']
+                    if role_id in emp_role_ids:
+                        x[i, j, role_id] = model.add_var(var_type=mip.BINARY, name=f'x_{i}_{j}_{role_id}')
         
         print(f"Created {len(x)} decision variables")
         
@@ -249,17 +252,32 @@ class SchedulingService:
                 role_id = role_req['role_id']
                 required_count = role_req['required_count']
                 
-                # Sum of employees who have this role and are assigned to this shift
-                eligible_employees = []
-                for i, emp in enumerate(data.employees):
-                    if role_id in emp['roles'] and (i, j) in x:
-                        eligible_employees.append(x[i, j])
+                # Sum of employees assigned to this shift in this role: sum_i x[i,j,r]
+                eligible_vars = [x[i, j, role_id] for i in range(n_employees) if (i, j, role_id) in x]
                 
-                if eligible_employees:
-                    # Use == instead of >= to ensure EXACT coverage, not over-assignment
-                    model += mip.xsum(eligible_employees) == required_count, f'coverage_shift_{j}_role_{role_id}'
+                if eligible_vars:
+                    # Use == to ensure EXACT coverage
+                    model += mip.xsum(eligible_vars) == required_count, f'coverage_shift_{j}_role_{role_id}'
+                else:
+                    # No eligible employees: enforce infeasibility if required_count > 0
+                    if required_count > 0:
+                        model += 0 == required_count, f'infeasible_coverage_shift_{j}_role_{role_id}'
         
-        # CONSTRAINT 2: No overlapping shifts for same employee
+        # CONSTRAINT 2: Single role per employee per shift: sum_r x[i,j,r] <= 1
+        print("Adding single-role-per-shift constraints...")
+        single_role_count = 0
+        for i in range(n_employees):
+            for j in range(n_shifts):
+                # Get all role_ids for this (i,j) pair
+                role_ids_for_ij = {r for (ei, ej, r) in x.keys() if ei == i and ej == j}
+                if len(role_ids_for_ij) > 1:
+                    role_vars = [x[i, j, r] for r in role_ids_for_ij]
+                    model += mip.xsum(role_vars) <= 1, f'single_role_emp_{i}_shift_{j}'
+                    single_role_count += 1
+        
+        print(f"Added {single_role_count} single-role-per-shift constraints")
+        
+        # CONSTRAINT 3: No overlapping shifts for same employee
         print("Adding no-overlap constraints...")
         overlap_count = 0
         for shift_id, overlapping_ids in data.shift_overlaps.items():
@@ -271,15 +289,25 @@ class SchedulingService:
             for overlapping_id in overlapping_ids:
                 overlapping_idx = data.shift_index[overlapping_id]
                 
-                # For each employee, they can't be assigned to both overlapping shifts
+                # For each employee, they can't be assigned to both overlapping shifts in any role
                 for i in range(n_employees):
-                    if (i, shift_idx) in x and (i, overlapping_idx) in x:
-                        model += x[i, shift_idx] + x[i, overlapping_idx] <= 1, f'no_overlap_emp_{i}_shift_{shift_idx}_{overlapping_idx}'
+                    # Get all role vars for (i, shift_idx) and (i, overlapping_idx)
+                    vars_shift = [x[i, shift_idx, r] for r in set() if (i, shift_idx, r) in x]
+                    vars_overlap = [x[i, overlapping_idx, r] for r in set() if (i, overlapping_idx, r) in x]
+                    
+                    role_ids_shift = {r for (ei, ej, r) in x.keys() if ei == i and ej == shift_idx}
+                    role_ids_overlap = {r for (ei, ej, r) in x.keys() if ei == i and ej == overlapping_idx}
+                    
+                    if role_ids_shift and role_ids_overlap:
+                        vars_shift = [x[i, shift_idx, r] for r in role_ids_shift]
+                        vars_overlap = [x[i, overlapping_idx, r] for r in role_ids_overlap]
+                        # Sum of all assignments to shift_idx + sum of all assignments to overlapping_idx <= 1
+                        model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1, f'no_overlap_emp_{i}_shift_{shift_idx}_{overlapping_idx}'
                         overlap_count += 1
         
         print(f"Added {overlap_count} no-overlap constraints")
         
-        # CONSTRAINT 3: Fairness - try to distribute shifts evenly
+        # CONSTRAINT 4: Fairness - try to distribute shifts evenly
         print("Adding fairness constraints...")
         
         # Calculate average assignments per employee
@@ -291,20 +319,22 @@ class SchedulingService:
         
         avg_assignments = total_required_assignments / n_employees if n_employees > 0 else 0
         
-        # Allow some deviation from average (soft constraint via objective)
+        # Build emp_total for every employee (even if they have no variables)
         assignments_per_employee = []
         for i in range(n_employees):
-            emp_vars = [x[i, j] for j in range(n_shifts) if (i, j) in x]
-            if emp_vars:
-                assignments_per_employee.append(mip.xsum(emp_vars))
+            # Get all variables for this employee across all shifts and roles
+            emp_vars = [x[i, j, r] for (ei, ej, r) in x.keys() if ei == i]
+            emp_total = mip.xsum(emp_vars) if emp_vars else 0
+            assignments_per_employee.append(emp_total)
         
         # OBJECTIVE FUNCTION
         print("Building objective function...")
         
         # Component 1: Maximize preference satisfaction
+        # Sum over all (i,j,r) triples: preference_scores[i,j] * x[i,j,r]
         preference_component = mip.xsum(
-            data.preference_scores[i, j] * x[i, j]
-            for (i, j) in x
+            data.preference_scores[i, j] * x[i, j, r]
+            for (i, j, r) in x
         )
         
         # Component 2: Fairness (minimize deviation from average)
@@ -323,8 +353,8 @@ class SchedulingService:
         
         fairness_component = mip.xsum(fairness_vars) if fairness_vars else 0
         
-        # Component 3: Coverage (maximize filled shifts)
-        coverage_component = mip.xsum(x[i, j] for (i, j) in x)
+        # Component 3: Coverage (maximize filled assignments)
+        coverage_component = mip.xsum(x[i, j, r] for (i, j, r) in x)
         
         # Combine objectives with weights
         # Note: fairness is minimized, so we subtract it
@@ -373,30 +403,18 @@ class SchedulingService:
             # Extract solution
             print("\nExtracting assignments...")
             assignments = []
-            for (i, j), var in x.items():
+            for (i, j, role_id), var in x.items():
                 if var.x > 0.5:  # Variable is 1 (assigned)
                     emp = data.employees[i]
                     shift = data.shifts[j]
                     
-                    # Determine which role to assign
-                    # Find a role that the employee has and the shift needs
-                    emp_roles = set(emp['roles'])
-                    shift_role_ids = [req['role_id'] for req in shift['required_roles']]
-                    matching_roles = emp_roles.intersection(shift_role_ids)
-                    
-                    if matching_roles:
-                        role_id = list(matching_roles)[0]  # Pick first matching role
-                    else:
-                        # Fallback to employee's first role
-                        role_id = emp['roles'][0] if emp['roles'] else None
-                    
-                    if role_id:
-                        assignments.append({
-                            'user_id': emp['user_id'],
-                            'planned_shift_id': shift['planned_shift_id'],
-                            'role_id': role_id,
-                            'preference_score': float(data.preference_scores[i, j])
-                        })
+                    # Role ID comes directly from variable key (i, j, role_id)
+                    assignments.append({
+                        'user_id': emp['user_id'],
+                        'planned_shift_id': shift['planned_shift_id'],
+                        'role_id': role_id,
+                        'preference_score': float(data.preference_scores[i, j])
+                    })
             
             solution.assignments = assignments
             
