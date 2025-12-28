@@ -123,6 +123,11 @@ class PlannedShiftRead(PlannedShiftBase):
         default=None,
         description="Name of the shift template (convenient to include in responses)"
     )
+    required_positions: int = Field(
+        default=1,
+        ge=0,
+        description="Total required employee positions for this shift (sum of required_count across roles)"
+    )
     assignments: List[ShiftAssignmentRead] = Field(
         default_factory=list,
         description="List of user assignments for this shift"

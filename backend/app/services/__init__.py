@@ -1,7 +1,6 @@
 """
-Services module for business logic.
+Services module for Smart Scheduling application.
 
-This module contains service classes that encapsulate complex business logic
-and data transformation operations.
+This module contains business logic services for complex operations
+like optimization data preparation, constraint validation, and scheduling.
 """
-

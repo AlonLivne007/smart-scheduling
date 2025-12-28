@@ -7,51 +7,53 @@ No SQLAlchemy, no business logic.
 """
 
 from typing import Dict, List, Set, Tuple
+import numpy as np
 from app.db.models.systemConstraintsModel import SystemConstraintType
 
 
 class OptimizationData:
     """
-    Data structure for optimization input.
+    Data class to hold all extracted optimization data.
     
-    This class holds all the structured data needed to build a MIP model.
+    Attributes:
+        employees: List of eligible employee dictionaries
+        shifts: List of planned shift dictionaries
+        roles: List of role dictionaries
+        availability_matrix: 2D numpy array (employees × shifts) - 1 if available, 0 if not
+        preference_scores: 2D numpy array (employees × shifts) - preference score 0.0-1.0
+        role_requirements: Dictionary mapping shift_id -> List of required role_ids
+        employee_roles: Dictionary mapping user_id -> List of role_ids
+        shift_overlaps: Dictionary mapping shift_id -> List of overlapping shift_ids
+        employee_index: Dictionary mapping user_id -> array index
+        shift_index: Dictionary mapping planned_shift_id -> array index
+        existing_assignments: Set of (employee_id, shift_id, role_id) tuples (to be added)
+        shift_durations: Dictionary mapping shift_id -> duration_hours (to be added)
+        system_constraints: Dictionary mapping SystemConstraintType -> (value, is_hard) (to be added)
+        time_off_conflicts: Dictionary mapping employee_id -> list of conflicting shift_ids (to be added)
     """
     
     def __init__(self):
-        # List of eligible employees with their roles
-        self.employees: List[Dict] = []  # [{user_id, name, role_ids: [1, 2, ...]}]
+        # Basic sets (from CURRENT)
+        self.employees: List[Dict] = []
+        self.shifts: List[Dict] = []
+        self.roles: List[Dict] = []
         
-        # List of planned shifts
-        self.shifts: List[Dict] = []  # [{shift_id, date, start_time, end_time, template_id, location}]
+        # Numpy matrices (from CURRENT - required for MIP solver)
+        self.availability_matrix: np.ndarray = None
+        self.preference_scores: np.ndarray = None
         
-        # Role requirements per shift: {shift_id: {role_id: required_count}}
-        self.role_requirements: Dict[int, Dict[int, int]] = {}
+        # Index mappings (from CURRENT - required for MIP solver)
+        self.employee_index: Dict[int, int] = {}
+        self.shift_index: Dict[int, int] = {}
         
-        # Available pairs: {(employee_id, shift_id)} - only stores available assignments
-        self.available_pairs: Set[Tuple[int, int]] = set()
+        # Role mappings (from CURRENT)
+        self.role_requirements: Dict[int, List[int]] = {}  # Keep CURRENT format
+        self.employee_roles: Dict[int, List[int]] = {}
+        self.shift_overlaps: Dict[int, List[int]] = {}
         
-        # Eligible roles per employee-shift pair: {(employee_id, shift_id): {role_id, ...}}
-        # Contains roles that employee is qualified for AND are required by the shift
-        # Only includes available pairs (for optimization variables)
-        self.eligible_roles: Dict[Tuple[int, int], Set[int]] = {}
-        
-        # Shift durations in hours: {shift_id: duration_hours}
-        self.shift_durations: Dict[int, float] = {}
-        
-        # Shift overlaps: {shift_id: {overlapping_shift_ids}}
-        self.shift_overlaps: Dict[int, Set[int]] = {}
-        
-        # Time-off conflicts: {employee_id: [shift_ids]}
-        self.time_off_conflicts: Dict[int, List[int]] = {}
-        
-        # Existing assignments: {(employee_id, shift_id, role_id): bool}
-        self.existing_assignments: Set[Tuple[int, int, int]] = set()
-        
-        # Fixed assignments mapping: {(employee_id, shift_id): role_id}
-        # Used by MIP builder to fix x[i,j,k_assigned] = 1 and prevent other roles
-        self.fixed_assignments: Dict[Tuple[int, int], int] = {}
-        
-        # System constraints: {SystemConstraintType: (value, is_hard)}
-        # Loaded once to keep MIP builder clean (no DB queries)
-        self.system_constraints: Dict[SystemConstraintType, Tuple[float, bool]] = {}
+        # New fields from MY branch (to be populated in later phases)
+        self.existing_assignments: Set[Tuple[int, int, int]] = set()  # {(emp_id, shift_id, role_id)}
+        self.shift_durations: Dict[int, float] = {}  # {shift_id: duration_hours}
+        self.system_constraints: Dict[SystemConstraintType, Tuple[float, bool]] = {}  # {type: (value, is_hard)}
+        self.time_off_conflicts: Dict[int, List[int]] = {}  # {emp_id: [conflicting_shift_ids]}
 

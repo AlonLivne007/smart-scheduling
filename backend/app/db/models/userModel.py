@@ -31,6 +31,7 @@ class UserModel(Base):
     user_id = Column(Integer, primary_key=True, index=True)
     user_full_name = Column(String(255), nullable=False)
     user_email = Column(String(255), unique=True, index=True, nullable=False)
+    user_status = Column(String(50), nullable=False, default="ACTIVE")
     hashed_password = Column(String(255), nullable=False)
     is_manager = Column(Boolean, default=False)
 
@@ -60,6 +61,13 @@ class UserModel(Base):
     time_off_requests = relationship(
         TimeOffRequestModel,
         foreign_keys=[TimeOffRequestModel.user_id],
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+    preferences = relationship(
+        "EmployeePreferencesModel",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin"

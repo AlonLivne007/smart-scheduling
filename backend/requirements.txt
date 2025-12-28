@@ -7,3 +7,5 @@ python-dotenv
 email-validator
 werkzeug
 python-jose[cryptography]
+mip>=1.15.0
+numpy>=1.24.0

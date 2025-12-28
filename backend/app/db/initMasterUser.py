@@ -44,6 +44,7 @@ def init_master_user():
         master_user = UserModel(
             user_full_name=master_name,
             user_email=master_email,
+            user_status="ACTIVE",
             hashed_password=hashed_password,
             is_manager=True,  # Master user has manager privileges
         )
