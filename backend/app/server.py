@@ -29,7 +29,7 @@ from app.db.models import (
     optimizationConfigModel, schedulingRunModel, schedulingSolutionModel
 )
 from app.db.initMasterUser import init_master_user
-from app.dev.seed_test_data import init_test_data
+from app.db.seed_test_data import init_test_data
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
