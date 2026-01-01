@@ -233,7 +233,7 @@
 
 ## PHASE 3: API & INTEGRATION 🟠
 
-### US-10: Optimization API Endpoints
+### US-10: Optimization API Endpoints ⚠️
 **Priority:** 🔴 Critical  
 **Story Points:** 8  
 **As a** manager  
@@ -241,18 +241,28 @@
 **So that** I can automatically generate optimal shift assignments for my team  
 
 **Acceptance Criteria:**
-- [ ] POST /api/scheduling/optimize triggers optimization
-- [ ] Request includes weekly_schedule_id and optional config_id
-- [ ] Returns SchedulingRun object with run_id
-- [ ] GET /api/scheduling/runs/{id} returns run status and results
-- [ ] GET /api/scheduling/runs returns list of all runs
-- [ ] API handles errors gracefully
+- [x] POST /scheduling/optimize/{weekly_schedule_id} triggers optimization
+- [ ] Request includes optional config_id (currently uses default only)
+- [x] Returns SchedulingRun object with run_id and metrics
+- [x] GET /scheduling/runs/{id} returns run status and results
+- [x] GET /scheduling/runs/schedule/{weekly_schedule_id} returns runs for a schedule
+- [ ] GET /scheduling/runs returns list of all runs (missing)
+- [x] API handles errors gracefully
+- [ ] Async processing (currently runs synchronously - may timeout on large schedules)
+
+**Implementation Status:**
+- ✅ Core optimization endpoint implemented
+- ✅ Run details endpoint implemented
+- ✅ Schedule-specific runs endpoint implemented
+- ❌ Missing: List all runs endpoint
+- ❌ Missing: config_id parameter support
+- ⚠️ Runs synchronously (needs background job queue for production)
 
 **Technical Notes:**
-- Routes: `/api/scheduling/optimize`, `/api/scheduling/runs`
-- Controller: `schedulingController.py`
-- Async processing (optimization runs in background)
-- Returns immediately with run_id, status updates via polling
+- Routes: `/scheduling/optimize/{id}`, `/scheduling/runs/{id}`, `/scheduling/runs/schedule/{id}`
+- Controller: `schedulingRoutes.py`
+- Currently synchronous (consider Celery + Redis for background processing)
+- Returns immediately with run_id, but optimization runs in same request
 
 ---
 
@@ -416,11 +426,11 @@
 - ✅ US-8: MIP Solver Integration (13 pts)
 - ✅ US-9: Solution Storage & Tracking (8 pts)
 
-**Phase 3 - API & Integration:** ⏸️ **NOT STARTED** (29 points)
-- ⏳ US-10: Optimization API Endpoints (8 pts)
-- ⏳ US-11: Apply Solution to Assignments (5 pts)
-- ⏳ US-12: Employee Management API (8 pts)
-- ⏳ US-13: Time-Off Management API (8 pts)
+**Phase 3 - API & Integration:** ⚠️ **PARTIALLY COMPLETE** (29 points)
+- ⚠️ US-10: Optimization API Endpoints (8 pts) - 75% complete (missing list all runs, config_id param)
+- ⏳ US-11: Apply Solution to Assignments (5 pts) - ❌ NOT STARTED
+- ✅ US-12: Employee Management API (8 pts) - ✅ COMPLETE (preferences API exists)
+- ✅ US-13: Time-Off Management API (8 pts) - ✅ COMPLETE
 
 **Phase 4 - Frontend Integration:** ⏸️ **NOT STARTED** (34 points)
 - ⏳ US-14: Optimization UI (13 pts)
@@ -428,8 +438,9 @@
 - ⏳ US-16: Time-Off Management UI (8 pts)
 
 ### Total Story Points:
-- **Completed:** 44 points (34%)
-- **Remaining:** 84 points (66%)
+- **Completed:** 60 points (47%) - Updated: US-10 (6/8), US-12 (8/8), US-13 (8/8)
+- **In Progress:** 6 points (5%) - US-10 remaining work
+- **Remaining:** 62 points (48%)
 - **Total:** 128 points
 
 ### Next Steps:

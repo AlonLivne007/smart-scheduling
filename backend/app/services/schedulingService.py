@@ -239,6 +239,18 @@ class SchedulingService:
         
         print(f"Created {len(x)} decision variables")
         
+        # Validate matrix dimensions
+        if data.preference_scores.shape != (n_employees, n_shifts):
+            raise ValueError(
+                f"Preference scores matrix shape mismatch: expected ({n_employees}, {n_shifts}), "
+                f"got {data.preference_scores.shape}"
+            )
+        if data.availability_matrix.shape != (n_employees, n_shifts):
+            raise ValueError(
+                f"Availability matrix shape mismatch: expected ({n_employees}, {n_shifts}), "
+                f"got {data.availability_matrix.shape}"
+            )
+        
         # CONSTRAINT 1: Each shift must be assigned exactly the required employees for each role
         print("Adding coverage constraints...")
         for j, shift in enumerate(data.shifts):
@@ -323,7 +335,7 @@ class SchedulingService:
         assignments_per_employee = []
         for i in range(n_employees):
             # Get all variables for this employee across all shifts and roles
-            emp_vars = [x[i, j, r] for (ei, ej, r) in x.keys() if ei == i]
+            emp_vars = [x[ei, ej, r] for (ei, ej, r) in x.keys() if ei == i]
             emp_total = mip.xsum(emp_vars) if emp_vars else 0
             assignments_per_employee.append(emp_total)
         
@@ -332,10 +344,18 @@ class SchedulingService:
         
         # Component 1: Maximize preference satisfaction
         # Sum over all (i,j,r) triples: preference_scores[i,j] * x[i,j,r]
-        preference_component = mip.xsum(
-            data.preference_scores[i, j] * x[i, j, r]
-            for (i, j, r) in x
-        )
+        try:
+            preference_component = mip.xsum(
+                data.preference_scores[i, j] * x[i, j, r]
+                for (i, j, r) in x
+            )
+        except (KeyError, IndexError) as e:
+            raise ValueError(
+                f"Error building preference component: {e}. "
+                f"Matrix shape: {data.preference_scores.shape}, "
+                f"Employees: {n_employees}, Shifts: {n_shifts}, "
+                f"Variables: {len(x)}"
+            ) from e
         
         # Component 2: Fairness (minimize deviation from average)
         # We'll use auxiliary variables for absolute deviation
@@ -354,7 +374,13 @@ class SchedulingService:
         fairness_component = mip.xsum(fairness_vars) if fairness_vars else 0
         
         # Component 3: Coverage (maximize filled assignments)
-        coverage_component = mip.xsum(x[i, j, r] for (i, j, r) in x)
+        try:
+            coverage_component = mip.xsum(x[i, j, r] for (i, j, r) in x)
+        except KeyError as e:
+            raise ValueError(
+                f"Error building coverage component: KeyError {e}. "
+                f"This should not happen as we're iterating over x.keys()"
+            ) from e
         
         # Combine objectives with weights
         # Note: fairness is minimized, so we subtract it
