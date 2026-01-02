@@ -47,6 +47,7 @@ class UserModel(Base):
 
     weekly_schedules = relationship(
         "WeeklyScheduleModel",
+        foreign_keys="WeeklyScheduleModel.created_by_id",
         back_populates="created_by",
         lazy="selectin"
     )

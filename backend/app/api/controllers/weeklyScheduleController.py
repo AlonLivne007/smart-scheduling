@@ -67,6 +67,10 @@ def _serialize_weekly_schedule(db: Session, schedule: WeeklyScheduleModel) -> We
         week_start_date=schedule.week_start_date,
         created_by_id=schedule.created_by_id,
         created_by_name=created_by_name,
+        status=schedule.status.value if schedule.status else "DRAFT",
+        published_at=schedule.published_at,
+        published_by_id=schedule.published_by_id,
+        published_by_name=schedule.published_by.user_full_name if schedule.published_by else None,
         planned_shifts=planned_shifts,
     )
 

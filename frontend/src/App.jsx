@@ -28,6 +28,7 @@ import ConfirmDialogDemo from "./pages/debug/ConfirmDialogDemo.jsx";
 import TimeOffRequestPage from "./pages/TimeOff/TimeOffRequestPage.jsx";
 import MyTimeOffPage from "./pages/TimeOff/MyTimeOffPage.jsx";
 import MyPreferencesPage from "./pages/MyPreferencesPage.jsx";
+import MySchedulePage from "./pages/MySchedulePage.jsx";
 import TimeOffManagementPage from "./pages/Admin/TimeOffManagementPage.jsx";
 import RolesManagementPage from "./pages/Admin/RolesManagementPage.jsx";
 import ShiftTemplatesManagementPage from "./pages/Admin/ShiftTemplatesManagementPage.jsx";
@@ -164,6 +165,9 @@ export default function App() {
           
           {/* My Time-Off Requests (all employees) */}
           <Route path="time-off/my-requests" element={<MyTimeOffPage />} />
+
+          {/* My Schedule (all employees) */}
+          <Route path="my-schedule" element={<MySchedulePage />} />
 
           {/* My Preferences (all employees) */}
           <Route path="my-preferences" element={<MyPreferencesPage />} />

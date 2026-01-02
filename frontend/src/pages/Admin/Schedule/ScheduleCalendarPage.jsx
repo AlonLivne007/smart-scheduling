@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, addDays, parseISO } from "date-fns";
 import toast from "react-hot-toast";
-import { ChevronLeft, ChevronRight, Users, Clock, MapPin, Edit2, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, Clock, MapPin, Edit2, Trash2, Send, Lock, Unlock, Download } from "lucide-react";
 import api from "../../../lib/axios";
 import Button from "../../../components/ui/Button";
 import Skeleton from "../../../components/ui/Skeleton";
@@ -18,6 +18,7 @@ export default function ScheduleCalendarPage() {
   const [plannedShifts, setPlannedShifts] = useState([]);
   const [shiftTemplates, setShiftTemplates] = useState([]);
   const [shiftToDelete, setShiftToDelete] = useState(null);
+  const [publishing, setPublishing] = useState(false);
 
   const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -96,6 +97,74 @@ export default function ScheduleCalendarPage() {
         msg = e.message;
       }
       toast.error(msg);
+    }
+  }
+
+  async function handlePublish() {
+    if (!window.confirm("Publish this schedule? Employees will be notified of their shifts.")) {
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      await api.post(`/schedules/${id}/publish`, null, {
+        params: { notify_employees: true }
+      });
+      toast.success("Schedule published and employees notified!");
+      loadSchedule(); // Reload to get updated status
+    } catch (error) {
+      console.error("Failed to publish schedule:", error);
+      const msg = error?.response?.data?.detail || "Failed to publish schedule";
+      toast.error(msg);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function handleUnpublish() {
+    if (!window.confirm("Unpublish this schedule? This will revert it to DRAFT status.")) {
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      await api.post(`/schedules/${id}/unpublish`);
+      toast.success("Schedule unpublished and reverted to DRAFT");
+      loadSchedule();
+    } catch (error) {
+      console.error("Failed to unpublish schedule:", error);
+      const msg = error?.response?.data?.detail || "Failed to unpublish schedule";
+      toast.error(msg);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function handleExport(format) {
+    try {
+      toast.loading(`Generating ${format.toUpperCase()} export...`);
+      
+      const response = await api.get(`/export/schedule/${id}`, {
+        params: { format },
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `schedule_${id}.${format === 'pdf' ? 'pdf' : 'csv'}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.dismiss();
+      toast.success(`Schedule exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      toast.dismiss();
+      console.error(`Failed to export as ${format}:`, error);
+      toast.error(`Failed to export schedule`);
     }
   }
 
@@ -307,10 +376,29 @@ export default function ScheduleCalendarPage() {
       <div className="bg-white rounded-xl shadow p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">Weekly Schedule</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold">Weekly Schedule</h1>
+              {schedule.status && (
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  schedule.status === 'PUBLISHED' 
+                    ? 'bg-green-100 text-green-800' 
+                    : schedule.status === 'DRAFT'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {schedule.status === 'PUBLISHED' && <Lock className="w-3 h-3 inline mr-1" />}
+                  {schedule.status}
+                </span>
+              )}
+            </div>
             <p className="text-gray-600 mt-1">
               {format(weekStartDate, "MMMM d")} - {format(weekEndDate, "MMMM d, yyyy")}
             </p>
+            {schedule.published_at && (
+              <p className="text-sm text-gray-500 mt-1">
+                Published {new Date(schedule.published_at).toLocaleString()}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -320,12 +408,49 @@ export default function ScheduleCalendarPage() {
               <ChevronLeft className="h-4 w-4 mr-1" />
               Back to List
             </Button>
-            <Button
-              variant="primary"
-              onClick={() => navigate("/schedules/create")}
-            >
-              Create New Schedule
-            </Button>
+            
+            {/* Export Dropdown */}
+            <div className="relative group">
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-t-lg text-sm"
+                >
+                  Export as PDF
+                </button>
+                <button
+                  onClick={() => handleExport('excel')}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded-b-lg text-sm"
+                >
+                  Export as Excel
+                </button>
+              </div>
+            </div>
+            
+            {schedule.status === 'DRAFT' && (
+              <Button
+                variant="primary"
+                onClick={handlePublish}
+                disabled={publishing}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {publishing ? 'Publishing...' : 'Publish Schedule'}
+              </Button>
+            )}
+            {schedule.status === 'PUBLISHED' && (
+              <Button
+                variant="outline"
+                onClick={handleUnpublish}
+                disabled={publishing}
+              >
+                <Unlock className="h-4 w-4 mr-2" />
+                {publishing ? 'Unpublishing...' : 'Unpublish'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
