@@ -17,6 +17,7 @@ from app.api.controllers.schedulingRunController import (
     update_scheduling_run,
     delete_scheduling_run,
     get_scheduling_solutions,
+    apply_scheduling_solution,
 )
 from app.db.session import get_db
 from app.schemas.schedulingRunSchema import (
@@ -178,4 +179,33 @@ async def get_run_solutions(
     All authenticated users can view solutions.
     """
     return await get_scheduling_solutions(db, run_id)
+
+
+@router.post(
+    "/{run_id}/apply",
+    status_code=status.HTTP_200_OK,
+    summary="Apply scheduling solution to create actual assignments",
+    dependencies=[Depends(require_manager)],
+)
+async def apply_solution(
+    run_id: int,
+    overwrite: bool = Query(False, description="If true, delete existing assignments for affected shifts before applying"),
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
+    """
+    Apply an optimization solution by converting SchedulingSolution records
+    into actual ShiftAssignment records.
+    
+    Only managers can apply solutions.
+    
+    - **run_id**: ID of the completed scheduling run
+    - **overwrite**: If true, replaces existing assignments. If false, returns error on conflicts.
+    
+    Returns:
+        - assignments_created: Number of assignments created
+        - shifts_updated: Number of shifts marked as fully assigned
+        - message: Success message
+    """
+    return await apply_scheduling_solution(db, run_id, overwrite)
 

@@ -162,6 +162,20 @@ export default function MainLayout() {
                 Shift Templates
               </NavLink>
               <NavLink
+                to="/admin/system-constraints"
+                className={linkClass}
+                onClick={(e) => handleNavClick(e, "/admin/system-constraints")}
+              >
+                System Constraints
+              </NavLink>
+              <NavLink
+                to="/admin/optimization-config"
+                className={linkClass}
+                onClick={(e) => handleNavClick(e, "/admin/optimization-config")}
+              >
+                Optimization Config
+              </NavLink>
+              <NavLink
                 to="/admin/roles"
                 className={linkClass}
                 onClick={(e) => handleNavClick(e, "/admin/roles")}

@@ -8,6 +8,7 @@ import api from "../../../lib/axios";
 import Button from "../../../components/ui/Button";
 import Skeleton from "../../../components/ui/Skeleton";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
+import OptimizationPanel from "../../../components/OptimizationPanel";
 
 export default function ScheduleCalendarPage() {
   const { id } = useParams();
@@ -328,6 +329,12 @@ export default function ScheduleCalendarPage() {
           </div>
         </div>
       </div>
+
+      {/* Optimization Panel */}
+      <OptimizationPanel 
+        weeklyScheduleId={parseInt(id, 10)} 
+        onSolutionApplied={loadSchedule}
+      />
 
       {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-4">

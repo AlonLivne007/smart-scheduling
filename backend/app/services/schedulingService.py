@@ -184,6 +184,87 @@ class SchedulingService:
             print(f"\n❌ Optimization failed: {e}")
             raise
     
+    def _execute_optimization_for_run(self, run: SchedulingRunModel):
+        """
+        Execute optimization for an existing run record (used by async Celery task).
+        
+        Args:
+            run: SchedulingRunModel record (already created with PENDING status)
+        """
+        try:
+            # Update status to RUNNING
+            run.status = SchedulingRunStatus.RUNNING
+            run.started_at = datetime.now()
+            self.db.commit()
+            
+            # Load configuration
+            if run.config_id:
+                config = self.db.query(OptimizationConfigModel).filter(
+                    OptimizationConfigModel.config_id == run.config_id
+                ).first()
+            else:
+                config = self.db.query(OptimizationConfigModel).filter(
+                    OptimizationConfigModel.is_default == True
+                ).first()
+            
+            if not config:
+                raise ValueError("No optimization configuration found")
+            
+            # Build optimization data
+            print(f"Building optimization data for weekly schedule {run.weekly_schedule_id}...")
+            data = self.data_builder.build(run.weekly_schedule_id)
+            
+            print(f"Employees: {len(data.employees)}, Shifts: {len(data.shifts)}")
+            
+            # Build and solve MIP model
+            print(f"Building MIP model...")
+            solution = self._build_and_solve_mip(data, config)
+            
+            # Update run with results
+            run.status = SchedulingRunStatus.COMPLETED
+            run.completed_at = datetime.now()
+            run.runtime_seconds = solution.runtime_seconds
+            run.objective_value = solution.objective_value
+            run.mip_gap = solution.mip_gap
+            run.total_assignments = len(solution.assignments)
+            run.solutions_count = len(solution.assignments)
+            
+            # Map solver status
+            status_map = {
+                'OPTIMAL': SolverStatus.OPTIMAL,
+                'FEASIBLE': SolverStatus.FEASIBLE,
+                'INFEASIBLE': SolverStatus.INFEASIBLE,
+                'NO_SOLUTION_FOUND': SolverStatus.NO_SOLUTION_FOUND
+            }
+            run.solver_status = status_map.get(solution.status, SolverStatus.ERROR)
+            
+            # Store solution assignments
+            print(f"Storing {len(solution.assignments)} solution records...")
+            for assignment in solution.assignments:
+                solution_record = SchedulingSolutionModel(
+                    run_id=run.run_id,
+                    planned_shift_id=assignment['planned_shift_id'],
+                    user_id=assignment['user_id'],
+                    role_id=assignment['role_id'],
+                    is_selected=True,
+                    assignment_score=assignment.get('preference_score')
+                )
+                self.db.add(solution_record)
+            
+            self.db.commit()
+            
+            print(f"\n✅ SchedulingRun {run.run_id} completed with {len(solution.assignments)} assignments")
+            
+        except Exception as e:
+            # Update run status to FAILED
+            run.status = SchedulingRunStatus.FAILED
+            run.completed_at = datetime.now()
+            run.error_message = str(e)
+            self.db.commit()
+            
+            print(f"\n❌ Optimization failed: {e}")
+            raise
+    
     def _build_and_solve_mip(
         self,
         data: OptimizationData,

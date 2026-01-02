@@ -20,6 +20,7 @@ from app.api.routes import (
     employeePreferencesRoutes,
     optimizationConfigRoutes,
     schedulingRoutes,
+    schedulingRunRoutes,
 )
 from app.db.session import engine, Base
 from app.db.models import (
@@ -77,3 +78,5 @@ app.include_router(employeePreferencesRoutes.router)
 app.include_router(optimizationConfigRoutes.router)
 
 app.include_router(schedulingRoutes.router)
+
+app.include_router(schedulingRunRoutes.router)

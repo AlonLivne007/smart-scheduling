@@ -5,18 +5,19 @@ This module provides endpoints for triggering and managing schedule optimization
 Corresponds to US-10: Optimization API Endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from app.db.session import get_db
 from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
-from app.db.models.schedulingRunModel import SchedulingRunModel
-from app.services.schedulingService import SchedulingService
+from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus
+from app.db.models.optimizationConfigModel import OptimizationConfigModel
 from app.api.dependencies.auth import require_manager
 from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
 from sqlalchemy import func
+from app.tasks.optimization_tasks import run_optimization_task
 
 
 def _compute_total_required_positions(schedule: WeeklyScheduleModel, db: Session) -> int:
@@ -47,30 +48,30 @@ router = APIRouter(prefix="/scheduling", tags=["Scheduling Optimization"])
 @router.post("/optimize/{weekly_schedule_id}", dependencies=[Depends(require_manager)])
 async def optimize_schedule(
     weekly_schedule_id: int,
+    config_id: Optional[int] = Query(None, description="Optimization configuration ID (uses default if not specified)"),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Trigger optimization for a specific weekly schedule.
+    Trigger async optimization for a specific weekly schedule.
     
-    This endpoint initiates the MIP solver to generate optimal shift assignments
-    for all planned shifts in the specified weekly schedule.
+    Creates a SchedulingRun record with PENDING status and dispatches
+    an async Celery task to perform the optimization. The client should
+    poll the run status endpoint to check for completion.
     
     Args:
         weekly_schedule_id: ID of the weekly schedule to optimize
+        config_id: Optional optimization configuration ID (uses default if not specified)
         db: Database session
         
     Returns:
         Dictionary containing:
         - run_id: ID of the scheduling run record
-        - status: Optimization status (OPTIMAL, INFEASIBLE, etc.)
-        - runtime_seconds: Time taken to solve
-        - objective_value: Objective function value
-        - total_assignments: Number of shift assignments created
-        - metrics: Additional optimization metrics
+        - status: Initial status (PENDING)
+        - message: Instructions for polling
+        - task_id: Celery task ID for tracking
         
     Raises:
-        404: If weekly schedule not found
-        400: If optimization fails
+        404: If weekly schedule or config not found
     """
     # Verify schedule exists
     schedule = db.query(WeeklyScheduleModel).filter(
@@ -83,7 +84,74 @@ async def optimize_schedule(
             detail=f"Weekly schedule {weekly_schedule_id} not found"
         )
     
-    # Run optimization
+    # Verify config if provided
+    if config_id:
+        config = db.query(OptimizationConfigModel).filter(
+            OptimizationConfigModel.config_id == config_id
+        ).first()
+        if not config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Optimization config {config_id} not found"
+            )
+    
+    # Create SchedulingRun record with PENDING status
+    run = SchedulingRunModel(
+        weekly_schedule_id=weekly_schedule_id,
+        config_id=config_id,
+        status=SchedulingRunStatus.PENDING
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    
+    # Dispatch async Celery task
+    task = run_optimization_task.delay(run.run_id)
+    
+    return {
+        "run_id": run.run_id,
+        "status": run.status.value,
+        "task_id": task.id,
+        "message": f"Optimization task dispatched. Poll GET /scheduling/runs/{run.run_id} for status."
+    }
+
+
+@router.get("/optimize/{weekly_schedule_id}", deprecated=True, dependencies=[Depends(require_manager)])
+async def optimize_schedule_sync(
+    weekly_schedule_id: int,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    DEPRECATED: Synchronous optimization endpoint.
+    
+    This endpoint runs optimization synchronously and may timeout on large schedules.
+    Use POST /scheduling/optimize/{weekly_schedule_id} instead for async execution.
+    
+    Args:
+        weekly_schedule_id: ID of the weekly schedule to optimize
+        db: Database session
+        
+    Returns:
+        Dictionary containing optimization results
+        
+    Raises:
+        404: If weekly schedule not found
+        400: If optimization fails
+    """
+    from app.services.schedulingService import SchedulingService
+    
+    # Verify schedule exists
+    schedule = db.query(WeeklyScheduleModel).filter(
+        WeeklyScheduleModel.weekly_schedule_id == weekly_schedule_id
+    ).first()
+    
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Weekly schedule {weekly_schedule_id} not found"
+        )
+    
+    # Run optimization synchronously
     service = SchedulingService(db)
     
     try:

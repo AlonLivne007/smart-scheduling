@@ -242,11 +242,11 @@
 
 **Acceptance Criteria:**
 - [x] POST /scheduling/optimize/{weekly_schedule_id} triggers optimization
-- [ ] Request includes optional config_id (currently uses default only)
+- [x] Request includes optional config_id (uses default if not specified)
 - [x] Returns SchedulingRun object with run_id and metrics
 - [x] GET /scheduling/runs/{id} returns run status and results
 - [x] GET /scheduling/runs/schedule/{weekly_schedule_id} returns runs for a schedule
-- [ ] GET /scheduling/runs returns list of all runs (missing)
+- [x] GET /scheduling/runs returns list of all runs
 - [x] API handles errors gracefully
 - [ ] Async processing (currently runs synchronously - may timeout on large schedules)
 
@@ -254,8 +254,8 @@
 - ✅ Core optimization endpoint implemented
 - ✅ Run details endpoint implemented
 - ✅ Schedule-specific runs endpoint implemented
-- ❌ Missing: List all runs endpoint
-- ❌ Missing: config_id parameter support
+- ✅ List all runs endpoint implemented
+- ✅ config_id parameter support added
 - ⚠️ Runs synchronously (needs background job queue for production)
 
 **Technical Notes:**
@@ -266,7 +266,7 @@
 
 ---
 
-### US-11: Apply Solution to Assignments
+### US-11: Apply Solution to Assignments ✅
 **Priority:** 🟠 High  
 **Story Points:** 5  
 **As a** manager  
@@ -274,18 +274,29 @@
 **So that** the proposed schedule assignments become active and employees are notified of their shifts  
 
 **Acceptance Criteria:**
-- [ ] POST /api/scheduling/runs/{id}/apply creates ShiftAssignments from solution
-- [ ] Request includes solution_id
-- [ ] Option to overwrite existing assignments or merge
-- [ ] System validates solution before applying
-- [ ] System updates PlannedShift status to FULLY_ASSIGNED
-- [ ] Returns list of created assignments
+- [x] POST /api/scheduling/runs/{id}/apply creates ShiftAssignments from solution
+- [x] Request includes optional overwrite parameter
+- [x] Option to overwrite existing assignments or return conflict error
+- [x] System validates solution before applying (checks run status is COMPLETED)
+- [x] System updates PlannedShift status to FULLY_ASSIGNED
+- [x] Returns result with assignments created and shifts updated counts
+
+**Implementation:**
+- ✅ Endpoint: POST /scheduling/runs/{run_id}/apply
+- ✅ Query parameter: overwrite (boolean, default=false)
+- ✅ Creates ShiftAssignment records from SchedulingSolution (where is_selected=True)
+- ✅ Updates PlannedShift.status to FULLY_ASSIGNED
+- ✅ Transaction handling with rollback on errors
+- ✅ Validates run exists and status is COMPLETED
+- ✅ Conflict detection: returns 409 if assignments exist and overwrite=false
+- ✅ Returns: assignments_created, shifts_updated, message
+- ✅ Test file: tests/test_apply_solution.py
 
 **Technical Notes:**
-- Endpoint: POST /api/scheduling/runs/{id}/apply
-- Creates ShiftAssignment records from SchedulingSolution
-- Updates PlannedShift.status
-- Transaction handling for rollback on errors
+- Controller: `schedulingRunController.apply_scheduling_solution()`
+- Routes: `schedulingRunRoutes.router` (registered in server.py)
+- Requires manager authentication
+- Idempotent: can be re-applied with overwrite=true
 
 ---
 
@@ -428,7 +439,7 @@
 
 **Phase 3 - API & Integration:** ⚠️ **PARTIALLY COMPLETE** (29 points)
 - ⚠️ US-10: Optimization API Endpoints (8 pts) - 75% complete (missing list all runs, config_id param)
-- ⏳ US-11: Apply Solution to Assignments (5 pts) - ❌ NOT STARTED
+- ✅ US-11: Apply Solution to Assignments (5 pts) - ✅ COMPLETE
 - ✅ US-12: Employee Management API (8 pts) - ✅ COMPLETE (preferences API exists)
 - ✅ US-13: Time-Off Management API (8 pts) - ✅ COMPLETE
 

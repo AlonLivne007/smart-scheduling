@@ -31,6 +31,8 @@ import MyPreferencesPage from "./pages/MyPreferencesPage.jsx";
 import TimeOffManagementPage from "./pages/Admin/TimeOffManagementPage.jsx";
 import RolesManagementPage from "./pages/Admin/RolesManagementPage.jsx";
 import ShiftTemplatesManagementPage from "./pages/Admin/ShiftTemplatesManagementPage.jsx";
+import SystemConstraintsPage from "./pages/Admin/SystemConstraintsPage.jsx";
+import OptimizationConfigPage from "./pages/Admin/OptimizationConfigPage.jsx";
 
 
 function getAuth() {
@@ -192,6 +194,26 @@ export default function App() {
             element={
               <AdminRoute>
                 <ShiftTemplatesManagementPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* System Constraints Management (admin/manager only) */}
+          <Route
+            path="admin/system-constraints"
+            element={
+              <AdminRoute>
+                <SystemConstraintsPage />
+              </AdminRoute>
+            }
+          />
+
+          {/* Optimization Configuration Management (admin/manager only) */}
+          <Route
+            path="admin/optimization-config"
+            element={
+              <AdminRoute>
+                <OptimizationConfigPage />
               </AdminRoute>
             }
           />
