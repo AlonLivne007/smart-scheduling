@@ -185,3 +185,69 @@ def build_time_off_conflicts(
     
     return conflicts
 
+
+def build_rest_conflicts(
+    shifts: List[Dict],
+    min_rest_hours: float
+) -> Dict[int, Set[int]]:
+    """
+    Build rest conflicts mapping: {shift_id: {conflicting_shift_ids}}.
+    
+    Two shifts conflict if:
+    - They overlap, OR
+    - The rest period between them is less than min_rest_hours
+    
+    This is used to enforce MIN_REST_HOURS constraint in the MIP model.
+    For each employee and conflicting shift pair (s1, s2):
+        sum_r x[i,s1,r] + sum_r x[i,s2,r] <= 1
+    
+    Args:
+        shifts: List of shift dictionaries
+        min_rest_hours: Minimum required rest hours between shifts
+        
+    Returns:
+        Dictionary mapping shift_id to set of conflicting shift IDs
+    """
+    rest_conflicts: Dict[int, Set[int]] = {}
+    
+    for i, shift1 in enumerate(shifts):
+        shift_id1 = shift1["planned_shift_id"]
+        if shift_id1 not in rest_conflicts:
+            rest_conflicts[shift_id1] = set()
+        
+        start1_dt, end1_dt = normalize_shift_datetimes(shift1)
+        
+        for shift2 in shifts[i+1:]:
+            shift_id2 = shift2["planned_shift_id"]
+            start2_dt, end2_dt = normalize_shift_datetimes(shift2)
+            
+            # Check if shifts overlap
+            if _shifts_overlap(shift1, shift2):
+                rest_conflicts[shift_id1].add(shift_id2)
+                if shift_id2 not in rest_conflicts:
+                    rest_conflicts[shift_id2] = set()
+                rest_conflicts[shift_id2].add(shift_id1)
+                continue
+            
+            # Check rest period between shifts
+            # Calculate rest hours for both orderings
+            # shift1 -> shift2: rest = start2 - end1
+            if end1_dt < start2_dt:
+                rest_hours_1_to_2 = (start2_dt - end1_dt).total_seconds() / 3600.0
+                if rest_hours_1_to_2 < min_rest_hours:
+                    rest_conflicts[shift_id1].add(shift_id2)
+                    if shift_id2 not in rest_conflicts:
+                        rest_conflicts[shift_id2] = set()
+                    rest_conflicts[shift_id2].add(shift_id1)
+            
+            # shift2 -> shift1: rest = start1 - end2
+            if end2_dt < start1_dt:
+                rest_hours_2_to_1 = (start1_dt - end2_dt).total_seconds() / 3600.0
+                if rest_hours_2_to_1 < min_rest_hours:
+                    rest_conflicts[shift_id1].add(shift_id2)
+                    if shift_id2 not in rest_conflicts:
+                        rest_conflicts[shift_id2] = set()
+                    rest_conflicts[shift_id2].add(shift_id1)
+    
+    return rest_conflicts
+

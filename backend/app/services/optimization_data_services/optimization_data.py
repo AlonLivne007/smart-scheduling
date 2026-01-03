@@ -56,4 +56,5 @@ class OptimizationData:
         self.shift_durations: Dict[int, float] = {}  # {shift_id: duration_hours}
         self.system_constraints: Dict[SystemConstraintType, Tuple[float, bool]] = {}  # {type: (value, is_hard)}
         self.time_off_conflicts: Dict[int, List[int]] = {}  # {emp_id: [conflicting_shift_ids]}
+        self.shift_rest_conflicts: Dict[int, Set[int]] = {}  # {shift_id: {conflicting_shift_ids}} for MIN_REST_HOURS
 

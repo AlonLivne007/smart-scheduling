@@ -18,6 +18,7 @@ from app.db.models.optimizationConfigModel import OptimizationConfigModel
 from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus, SolverStatus
 from app.db.models.schedulingSolutionModel import SchedulingSolutionModel
 from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
+from app.db.models.systemConstraintsModel import SystemConstraintType
 
 
 class SchedulingSolution:
@@ -113,6 +114,75 @@ class SchedulingService:
             # Build and solve MIP model
             print(f"Building MIP model...")
             solution = self._build_and_solve_mip(data, config)
+            
+            # Check if optimization was infeasible or failed
+            if solution.status in ['INFEASIBLE', 'NO_SOLUTION_FOUND']:
+                # Optimization failed - no feasible solution exists
+                run.status = SchedulingRunStatus.FAILED
+                run.completed_at = datetime.now()
+                run.runtime_seconds = solution.runtime_seconds
+                run.total_assignments = 0
+                
+                # Map solver status
+                status_map = {
+                    'INFEASIBLE': SolverStatus.INFEASIBLE,
+                    'NO_SOLUTION_FOUND': SolverStatus.NO_SOLUTION_FOUND
+                }
+                run.solver_status = status_map.get(solution.status, SolverStatus.ERROR)
+                
+                # Set descriptive error message
+                if solution.status == 'INFEASIBLE':
+                    run.error_message = (
+                        "The optimization problem is infeasible. This means no solution exists that satisfies all constraints. "
+                        "Possible reasons: insufficient employees, conflicting constraints, or too many required shifts. "
+                        "Try adjusting constraints, adding more employees, or reducing shift requirements."
+                    )
+                else:
+                    run.error_message = (
+                        "No solution found within the time limit. The problem may be too complex or infeasible. "
+                        "Try increasing the maximum runtime or simplifying the constraints."
+                    )
+                
+                self.db.commit()
+                self.db.refresh(run)
+                
+                print(f"\n❌ Optimization failed: {solution.status}")
+                print(f"Error message: {run.error_message}")
+                
+                return run, solution
+            
+            # Validate solution against HARD constraints BEFORE persisting
+            if solution.status in ['OPTIMAL', 'FEASIBLE']:
+                print(f"Validating solution against HARD constraints...")
+                validation = self.constraint_service.validate_weekly_schedule(
+                    weekly_schedule_id,
+                    solution.assignments
+                )
+                
+                if not validation.is_valid():
+                    # HARD constraints violated - fail the run
+                    error_summary = "; ".join([
+                        err.message for err in validation.errors[:10]
+                    ])
+                    if len(validation.errors) > 10:
+                        error_summary += f" ... and {len(validation.errors) - 10} more violations"
+                    
+                    run.status = SchedulingRunStatus.FAILED
+                    run.solver_status = SolverStatus.INFEASIBLE
+                    run.error_message = f"HARD constraint violations detected: {error_summary}"
+                    run.completed_at = datetime.now()
+                    self.db.commit()
+                    
+                    print(f"\n❌ Solution validation failed: {len(validation.errors)} HARD violations")
+                    raise ValueError(f"HARD constraint violations: {error_summary}")
+                
+                print(f"✅ Solution validation passed: {len(validation.errors)} HARD violations, {len(validation.warnings)} warnings")
+                if validation.warnings:
+                    print(f"  ⚠️  SOFT constraint warnings: {len(validation.warnings)}")
+                    for warning in validation.warnings[:5]:
+                        print(f"    - {warning.message}")
+                    if len(validation.warnings) > 5:
+                        print(f"    ... and {len(validation.warnings) - 5} more warnings")
             
             # Clear existing assignments for this schedule before creating new ones
             print(f"Clearing existing assignments...")
@@ -220,6 +290,75 @@ class SchedulingService:
             print(f"Building MIP model...")
             solution = self._build_and_solve_mip(data, config)
             
+            # Check if optimization was infeasible or failed
+            if solution.status in ['INFEASIBLE', 'NO_SOLUTION_FOUND']:
+                # Optimization failed - no feasible solution exists
+                run.status = SchedulingRunStatus.FAILED
+                run.completed_at = datetime.now()
+                run.runtime_seconds = solution.runtime_seconds
+                run.total_assignments = 0
+                run.solutions_count = 0
+                
+                # Map solver status
+                status_map = {
+                    'INFEASIBLE': SolverStatus.INFEASIBLE,
+                    'NO_SOLUTION_FOUND': SolverStatus.NO_SOLUTION_FOUND
+                }
+                run.solver_status = status_map.get(solution.status, SolverStatus.ERROR)
+                
+                # Set descriptive error message
+                if solution.status == 'INFEASIBLE':
+                    run.error_message = (
+                        "The optimization problem is infeasible. This means no solution exists that satisfies all constraints. "
+                        "Possible reasons: insufficient employees, conflicting constraints, or too many required shifts. "
+                        "Try adjusting constraints, adding more employees, or reducing shift requirements."
+                    )
+                else:
+                    run.error_message = (
+                        "No solution found within the time limit. The problem may be too complex or infeasible. "
+                        "Try increasing the maximum runtime or simplifying the constraints."
+                    )
+                
+                self.db.commit()
+                
+                print(f"\n❌ Optimization failed: {solution.status}")
+                print(f"Error message: {run.error_message}")
+                
+                return
+            
+            # Validate solution against HARD constraints BEFORE persisting
+            if solution.status in ['OPTIMAL', 'FEASIBLE']:
+                print(f"Validating solution against HARD constraints...")
+                validation = self.constraint_service.validate_weekly_schedule(
+                    run.weekly_schedule_id,
+                    solution.assignments
+                )
+                
+                if not validation.is_valid():
+                    # HARD constraints violated - fail the run
+                    error_summary = "; ".join([
+                        err.message for err in validation.errors[:10]
+                    ])
+                    if len(validation.errors) > 10:
+                        error_summary += f" ... and {len(validation.errors) - 10} more violations"
+                    
+                    run.status = SchedulingRunStatus.FAILED
+                    run.solver_status = SolverStatus.INFEASIBLE
+                    run.error_message = f"HARD constraint violations detected: {error_summary}"
+                    run.completed_at = datetime.now()
+                    self.db.commit()
+                    
+                    print(f"\n❌ Solution validation failed: {len(validation.errors)} HARD violations")
+                    raise ValueError(f"HARD constraint violations: {error_summary}")
+                
+                print(f"✅ Solution validation passed: {len(validation.errors)} HARD violations, {len(validation.warnings)} warnings")
+                if validation.warnings:
+                    print(f"  ⚠️  SOFT constraint warnings: {len(validation.warnings)}")
+                    for warning in validation.warnings[:5]:
+                        print(f"    - {warning.message}")
+                    if len(validation.warnings) > 5:
+                        print(f"    ... and {len(validation.warnings) - 5} more warnings")
+            
             # Update run with results
             run.status = SchedulingRunStatus.COMPLETED
             run.completed_at = datetime.now()
@@ -320,6 +459,13 @@ class SchedulingService:
         
         print(f"Created {len(x)} decision variables")
         
+        # Log system constraints
+        print("\n📋 System Constraints:")
+        for constraint_type, (value, is_hard) in data.system_constraints.items():
+            constraint_type_str = constraint_type.value if hasattr(constraint_type, 'value') else str(constraint_type)
+            hard_soft = "HARD" if is_hard else "SOFT"
+            print(f"  {constraint_type_str}: {value} ({hard_soft})")
+        
         # Validate matrix dimensions
         if data.preference_scores.shape != (n_employees, n_shifts):
             raise ValueError(
@@ -400,8 +546,83 @@ class SchedulingService:
         
         print(f"Added {overlap_count} no-overlap constraints")
         
-        # CONSTRAINT 4: Fairness - try to distribute shifts evenly
-        print("Adding fairness constraints...")
+        # Log constraint counts before adding HARD constraints
+        print(f"\n📊 Constraint Summary (before HARD constraints):")
+        print(f"  Decision variables: {len(x)}")
+        print(f"  Coverage constraints: {sum(len(shift.get('required_roles', [])) for shift in data.shifts)}")
+        print(f"  Single-role constraints: {single_role_count}")
+        print(f"  Overlap constraints: {overlap_count}")
+        
+        # CONSTRAINT 4: HARD system constraints
+        print("\nAdding HARD system constraints...")
+        
+        # 4a. MAX_SHIFTS_PER_WEEK (hard)
+        max_shifts_constraint = data.system_constraints.get(SystemConstraintType.MAX_SHIFTS_PER_WEEK)
+        max_shifts_count = 0
+        if max_shifts_constraint and max_shifts_constraint[1]:  # is_hard
+            max_shifts = int(max_shifts_constraint[0])
+            for i in range(n_employees):
+                emp_vars = [x[ei, ej, r] for (ei, ej, r) in x.keys() if ei == i]
+                if emp_vars:
+                    model += mip.xsum(emp_vars) <= max_shifts, f'max_shifts_emp_{i}'
+                    max_shifts_count += 1
+            print(f"  Added {max_shifts_count} MAX_SHIFTS_PER_WEEK constraints (max={max_shifts})")
+        
+        # 4b. MAX_HOURS_PER_WEEK (hard)
+        max_hours_constraint = data.system_constraints.get(SystemConstraintType.MAX_HOURS_PER_WEEK)
+        max_hours_count = 0
+        if max_hours_constraint and max_hours_constraint[1]:  # is_hard
+            max_hours = max_hours_constraint[0]
+            for i in range(n_employees):
+                # Sum of (x[i,j,r] * shift_duration_hours(j)) for all j, r
+                emp_hours_vars = []
+                for (ei, ej, r) in x.keys():
+                    if ei == i:
+                        shift = data.shifts[ej]
+                        shift_id = shift['planned_shift_id']
+                        shift_duration = data.shift_durations.get(shift_id, 0.0)
+                        if shift_duration > 0:
+                            emp_hours_vars.append(shift_duration * x[ei, ej, r])
+                
+                if emp_hours_vars:
+                    model += mip.xsum(emp_hours_vars) <= max_hours, f'max_hours_emp_{i}'
+                    max_hours_count += 1
+            print(f"  Added {max_hours_count} MAX_HOURS_PER_WEEK constraints (max={max_hours})")
+        
+        # 4c. MIN_REST_HOURS (hard) - using rest conflicts
+        min_rest_constraint = data.system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
+        rest_conflict_count = 0
+        if min_rest_constraint and min_rest_constraint[1]:  # is_hard
+            for shift_id, conflicting_ids in data.shift_rest_conflicts.items():
+                if not conflicting_ids:
+                    continue
+                
+                shift_idx = data.shift_index[shift_id]
+                
+                for conflicting_id in conflicting_ids:
+                    conflicting_idx = data.shift_index[conflicting_id]
+                    
+                    # For each employee, they can't be assigned to both conflicting shifts
+                    for i in range(n_employees):
+                        role_ids_shift = {r for (ei, ej, r) in x.keys() if ei == i and ej == shift_idx}
+                        role_ids_conflict = {r for (ei, ej, r) in x.keys() if ei == i and ej == conflicting_idx}
+                        
+                        if role_ids_shift and role_ids_conflict:
+                            vars_shift = [x[i, shift_idx, r] for r in role_ids_shift]
+                            vars_conflict = [x[i, conflicting_idx, r] for r in role_ids_conflict]
+                            model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1, f'min_rest_emp_{i}_shift_{shift_idx}_{conflicting_idx}'
+                            rest_conflict_count += 1
+            print(f"  Added {rest_conflict_count} MIN_REST_HOURS constraints (min={min_rest_constraint[0]})")
+        
+        # Log final constraint counts
+        total_hard_constraints = max_shifts_count + max_hours_count + rest_conflict_count
+        print(f"\n📊 Total HARD constraints added: {total_hard_constraints}")
+        print(f"  - MAX_SHIFTS_PER_WEEK: {max_shifts_count}")
+        print(f"  - MAX_HOURS_PER_WEEK: {max_hours_count}")
+        print(f"  - MIN_REST_HOURS: {rest_conflict_count}")
+        
+        # CONSTRAINT 5: Fairness - try to distribute shifts evenly
+        print("\nAdding fairness constraints...")
         
         # Calculate average assignments per employee
         total_required_assignments = sum(
@@ -463,12 +684,54 @@ class SchedulingService:
                 f"This should not happen as we're iterating over x.keys()"
             ) from e
         
+        # Component 4: SOFT constraint penalties
+        # Penalize violations of soft MIN_HOURS_PER_WEEK and MIN_SHIFTS_PER_WEEK
+        soft_penalty_component = 0
+        soft_penalty_weight = 100.0  # Large weight to strongly discourage violations
+        
+        # MIN_HOURS_PER_WEEK (soft) - penalty for hours below minimum
+        min_hours_constraint = data.system_constraints.get(SystemConstraintType.MIN_HOURS_PER_WEEK)
+        if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
+            min_hours = min_hours_constraint[0]
+            for i in range(n_employees):
+                # Calculate total hours for this employee
+                emp_hours_vars = []
+                for (ei, ej, r) in x.keys():
+                    if ei == i:
+                        shift = data.shifts[ej]
+                        shift_id = shift['planned_shift_id']
+                        shift_duration = data.shift_durations.get(shift_id, 0.0)
+                        if shift_duration > 0:
+                            emp_hours_vars.append(shift_duration * x[ei, ej, r])
+                
+                if emp_hours_vars:
+                    total_hours = mip.xsum(emp_hours_vars)
+                    # Penalty = max(0, min_hours - total_hours)
+                    deficit = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_hours_deficit_{i}')
+                    model += deficit >= min_hours - total_hours
+                    soft_penalty_component += deficit
+        
+        # MIN_SHIFTS_PER_WEEK (soft) - penalty for shifts below minimum
+        min_shifts_constraint = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
+        if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
+            min_shifts = int(min_shifts_constraint[0])
+            for i in range(n_employees):
+                emp_vars = [x[ei, ej, r] for (ei, ej, r) in x.keys() if ei == i]
+                if emp_vars:
+                    total_shifts = mip.xsum(emp_vars)
+                    # Penalty = max(0, min_shifts - total_shifts)
+                    deficit = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_shifts_deficit_{i}')
+                    model += deficit >= min_shifts - total_shifts
+                    soft_penalty_component += deficit
+        
         # Combine objectives with weights
         # Note: fairness is minimized, so we subtract it
+        # Soft penalties are minimized, so we subtract them
         objective = (
             config.weight_preferences * preference_component +
             config.weight_coverage * coverage_component -
-            config.weight_fairness * fairness_component
+            config.weight_fairness * fairness_component -
+            soft_penalty_weight * soft_penalty_component
         )
         
         model.objective = objective
@@ -504,6 +767,7 @@ class SchedulingService:
             solution.objective_value = model.objective_value
             solution.mip_gap = model.gap
             
+            print(f"\n✅ Solver found {solution.status} solution")
             print(f"Objective value: {solution.objective_value:.3f}")
             print(f"MIP gap: {solution.mip_gap:.4f}")
             

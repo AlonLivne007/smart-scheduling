@@ -28,6 +28,7 @@ from app.services.optimization_data_services.optimization_precompute import (
     build_shift_overlaps,
     build_shift_durations,
     build_time_off_conflicts,
+    build_rest_conflicts,
 )
 
 
@@ -123,6 +124,14 @@ class OptimizationDataBuilder:
         data.time_off_conflicts = build_time_off_conflicts(
             data.employees, data.shifts, time_off_map
         )
+        
+        # Build rest conflicts for MIN_REST_HOURS constraint
+        min_rest_constraint = data.system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
+        if min_rest_constraint and min_rest_constraint[1]:  # is_hard
+            min_rest_hours = min_rest_constraint[0]
+            data.shift_rest_conflicts = build_rest_conflicts(data.shifts, min_rest_hours)
+        else:
+            data.shift_rest_conflicts = {}
         
         return data
     
