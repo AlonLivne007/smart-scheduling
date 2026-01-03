@@ -85,6 +85,9 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
         console.error('Failed to load solutions:', error);
         toast.error('Failed to load optimization results');
       }
+    } else if (run.status === 'FAILED') {
+      // Clear solutions for failed runs
+      setSolutions([]);
     }
   }
 
@@ -246,7 +249,12 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
                       <div className="text-sm text-gray-600 mt-1">
                         {run.started_at && new Date(run.started_at).toLocaleString()}
                         {run.runtime_seconds && ` • ${run.runtime_seconds.toFixed(2)}s`}
-                        {run.solution_count > 0 && ` • ${run.solution_count} assignments`}
+                        {run.status === 'FAILED' && run.solver_status && (
+                          <span className="ml-2 text-red-600 font-medium">
+                            • {run.solver_status}
+                          </span>
+                        )}
+                        {run.status === 'COMPLETED' && run.solution_count > 0 && ` • ${run.solution_count} assignments`}
                       </div>
                     </div>
                   </div>
@@ -267,7 +275,7 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
         </div>
       )}
 
-      {/* Results Preview */}
+      {/* Results Preview - Completed with solutions */}
       {selectedRun && selectedRun.status === 'COMPLETED' && solutions.length > 0 && (
         <div className="border-t pt-6">
           <h4 className="text-sm font-medium text-gray-700 mb-3">Optimization Results</h4>
@@ -315,6 +323,57 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
               </>
             )}
           </Button>
+        </div>
+      )}
+
+      {/* Failed/Infeasible Results */}
+      {selectedRun && selectedRun.status === 'FAILED' && (
+        <div className="border-t pt-6">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">Optimization Failed</h4>
+          
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div className="flex items-start">
+              <XCircle className="w-5 h-5 text-red-600 mr-3 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-2">
+                  <span className="text-sm font-semibold text-red-900">Solver Status:</span>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    selectedRun.solver_status === 'INFEASIBLE'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {selectedRun.solver_status || 'ERROR'}
+                  </span>
+                </div>
+                {selectedRun.error_message && (
+                  <p className="text-sm text-red-800 mt-2">
+                    {selectedRun.error_message}
+                  </p>
+                )}
+                {selectedRun.runtime_seconds && (
+                  <p className="text-xs text-red-700 mt-2">
+                    Runtime: {selectedRun.runtime_seconds.toFixed(2)}s
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <AlertCircle className="w-5 h-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h5 className="text-sm font-semibold text-yellow-900 mb-1">What to do next:</h5>
+                <ul className="text-sm text-yellow-800 list-disc list-inside space-y-1">
+                  <li>Review your system constraints (max hours, max shifts, min rest hours)</li>
+                  <li>Check if you have enough employees with the required roles</li>
+                  <li>Verify employee availability matches shift requirements</li>
+                  <li>Consider reducing the number of required shifts or roles</li>
+                  <li>Try adjusting constraint values to be less restrictive</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -98,6 +98,7 @@ def create_employees(db):
         {"name": "Zack Morris", "email": "zack@restaurant.com", "roles": ["Manager"], "password": "password123", "is_manager": True},
         {"name": "Amy Adams", "email": "amy@restaurant.com", "roles": ["Manager"], "password": "password123", "is_manager": True},
         {"name": "Daniel Gusakov", "email": "daniel.gusakov@gmail.com", "roles": ["Manager"], "password": "Daniel124", "is_manager": True},
+        {"name": "Alon", "email": "alon.livne@gmail.com", "roles": ["Manager"], "password": "Alon123", "is_manager": True},
     ]
     
     created_employees = []

@@ -590,7 +590,7 @@ class ConstraintService:
         Returns:
             Hours between shifts. If negative, shifts overlap.
         """
-        end1_dt, _ = self._normalize_shift_datetimes(shift1)
+        _, end1_dt = self._normalize_shift_datetimes(shift1)
         start2_dt, _ = self._normalize_shift_datetimes(shift2)
         
         # Rest period = (later.start - earlier.end)
