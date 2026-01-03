@@ -65,7 +65,7 @@ async def get_dashboard_metrics(db: Session) -> Dict[str, Any]:
     
     # Pending time-off requests
     from app.db.models.timeOffRequestModel import TimeOffRequestModel
-    pending_time_off = db.query(func.count(TimeOffRequestModel.time_off_request_id)).filter(
+    pending_time_off = db.query(func.count(TimeOffRequestModel.request_id)).filter(
         TimeOffRequestModel.status == 'PENDING'
     ).scalar() or 0
     
