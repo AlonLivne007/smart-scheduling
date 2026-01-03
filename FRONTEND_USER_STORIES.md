@@ -937,7 +937,7 @@ DELETE /roles/{role_id}
 
 ---
 
-### US-028: Scheduling Optimization UI
+### US-028: Scheduling Optimization UI ✅
 
 **Priority:** 🟠 High  
 **Story Points:** 21  
@@ -947,20 +947,47 @@ DELETE /roles/{role_id}
 
 **Acceptance Criteria:**
 
-- [ ] "Run Optimization" button on schedule detail
-- [ ] Modal appears showing optimization parameters (fairness weight, preference weight)
-- [ ] Loading spinner while optimization runs
-- [ ] Optimization results displayed with proposed assignments
-- [ ] "Preview" to see proposed assignments before applying
-- [ ] "Apply" button to accept all proposed assignments
-- [ ] "Reject" to discard and keep manual assignments
+- [x] "Run Optimization" button on schedule detail page
+- [x] Loading spinner while optimization runs
+- [x] Optimization history displayed with status (PENDING, RUNNING, COMPLETED, FAILED)
+- [x] Auto-polling for running optimizations (updates every 3 seconds)
+- [x] Optimization results displayed with metrics (assignments, objective value, runtime, solver status)
+- [x] "Apply Solution" button to accept proposed assignments
+- [x] Conflict detection - warns if assignments already exist
+- [x] Overwrite confirmation if conflicts exist
+- [x] Solution applied callback refreshes schedule view
+- [x] Delete run functionality with confirmation
+- [x] Empty state when no optimization runs exist
 
-**API Calls (Future):**
+**Implementation:**
+
+- ✅ API Client: `api/optimization.js` with functions:
+  - `triggerOptimization(weeklyScheduleId, configId)`
+  - `getAllRuns(filters)`
+  - `getRun(runId)`
+  - `getSolutions(runId)`
+  - `applySolution(runId, overwrite)`
+  - `deleteRun(runId)`
+- ✅ Component: `components/OptimizationPanel.jsx`
+  - Displays run history with status icons and colors
+  - Auto-selects most recent completed run
+  - Shows metrics grid (assignments, objective value, runtime, solver status)
+  - Apply button with overwrite handling
+  - Real-time status updates with polling
+- ✅ Integration: Added to `ScheduleCalendarPage.jsx`
+  - Positioned between header and calendar grid
+  - Refresh schedule on solution applied
+  - Proper error handling and user feedback
+
+**API Calls:**
 
 ```
-POST /optimization/run/ → start optimization
-GET /optimization/results/{run_id} → get results
-POST /optimization/apply/{run_id} → apply solutions
+POST /scheduling/optimize/{weekly_schedule_id} → trigger optimization
+GET /scheduling/runs/ → get all runs (with filters)
+GET /scheduling/runs/{run_id} → get single run
+GET /scheduling/runs/{run_id}/solutions → get solutions
+POST /scheduling/runs/{run_id}/apply → apply solution
+DELETE /scheduling/runs/{run_id} → delete run
 ```
 
 ---

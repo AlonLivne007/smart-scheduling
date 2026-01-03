@@ -113,19 +113,19 @@ export const fetchCoverageRate = async () => {
  */
 export const fetchAllMetrics = async () => {
   try {
-    const [employees, shifts, coverage] = await Promise.all([
-      fetchTotalEmployees(),
-      fetchUpcomingShifts(),
-      fetchCoverageRate(),
-    ]);
-
+    const response = await api.get('/metrics/');
+    
     return {
-      totalEmployees: employees,
-      upcomingShifts: shifts,
-      coverageRate: coverage,
+      totalEmployees: response.data.total_employees || 0,
+      upcomingShifts: response.data.upcoming_shifts || 0,
+      coverageRate: response.data.coverage_rate || 0,
+      totalSchedules: response.data.total_schedules || 0,
+      publishedSchedules: response.data.published_schedules || 0,
+      pendingTimeOff: response.data.pending_time_off || 0,
     };
   } catch (error) {
     console.error('Error fetching all metrics:', error);
     throw error;
   }
 };
+

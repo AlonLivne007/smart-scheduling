@@ -6,7 +6,7 @@ in API requests and responses.
 """
 
 from pydantic import BaseModel, Field
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 from app.schemas.plannedShiftSchema import PlannedShiftRead
 
@@ -37,6 +37,10 @@ class WeeklyScheduleRead(WeeklyScheduleBase):
         default=None,
         description="Full name of the user who created this schedule (convenient to include in responses)"
     )
+    status: str = Field(default="DRAFT", description="Publication status (DRAFT, PUBLISHED, ARCHIVED)")
+    published_at: Optional[datetime] = Field(default=None, description="Timestamp when schedule was published")
+    published_by_id: Optional[int] = Field(default=None, description="ID of the user who published this schedule")
+    published_by_name: Optional[str] = Field(default=None, description="Name of the user who published this schedule")
     planned_shifts: List[PlannedShiftRead] = Field(
         default_factory=list,
         description="List of all planned shifts in this weekly schedule"

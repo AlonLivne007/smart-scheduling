@@ -20,13 +20,18 @@ from app.api.routes import (
     employeePreferencesRoutes,
     optimizationConfigRoutes,
     schedulingRoutes,
+    schedulingRunRoutes,
+    schedulePublishingRoutes,
+    activityLogRoutes,
+    metricsRoutes,
+    exportRoutes,
 )
 from app.db.session import engine, Base
 from app.db.models import (
     roleModel, userModel, userRoleModel, shiftTemplateModel,
     shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
     timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
-    optimizationConfigModel, schedulingRunModel, schedulingSolutionModel
+    optimizationConfigModel, schedulingRunModel, schedulingSolutionModel, activityLogModel
 )
 from app.db.initMasterUser import init_master_user
 from app.db.seed_test_data import init_test_data
@@ -77,3 +82,13 @@ app.include_router(employeePreferencesRoutes.router)
 app.include_router(optimizationConfigRoutes.router)
 
 app.include_router(schedulingRoutes.router)
+
+app.include_router(schedulingRunRoutes.router)
+
+app.include_router(schedulePublishingRoutes.router)
+
+app.include_router(activityLogRoutes.router)
+
+app.include_router(metricsRoutes.router)
+
+app.include_router(exportRoutes.router)

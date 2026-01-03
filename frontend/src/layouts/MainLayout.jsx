@@ -133,6 +133,9 @@ export default function MainLayout() {
           <NavLink to="/" end className={linkClass} onClick={(e) => handleNavClick(e, "/")}>
             Dashboard
           </NavLink>
+          <NavLink to="/my-schedule" className={linkClass} onClick={(e) => handleNavClick(e, "/my-schedule")}>
+            My Schedule
+          </NavLink>
           <NavLink to="/time-off/request" className={linkClass} onClick={(e) => handleNavClick(e, "/time-off/request")}>
             Request Time-Off
           </NavLink>
@@ -160,6 +163,20 @@ export default function MainLayout() {
                 onClick={(e) => handleNavClick(e, "/admin/shift-templates")}
               >
                 Shift Templates
+              </NavLink>
+              <NavLink
+                to="/admin/system-constraints"
+                className={linkClass}
+                onClick={(e) => handleNavClick(e, "/admin/system-constraints")}
+              >
+                System Constraints
+              </NavLink>
+              <NavLink
+                to="/admin/optimization-config"
+                className={linkClass}
+                onClick={(e) => handleNavClick(e, "/admin/optimization-config")}
+              >
+                Optimization Config
               </NavLink>
               <NavLink
                 to="/admin/roles"

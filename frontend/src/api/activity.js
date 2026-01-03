@@ -46,74 +46,36 @@ const ACTIVITY_TYPES = {
 };
 
 /**
- * Generate mock activity data for demo purposes
- * Replace with real API endpoint when available
- * 
- * @returns {Array} Array of activity objects
+ * Fetch recent activities from the API
+ * @param {number} limit - Maximum number of activities to fetch
+ * @param {Object} filters - Optional filters (user_id, entity_type)
+ * @returns {Promise<Array>} List of formatted activities
  */
-const generateMockActivities = () => {
-  const now = new Date();
-  
-  return [
-    {
-      id: 1,
-      type: 'USER_CREATED',
-      description: 'Sarah Mitchell joined the team as Manager',
-      timestamp: new Date(now.getTime() - 2 * 60000), // 2 minutes ago
-      user: 'Admin',
-    },
-    {
-      id: 2,
-      type: 'SHIFT_ASSIGNED',
-      description: 'John assigned to Monday 9AM-5PM shift',
-      timestamp: new Date(now.getTime() - 15 * 60000), // 15 minutes ago
-      user: 'John Manager',
-    },
-    {
-      id: 3,
-      type: 'TIME_OFF_APPROVED',
-      description: 'Emily\'s time-off request approved for Dec 25-26',
-      timestamp: new Date(now.getTime() - 45 * 60000), // 45 minutes ago
-      user: 'Manager',
-    },
-    {
-      id: 4,
-      type: 'SHIFT_ASSIGNED',
-      description: 'Michael assigned to Friday 2PM-10PM shift',
-      timestamp: new Date(now.getTime() - 2 * 3600000), // 2 hours ago
-      user: 'Schedule Admin',
-    },
-    {
-      id: 5,
-      type: 'TIME_OFF_REJECTED',
-      description: 'David\'s time-off request rejected for critical period',
-      timestamp: new Date(now.getTime() - 4 * 3600000), // 4 hours ago
-      user: 'Manager',
-    },
-  ];
-};
-
-/**
- * Fetch recent activities from the backend
- * Currently returns mock data; will integrate with real API when available
- * 
- * @param {number} limit - Maximum number of activities to fetch (default: 10)
- * @returns {Promise<Array>} Array of activity objects with formatted timestamps
- * @throws {Error} If API call fails
- */
-export const fetchRecentActivities = async (limit = 10) => {
+export const fetchRecentActivities = async (limit = 10, filters = {}) => {
   try {
-    // TODO: Replace with real API endpoint when available
-    // const response = await api.get(`/activity-log/?limit=${limit}`);
-    // return response.data.map(formatActivity);
-
-    // For now, return mock data
-    const activities = generateMockActivities();
+    const params = new URLSearchParams();
+    params.append('limit', limit);
     
-    return activities.slice(0, limit).map((activity) => ({
-      ...activity,
-      typeConfig: ACTIVITY_TYPES[activity.type] || ACTIVITY_TYPES.SHIFT_ASSIGNED,
-      relativeTime: formatDistanceToNow(activity.timestamp, { addSuffix: true }),
+    if (filters.user_id) params.append('user_id', filters.user_id);
+    if (filters.entity_type) params.append('entity_type', filters.entity_type);
+    
+    const response = await api.get(`/activities/?${params.toString()}`);
+    
+    // Transform backend activities to frontend format
+    return response.data.map(activity => ({
+      id: activity.activity_id,
+      type: `${activity.entity_type}_${activity.action_type}`,
+      description: activity.details || `${activity.action_type} on ${activity.entity_type} #${activity.entity_id}`,
+      user: activity.user_full_name || 'System',
+      timestamp: activity.created_at,
+      relativeTime: formatDistanceToNow(new Date(activity.created_at), { addSuffix: true }),
+      typeConfig: ACTIVITY_TYPES[`${activity.entity_type}_${activity.action_type}`] || ACTIVITY_TYPES.SHIFT_ASSIGNED,
+      metadata: {
+        action: activity.action_type,
+        entity: activity.entity_type,
+        entityId: activity.entity_id,
+        userId: activity.user_id
+      }
     }));
   } catch (error) {
     console.error('Error fetching recent activities:', error);
