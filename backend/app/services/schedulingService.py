@@ -18,6 +18,7 @@ from app.db.models.optimizationConfigModel import OptimizationConfigModel
 from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus, SolverStatus
 from app.db.models.schedulingSolutionModel import SchedulingSolutionModel
 from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
+from app.db.models.systemConstraintsModel import SystemConstraintType
 
 
 class SchedulingSolution:
@@ -400,7 +401,68 @@ class SchedulingService:
         
         print(f"Added {overlap_count} no-overlap constraints")
         
-        # CONSTRAINT 4: Fairness - try to distribute shifts evenly
+        # CONSTRAINT 4: System-wide constraints (MAX_SHIFTS_PER_WEEK, MAX_HOURS_PER_WEEK, etc.)
+        print("Adding system-wide constraints...")
+        
+        # Get system constraints
+        max_shifts_constraint = data.system_constraints.get(SystemConstraintType.MAX_SHIFTS_PER_WEEK)
+        min_shifts_constraint = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
+        max_hours_constraint = data.system_constraints.get(SystemConstraintType.MAX_HOURS_PER_WEEK)
+        min_hours_constraint = data.system_constraints.get(SystemConstraintType.MIN_HOURS_PER_WEEK)
+        
+        system_constraint_count = 0
+        
+        # Build emp_total for every employee (for shift counting and hours)
+        assignments_per_employee = []
+        for i in range(n_employees):
+            # Get all variables for this employee across all shifts and roles
+            emp_vars = [x[ei, ej, r] for (ei, ej, r) in x.keys() if ei == i]
+            emp_total = mip.xsum(emp_vars) if emp_vars else 0
+            assignments_per_employee.append(emp_total)
+            
+            # CONSTRAINT 4a: MAX_SHIFTS_PER_WEEK (hard constraint)
+            if max_shifts_constraint and max_shifts_constraint[1]:  # (value, is_hard)
+                max_shifts = int(max_shifts_constraint[0])
+                if emp_vars:
+                    model += emp_total <= max_shifts, f'max_shifts_emp_{i}'
+                    system_constraint_count += 1
+            
+            # CONSTRAINT 4b: MIN_SHIFTS_PER_WEEK (only if hard constraint)
+            if min_shifts_constraint and min_shifts_constraint[1]:  # (value, is_hard)
+                min_shifts = int(min_shifts_constraint[0])
+                if emp_vars:
+                    model += emp_total >= min_shifts, f'min_shifts_emp_{i}'
+                    system_constraint_count += 1
+            
+            # CONSTRAINT 4c: MAX_HOURS_PER_WEEK (hard constraint)
+            if max_hours_constraint and max_hours_constraint[1]:  # (value, is_hard)
+                max_hours = float(max_hours_constraint[0])
+                if emp_vars:
+                    # Calculate total hours for this employee
+                    hours_total = mip.xsum(
+                        data.shift_durations.get(data.shifts[j]['planned_shift_id'], 0) * x[i, j, r]
+                        for (ei, ej, r) in x.keys() if ei == i
+                        for j in [ej]  # Get shift index from the variable
+                    )
+                    model += hours_total <= max_hours, f'max_hours_emp_{i}'
+                    system_constraint_count += 1
+            
+            # CONSTRAINT 4d: MIN_HOURS_PER_WEEK (only if hard constraint)
+            if min_hours_constraint and min_hours_constraint[1]:  # (value, is_hard)
+                min_hours = float(min_hours_constraint[0])
+                if emp_vars:
+                    # Calculate total hours for this employee
+                    hours_total = mip.xsum(
+                        data.shift_durations.get(data.shifts[j]['planned_shift_id'], 0) * x[i, j, r]
+                        for (ei, ej, r) in x.keys() if ei == i
+                        for j in [ej]  # Get shift index from the variable
+                    )
+                    model += hours_total >= min_hours, f'min_hours_emp_{i}'
+                    system_constraint_count += 1
+        
+        print(f"Added {system_constraint_count} system constraint checks")
+        
+        # CONSTRAINT 5: Fairness - try to distribute shifts evenly
         print("Adding fairness constraints...")
         
         # Calculate average assignments per employee
@@ -411,14 +473,6 @@ class SchedulingService:
         )
         
         avg_assignments = total_required_assignments / n_employees if n_employees > 0 else 0
-        
-        # Build emp_total for every employee (even if they have no variables)
-        assignments_per_employee = []
-        for i in range(n_employees):
-            # Get all variables for this employee across all shifts and roles
-            emp_vars = [x[ei, ej, r] for (ei, ej, r) in x.keys() if ei == i]
-            emp_total = mip.xsum(emp_vars) if emp_vars else 0
-            assignments_per_employee.append(emp_total)
         
         # OBJECTIVE FUNCTION
         print("Building objective function...")
