@@ -2,7 +2,9 @@
 Comprehensive seed data script for smart-scheduling.
 
 Creates:
-- 3+ employees per role (Waiter, Bartender, Hostess, Manager)
+- Roles (Waiter, Bartender, Host, Manager) if they don't exist
+- Shift templates (Morning, Afternoon, Evening) if they don't exist
+- 3+ employees per role (Waiter, Bartender, Host, Manager)
 - 1+ constraint per employee
 - 3+ time-off requests for the current week (Dec 23-29, 2025)
 - Varied preferences and availability
@@ -53,12 +55,90 @@ def clear_existing_data(db):
     print("✅ Data cleared")
 
 
-def create_employees(db):
+def create_roles(db):
+    """Create roles if they don't exist."""
+    print("\n👔 Creating roles...")
+    
+    required_roles = ["Waiter", "Bartender", "Host", "Manager"]
+    existing_roles = {role.role_name: role for role in db.query(RoleModel).all()}
+    
+    created_count = 0
+    for role_name in required_roles:
+        if role_name not in existing_roles:
+            role = RoleModel(role_name=role_name)
+            db.add(role)
+            created_count += 1
+            print(f"   ✅ Created role: {role_name}")
+        else:
+            print(f"   ℹ️  Role already exists: {role_name}")
+    
+    db.commit()
+    if created_count > 0:
+        print(f"✅ Created {created_count} new role(s)")
+    else:
+        print("✅ All roles already exist")
+    
+    # Return all roles (existing + newly created)
+    return {role.role_name: role for role in db.query(RoleModel).all()}
+
+
+def create_shift_templates(db, roles):
+    """Create shift templates if they don't exist."""
+    print("\n⏰ Creating shift templates...")
+    
+    from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
+    from sqlalchemy import insert
+    
+    templates_data = [
+        ("Morning Shift", time(8, 0), time(14, 0), ["Waiter", "Bartender", "Host"]),
+        ("Afternoon Shift", time(14, 0), time(20, 0), ["Waiter", "Bartender", "Host"]),
+        ("Evening Shift", time(18, 0), time(23, 0), ["Waiter", "Bartender", "Host"]),
+    ]
+    
+    existing_templates = {t.shift_template_name: t for t in db.query(ShiftTemplateModel).all()}
+    
+    created_count = 0
+    for template_name, start_time, end_time, required_role_names in templates_data:
+        if template_name not in existing_templates:
+            template = ShiftTemplateModel(
+                shift_template_name=template_name,
+                start_time=start_time,
+                end_time=end_time,
+                location="Main Restaurant"
+            )
+            db.add(template)
+            db.flush()
+            
+            # Add required roles
+            role_requirements = []
+            for role_name in required_role_names:
+                if role_name in roles:
+                    role_requirements.append({
+                        "shift_template_id": template.shift_template_id,
+                        "role_id": roles[role_name].role_id,
+                        "required_count": 1
+                    })
+            
+            if role_requirements:
+                db.execute(insert(shift_role_requirements), role_requirements)
+            
+            created_count += 1
+            print(f"   ✅ Created template: {template_name} ({start_time.strftime('%H:%M')} - {end_time.strftime('%H:%M')})")
+        else:
+            print(f"   ℹ️  Template already exists: {template_name}")
+    
+    db.commit()
+    if created_count > 0:
+        print(f"✅ Created {created_count} new template(s)")
+    else:
+        print("✅ All templates already exist")
+
+
+def create_employees(db, roles):
     """Create employees with multiple roles."""
     print("\n👥 Creating employees...")
     
-    # Get roles
-    roles = {role.role_name: role for role in db.query(RoleModel).all()}
+    # Roles should be passed in (created by create_roles)
     
     employees_data = [
         # Waiters (8 employees - expanded from 4)
@@ -79,20 +159,20 @@ def create_employees(db):
         {"name": "Morgan Freeman", "email": "morgan@restaurant.com", "roles": ["Bartender"]},
         {"name": "Natalie Portman", "email": "natalie@restaurant.com", "roles": ["Bartender"]},
         
-        # Hostesses (5 employees - expanded from 3)
-        {"name": "Oliver Twist", "email": "oliver@restaurant.com", "roles": ["Hostess"]},
-        {"name": "Penny Lane", "email": "penny@restaurant.com", "roles": ["Hostess"]},
-        {"name": "Quinn Fabray", "email": "quinn@restaurant.com", "roles": ["Hostess"]},
-        {"name": "Rachel Green", "email": "rachel@restaurant.com", "roles": ["Hostess"]},
-        {"name": "Sarah Connor", "email": "sarah@restaurant.com", "roles": ["Hostess"]},
+        # Hostes (5 employees - expanded from 3)
+        {"name": "Oliver Twist", "email": "oliver@restaurant.com", "roles": ["Host"]},
+        {"name": "Penny Lane", "email": "penny@restaurant.com", "roles": ["Host"]},
+        {"name": "Quinn Fabray", "email": "quinn@restaurant.com", "roles": ["Host"]},
+        {"name": "Rachel Green", "email": "rachel@restaurant.com", "roles": ["Host"]},
+        {"name": "Sarah Connor", "email": "sarah@restaurant.com", "roles": ["Host"]},
         
         # Multi-role employees (6 employees - expanded from 3)
         {"name": "Taylor Swift", "email": "taylor@restaurant.com", "roles": ["Waiter", "Bartender"]},
-        {"name": "Uma Thurman", "email": "uma@restaurant.com", "roles": ["Waiter", "Hostess"]},
-        {"name": "Vincent Vega", "email": "vincent@restaurant.com", "roles": ["Bartender", "Hostess"]},
+        {"name": "Uma Thurman", "email": "uma@restaurant.com", "roles": ["Waiter", "Host"]},
+        {"name": "Vincent Vega", "email": "vincent@restaurant.com", "roles": ["Bartender", "Host"]},
         {"name": "Will Smith", "email": "will@restaurant.com", "roles": ["Waiter", "Bartender"]},
-        {"name": "Xena Warrior", "email": "xena@restaurant.com", "roles": ["Waiter", "Hostess"]},
-        {"name": "Yoda Master", "email": "yoda@restaurant.com", "roles": ["Bartender", "Hostess"]},
+        {"name": "Xena Warrior", "email": "xena@restaurant.com", "roles": ["Waiter", "Host"]},
+        {"name": "Yoda Master", "email": "yoda@restaurant.com", "roles": ["Bartender", "Host"]},
         
         # Managers (3 employees)
         {"name": "Zack Morris", "email": "zack@restaurant.com", "roles": ["Manager"], "password": "password123", "is_manager": True},
@@ -125,6 +205,8 @@ def create_employees(db):
                     role_id=roles[role_name].role_id
                 )
                 db.add(user_role)
+            else:
+                print(f"   ⚠️  Warning: Role '{role_name}' not found for {emp_data['name']}")
         
         created_employees.append(user)
         print(f"   ✅ {emp_data['name']} ({', '.join(emp_data['roles'])})")
@@ -163,7 +245,7 @@ def create_employee_preferences(db, employees):
         ("Morgan Freeman", "Afternoon Shift", [DayOfWeek.TUESDAY, DayOfWeek.THURSDAY], 0.9),
         ("Natalie Portman", "Evening Shift", [DayOfWeek.SATURDAY, DayOfWeek.SUNDAY], 1.0),
         
-        # Hostess preferences
+        # Host preferences
         ("Oliver Twist", "Morning Shift", [DayOfWeek.MONDAY, DayOfWeek.FRIDAY], 0.9),
         ("Penny Lane", "Afternoon Shift", [DayOfWeek.WEDNESDAY, DayOfWeek.SATURDAY], 0.8),
         ("Quinn Fabray", "Evening Shift", [DayOfWeek.FRIDAY, DayOfWeek.SUNDAY], 0.95),
@@ -307,118 +389,6 @@ def create_default_optimization_config(db):
     return default_config
 
 
-def create_weekly_schedule(db, employees):
-    """Create weekly schedule for current week with comprehensive shifts."""
-    print("\n📋 Creating weekly schedule for Dec 23-29, 2025...")
-    
-    # Get shift templates and roles
-    templates = {t.shift_template_name: t for t in db.query(ShiftTemplateModel).all()}
-    roles = {r.role_name: r for r in db.query(RoleModel).all()}
-    
-    # Get first manager or user
-    manager = next((u for u in employees if u.user_full_name == "Zack Morris"), employees[0])
-    
-    # Create weekly schedule
-    schedule = WeeklyScheduleModel(
-        week_start_date=date(2025, 12, 23),
-        created_by_id=manager.user_id
-    )
-    db.add(schedule)
-    db.flush()
-    
-    # Create shifts for each day
-    shift_configs = [
-        # Each day needs: Morning (Waiter, Bartender, Hostess), Afternoon (same), Evening (same)
-        (DayOfWeek.MONDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.MONDAY, "Afternoon Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.MONDAY, "Evening Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),  # Extra waiter for evening
-        
-        (DayOfWeek.TUESDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.TUESDAY, "Afternoon Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.TUESDAY, "Evening Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),
-        
-        (DayOfWeek.WEDNESDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.WEDNESDAY, "Afternoon Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.WEDNESDAY, "Evening Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),
-        
-        (DayOfWeek.THURSDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.THURSDAY, "Afternoon Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.THURSDAY, "Evening Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),
-        
-        (DayOfWeek.FRIDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.FRIDAY, "Afternoon Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),  # Busy Friday
-        (DayOfWeek.FRIDAY, "Evening Shift", ["Waiter", "Waiter", "Waiter", "Bartender", "Bartender", "Hostess"]),  # Very busy
-        
-        (DayOfWeek.SATURDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.SATURDAY, "Afternoon Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.SATURDAY, "Evening Shift", ["Waiter", "Waiter", "Waiter", "Bartender", "Bartender", "Hostess"]),
-        
-        (DayOfWeek.SUNDAY, "Morning Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.SUNDAY, "Afternoon Shift", ["Waiter", "Bartender", "Hostess"]),
-        (DayOfWeek.SUNDAY, "Evening Shift", ["Waiter", "Waiter", "Bartender", "Hostess"]),
-    ]
-    
-    # Map day of week to date
-    day_map = {
-        DayOfWeek.MONDAY: 0,    # Dec 23 is Tuesday, so offset
-        DayOfWeek.TUESDAY: 1,
-        DayOfWeek.WEDNESDAY: 2,
-        DayOfWeek.THURSDAY: 3,
-        DayOfWeek.FRIDAY: 4,
-        DayOfWeek.SATURDAY: 5,
-        DayOfWeek.SUNDAY: 6
-    }
-    
-    # Dec 23, 2025 is a Tuesday
-    base_date = date(2025, 12, 23)  # Tuesday
-    # Adjust day_map: Tuesday=0, Wednesday=1, etc.
-    actual_day_map = {
-        DayOfWeek.TUESDAY: 0,
-        DayOfWeek.WEDNESDAY: 1,
-        DayOfWeek.THURSDAY: 2,
-        DayOfWeek.FRIDAY: 3,
-        DayOfWeek.SATURDAY: 4,
-        DayOfWeek.SUNDAY: 5,
-        DayOfWeek.MONDAY: 6  # Dec 29 is Monday
-    }
-    
-    shift_count = 0
-    for day_of_week, template_name, role_names in shift_configs:
-        if template_name not in templates:
-            continue
-        
-        template = templates[template_name]
-        shift_date = base_date + timedelta(days=actual_day_map[day_of_week])
-        
-        # Create one planned shift for each role requirement
-        for role_name in role_names:
-            if role_name not in roles:
-                continue
-            
-            # Create datetime objects
-            start_datetime = datetime.combine(shift_date, template.start_time)
-            end_datetime = datetime.combine(shift_date, template.end_time)
-            
-            # Create planned shift
-            planned_shift = PlannedShiftModel(
-                weekly_schedule_id=schedule.weekly_schedule_id,
-                shift_template_id=template.shift_template_id,
-                date=shift_date,
-                start_time=start_datetime,
-                end_time=end_datetime,
-                location="Main Restaurant",
-                status=PlannedShiftStatus.PLANNED
-            )
-            db.add(planned_shift)
-            
-            shift_count += 1
-    
-    db.commit()
-    db.refresh(schedule)
-    
-    print(f"✅ Created weekly schedule {schedule.weekly_schedule_id} with {shift_count} shifts")
-    return schedule
-
 
 def main():
     """Main execution function."""
@@ -432,8 +402,14 @@ def main():
         # Clear existing data
         clear_existing_data(db)
         
+        # Create roles (must be done before employees)
+        roles = create_roles(db)
+        
+        # Create shift templates (must be done before preferences and schedules)
+        create_shift_templates(db, roles)
+        
         # Create employees (3+ per role)
-        employees = create_employees(db)
+        employees = create_employees(db, roles)
         
         # Create employee preferences
         create_employee_preferences(db, employees)
@@ -447,8 +423,7 @@ def main():
         # Create default optimization configuration
         create_default_optimization_config(db)
         
-        # Create weekly schedule with shifts
-        schedule = create_weekly_schedule(db, employees)
+       
         
         print("\n" + "="*60)
         print("✅ DATA SEEDING COMPLETE!")
@@ -461,8 +436,6 @@ def main():
         print(f"   Constraints: {db.query(SystemConstraintsModel).count()}")
         print(f"   Time-off requests (approved): {db.query(TimeOffRequestModel).filter(TimeOffRequestModel.status == TimeOffRequestStatus.APPROVED).count()}")
         print(f"   Optimization configs: {db.query(OptimizationConfigModel).count()}")
-        print(f"   Weekly schedule: {schedule.weekly_schedule_id}")
-        print(f"   Planned shifts: {db.query(PlannedShiftModel).filter(PlannedShiftModel.weekly_schedule_id == schedule.weekly_schedule_id).count()}")
         
         print("\n✨ Ready for optimization!")
         

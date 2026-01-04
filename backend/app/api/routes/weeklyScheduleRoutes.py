@@ -9,6 +9,9 @@ from fastapi import APIRouter, Depends, status
 from typing import List
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.db.models.userModel import UserModel
+from app.api.controllers.authController import get_current_user
+from app.api.dependencies.auth import require_auth
 from app.schemas.weeklyScheduleSchema import WeeklyScheduleCreate, WeeklyScheduleRead
 from app.api.controllers.weeklyScheduleController import (
     create_weekly_schedule,
@@ -21,19 +24,25 @@ router = APIRouter(prefix="/weekly-schedules", tags=["Weekly Schedules"])
 
 
 @router.post("/", response_model=WeeklyScheduleRead, status_code=status.HTTP_201_CREATED,
-             summary="Create a new weekly schedule")
-async def create_schedule(schedule_data: WeeklyScheduleCreate, db: Session = Depends(get_db)):
+             summary="Create a new weekly schedule",
+             dependencies=[Depends(require_auth)])
+async def create_schedule(
+    schedule_data: WeeklyScheduleCreate, 
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
     """
     Create a new weekly schedule.
     
     Args:
         schedule_data: Weekly schedule creation data
         db: Database session dependency
+        current_user: Authenticated user (from JWT token)
         
     Returns:
         Created weekly schedule data
     """
-    schedule = await create_weekly_schedule(db, schedule_data)
+    schedule = await create_weekly_schedule(db, schedule_data, current_user.user_id)
     return schedule
 
 

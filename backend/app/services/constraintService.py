@@ -590,17 +590,25 @@ class ConstraintService:
         Returns:
             Hours between shifts. If negative, shifts overlap.
         """
-        _, end1_dt = self._normalize_shift_datetimes(shift1)
-        start2_dt, _ = self._normalize_shift_datetimes(shift2)
+        start1_dt, end1_dt = self._normalize_shift_datetimes(shift1)
+        start2_dt, end2_dt = self._normalize_shift_datetimes(shift2)
         
-        # Rest period = (later.start - earlier.end)
-        # If negative, shifts overlap
-        if end1_dt < start2_dt:
-            # shift1 ends before shift2 starts
+        # Determine which shift comes first
+        # Rest period = (later_shift.start - earlier_shift.end)
+        if end1_dt <= start2_dt:
+            # shift1 ends before or at the same time as shift2 starts
+            # Rest period is from end1 to start2
             diff = start2_dt - end1_dt
+        elif end2_dt <= start1_dt:
+            # shift2 ends before or at the same time as shift1 starts
+            # Rest period is from end2 to start1
+            diff = start1_dt - end2_dt
         else:
-            # shift1 ends after shift2 starts (overlap)
-            diff = start2_dt - end1_dt  # Negative value indicates overlap
+            # Shifts overlap - return negative value
+            # Calculate overlap duration
+            overlap_start = max(start1_dt, start2_dt)
+            overlap_end = min(end1_dt, end2_dt)
+            diff = overlap_start - overlap_end  # Negative value
         
         return diff.total_seconds() / 3600.0
     

@@ -33,18 +33,12 @@ from app.db.models import (
     timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
     optimizationConfigModel, schedulingRunModel, schedulingSolutionModel, activityLogModel
 )
-from app.db.initMasterUser import init_master_user
-from app.db.seed_test_data import init_test_data
+
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 print("📋 Tables registered in metadata:", Base.metadata.tables.keys())
 
-# Initialize master user on startup
-init_master_user()
-
-# Seed test data on startup (idempotent; will skip if already present)
-init_test_data()
 
 # Initialize FastAPI application
 app = FastAPI(title="Smart Scheduling API")

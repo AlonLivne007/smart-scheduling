@@ -481,26 +481,26 @@ class SchedulingService:
         # CONSTRAINT 1: Each shift must be assigned exactly the required employees for each role
         print("Adding coverage constraints...")
         for j, shift in enumerate(data.shifts):
-            required_roles = shift['required_roles']
-            
+            required_roles = shift.get('required_roles') or []
             if not required_roles:
                 continue
-            
-            # For each role required by this shift
+
             for role_req in required_roles:
                 role_id = role_req['role_id']
-                required_count = role_req['required_count']
-                
-                # Sum of employees assigned to this shift in this role: sum_i x[i,j,r]
+                required_count = int(role_req['required_count'])   
+
                 eligible_vars = [x[i, j, role_id] for i in range(n_employees) if (i, j, role_id) in x]
-                
-                if eligible_vars:
-                    # Use == to ensure EXACT coverage
-                    model += mip.xsum(eligible_vars) == required_count, f'coverage_shift_{j}_role_{role_id}'
-                else:
-                    # No eligible employees: enforce infeasibility if required_count > 0
+
+                if not eligible_vars:
                     if required_count > 0:
-                        model += 0 == required_count, f'infeasible_coverage_shift_{j}_role_{role_id}'
+                        raise ValueError(
+                            f"Infeasible coverage: planned_shift_id={shift['planned_shift_id']} "
+                            f"requires role_id={role_id} count={required_count}, but no eligible employees exist "
+                            f"(availability_matrix=0 or no matching roles)."
+                        )
+                    continue
+
+                model += mip.xsum(eligible_vars) == required_count, f'coverage_shift_{j}_role_{role_id}'
         
         # CONSTRAINT 2: Single role per employee per shift: sum_r x[i,j,r] <= 1
         print("Adding single-role-per-shift constraints...")
