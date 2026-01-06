@@ -66,7 +66,7 @@ def run_optimization_task(
             'solver_status': run.solver_status.value if run.solver_status else None,
             'objective_value': float(run.objective_value) if run.objective_value else None,
             'runtime_seconds': float(run.runtime_seconds) if run.runtime_seconds else None,
-            'solutions_count': run.solutions_count or 0,
+            'solutions_count': run.total_assignments or 0,
             'message': 'Optimization completed successfully'
         }
         
