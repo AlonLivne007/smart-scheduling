@@ -138,7 +138,7 @@ async def optimize_schedule_sync(
         404: If weekly schedule not found
         400: If optimization fails
     """
-    from app.services.schedulingService import SchedulingService
+    from app.services.scheduling.scheduling_service import SchedulingService
     
     # Verify schedule exists
     schedule = db.query(WeeklyScheduleModel).filter(

@@ -16,6 +16,8 @@ from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
 from app.db.models.timeOffRequestModel import TimeOffRequestModel, TimeOffRequestStatus
 from app.db.models.systemConstraintsModel import SystemConstraintsModel, SystemConstraintType
 from app.db.models.roleModel import RoleModel
+from app.services.utils.datetime_utils import normalize_shift_datetimes
+from app.services.utils.overlap_utils import shifts_overlap
 
 
 class ValidationError:
@@ -95,18 +97,44 @@ class ConstraintService:
             db: SQLAlchemy database session
         """
         self.db = db
-        self._load_system_constraints()
+        self._system_constraints_cache = None
     
     def _load_system_constraints(self):
-        """Load system constraints from database."""
-        constraints = self.db.query(SystemConstraintsModel).all()
-        self.system_constraints = {
-            c.constraint_type: {
-                'value': c.constraint_value,
-                'is_hard': c.is_hard_constraint
+        """
+        Load system constraints from database (lazy loading).
+        
+        Constraints are cached per instance. Call refresh_constraints() to reload.
+        """
+        if self._system_constraints_cache is None:
+            constraints = self.db.query(SystemConstraintsModel).all()
+            self._system_constraints_cache = {
+                c.constraint_type: {
+                    'value': c.constraint_value,
+                    'is_hard': c.is_hard_constraint
+                }
+                for c in constraints
             }
-            for c in constraints
-        }
+        return self._system_constraints_cache
+    
+    @property
+    def system_constraints(self):
+        """
+        Get system constraints (lazy-loaded).
+        
+        Returns:
+            Dictionary mapping constraint_type to {'value': float, 'is_hard': bool}
+        """
+        return self._load_system_constraints()
+    
+    def refresh_constraints(self):
+        """
+        Refresh system constraints from database.
+        
+        Use this method if constraints may have changed in the database
+        and you need to reload them.
+        """
+        self._system_constraints_cache = None
+        return self._load_system_constraints()
     
     def validate_assignment(
         self,
@@ -301,8 +329,8 @@ class ConstraintService:
             if other_shift.planned_shift_id == shift.planned_shift_id:
                 continue
             
-            # Check time overlap using full datetime comparison
-            if self._times_overlap(None, None, None, None, shift1=shift, shift2=other_shift):
+            # Check time overlap using shared utility
+            if shifts_overlap(shift, other_shift):
                 result.add_error(ValidationError(
                     "SHIFT_OVERLAP",
                     "HARD",
@@ -535,46 +563,27 @@ class ConstraintService:
     
     # Helper methods
     
-    def _normalize_shift_datetimes(self, shift: PlannedShiftModel) -> Tuple[datetime, datetime]:
-        """
-        Normalize shift start/end times to datetime objects, handling overnight shifts.
-        
-        Args:
-            shift: PlannedShiftModel with date, start_time, and end_time
-            
-        Returns:
-            Tuple of (start_dt, end_dt) as datetime objects
-        """
-        if isinstance(shift.start_time, datetime):
-            start_dt = shift.start_time
-        else:
-            start_dt = datetime.combine(shift.date, shift.start_time)
-        
-        if isinstance(shift.end_time, datetime):
-            end_dt = shift.end_time
-        else:
-            end_dt = datetime.combine(shift.date, shift.end_time)
-            # Handle overnight: if end < start on same date, end is next day
-            if isinstance(shift.end_time, time) and isinstance(shift.start_time, time):
-                if shift.end_time < shift.start_time:
-                    end_dt += timedelta(days=1)
-            elif end_dt.date() == start_dt.date() and end_dt < start_dt:
-                end_dt += timedelta(days=1)
-        
-        return start_dt, end_dt
-    
-    def _times_overlap(self, start1, end1, start2, end2, shift1: PlannedShiftModel = None, shift2: PlannedShiftModel = None) -> bool:
+    def _times_overlap(
+        self,
+        start1: Optional[datetime],
+        end1: Optional[datetime],
+        start2: Optional[datetime],
+        end2: Optional[datetime],
+        shift1: Optional[PlannedShiftModel] = None,
+        shift2: Optional[PlannedShiftModel] = None
+    ) -> bool:
         """
         Check if two time ranges overlap using full datetime comparison.
         
-        If shift1 and shift2 are provided, uses their dates for proper normalization.
+        If shift1 and shift2 are provided, uses shared utility for proper normalization.
         Otherwise, assumes start1/end1 and start2/end2 are already datetime objects.
+        
+        Note: This method is kept for backward compatibility. New code should use
+        shifts_overlap() from app.services.utils.overlap_utils directly.
         """
         if shift1 is not None and shift2 is not None:
-            # Use shift models for proper datetime normalization
-            start1_dt, end1_dt = self._normalize_shift_datetimes(shift1)
-            start2_dt, end2_dt = self._normalize_shift_datetimes(shift2)
-            return start1_dt < end2_dt and start2_dt < end1_dt
+            # Use shared utility for proper datetime normalization
+            return shifts_overlap(shift1, shift2)
         else:
             # Fallback: assume datetime objects
             if not isinstance(start1, datetime):
@@ -590,8 +599,8 @@ class ConstraintService:
         Returns:
             Hours between shifts. If negative, shifts overlap.
         """
-        start1_dt, end1_dt = self._normalize_shift_datetimes(shift1)
-        start2_dt, end2_dt = self._normalize_shift_datetimes(shift2)
+        start1_dt, end1_dt = normalize_shift_datetimes(shift1)
+        start2_dt, end2_dt = normalize_shift_datetimes(shift2)
         
         # Determine which shift comes first
         # Rest period = (later_shift.start - earlier_shift.end)
@@ -614,6 +623,6 @@ class ConstraintService:
     
     def _calculate_shift_hours(self, shift: PlannedShiftModel) -> float:
         """Calculate duration of a shift in hours, handling overnight shifts."""
-        start_dt, end_dt = self._normalize_shift_datetimes(shift)
+        start_dt, end_dt = normalize_shift_datetimes(shift)
         diff = end_dt - start_dt
         return diff.total_seconds() / 3600.0
