@@ -23,27 +23,41 @@ class SchedulingPersistence:
         """
         self.db = db
     
-    def clear_existing_assignments(self, weekly_schedule_id: int) -> None:
+    def clear_existing_assignments(self, weekly_schedule_id: int, commit: bool = False) -> None:
         """
         Clear existing shift assignments for a weekly schedule.
         
-        Note: This does NOT commit - it's designed to be part of a larger transaction.
+        This method is designed to be part of a larger transaction. By default,
+        it does NOT commit, allowing the caller to combine it with other operations.
         
         Args:
             weekly_schedule_id: ID of the weekly schedule
-        """
-        # Get all shift IDs for this schedule
-        shift_ids = [
-            ps.planned_shift_id 
-            for ps in self.db.query(PlannedShiftModel).filter(
-                PlannedShiftModel.weekly_schedule_id == weekly_schedule_id
-            ).all()
-        ]
+            commit: If True, commit the transaction. If False (default), caller is responsible for commit.
         
-        if shift_ids:
-            self.db.query(ShiftAssignmentModel).filter(
-                ShiftAssignmentModel.planned_shift_id.in_(shift_ids)
-            ).delete(synchronize_session=False)
+        Raises:
+            SQLAlchemyError: If database operation fails
+        """
+        try:
+            # Get all shift IDs for this schedule
+            shift_ids = [
+                ps.planned_shift_id 
+                for ps in self.db.query(PlannedShiftModel).filter(
+                    PlannedShiftModel.weekly_schedule_id == weekly_schedule_id
+                ).all()
+            ]
+            
+            if shift_ids:
+                self.db.query(ShiftAssignmentModel).filter(
+                    ShiftAssignmentModel.planned_shift_id.in_(shift_ids)
+                ).delete(synchronize_session=False)
+            
+            # Commit if requested (caller may want to combine with other operations)
+            if commit:
+                self.db.commit()
+        except SQLAlchemyError as e:
+            # Rollback on error
+            self.db.rollback()
+            raise
     
     def persist_solution_and_apply_assignments(
         self,

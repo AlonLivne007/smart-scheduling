@@ -11,7 +11,7 @@ from datetime import datetime
 from app.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus
-from app.services.schedulingService import SchedulingService
+from app.services.scheduling.scheduling_service import SchedulingService
 
 
 @celery_app.task(bind=True, name='app.tasks.optimization_tasks.run_optimization')
@@ -55,10 +55,7 @@ def run_optimization_task(
         scheduling_service = SchedulingService(db)
         
         # This will update the run record internally
-        scheduling_service._execute_optimization_for_run(run)
-        
-        # Refresh to get updated data
-        db.refresh(run)
+        run, solution = scheduling_service._execute_optimization_for_run(run)
         
         return {
             'run_id': run.run_id,

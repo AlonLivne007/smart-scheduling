@@ -25,11 +25,11 @@ from app.db.models.systemConstraintsModel import SystemConstraintsModel, SystemC
 
 from app.services.optimization_data_services.optimization_data import OptimizationData
 from app.services.optimization_data_services.optimization_precompute import (
-    build_shift_overlaps,
     build_shift_durations,
     build_time_off_conflicts,
     build_rest_conflicts,
 )
+from app.services.utils.overlap_utils import build_shift_overlaps
 
 
 class OptimizationDataBuilder:
@@ -65,27 +65,13 @@ class OptimizationDataBuilder:
         data = OptimizationData()
         
         # Verify weekly schedule exists
-        weekly_schedule = self.db.query(WeeklyScheduleModel).filter(
-            WeeklyScheduleModel.weekly_schedule_id == weekly_schedule_id
-        ).first()
+        self._verify_weekly_schedule(weekly_schedule_id)
         
-        if not weekly_schedule:
-            raise ValueError(f"Weekly schedule {weekly_schedule_id} not found")
-        
-        # Load data from database
-        data.employees = self.build_employee_set()
-        data.shifts = self.build_shift_set(weekly_schedule_id)
-        data.roles = self.build_role_set()
-        
-        if not data.employees:
-            raise ValueError("No eligible employees found")
-        
-        if not data.shifts:
-            raise ValueError(f"No planned shifts found for weekly schedule {weekly_schedule_id}")
+        # Extract base data from database
+        data.employees, data.shifts, data.roles = self._extract_base_data(weekly_schedule_id)
         
         # Build index mappings
-        data.employee_index = {emp['user_id']: idx for idx, emp in enumerate(data.employees)}
-        data.shift_index = {shift['planned_shift_id']: idx for idx, shift in enumerate(data.shifts)}
+        data.employee_index, data.shift_index = self._build_indices(data.employees, data.shifts)
         
         # Build role mappings
         data.role_requirements = self.build_role_requirements(data.shifts)
@@ -94,46 +80,180 @@ class OptimizationDataBuilder:
         # Build existing assignments (for preserving preferred assignments)
         data.existing_assignments = self.build_existing_assignments(weekly_schedule_id)
         
-        # Compute schedule date range to filter time-off requests
-        schedule_min_date = min(shift['date'] for shift in data.shifts) if data.shifts else None
-        schedule_max_date = max(shift['date'] for shift in data.shifts) if data.shifts else None
-        
-        # Build time-off map once, reused in availability and conflicts
-        time_off_map = self._build_time_off_map(schedule_min_date, schedule_max_date)
-        
-        # Build matrices
-        data.availability_matrix = self.build_availability_matrix(
+        # Build matrices and constraints
+        time_off_map = self._build_time_off_map_for_schedule(data.shifts)
+        data.availability_matrix, data.preference_scores = self._build_matrices(
             data.employees, data.shifts, data.employee_index, data.shift_index,
             data.existing_assignments, time_off_map
         )
         
-        data.preference_scores = self.build_preference_scores(
-            data.employees, data.shifts, data.employee_index, data.shift_index
+        # Build constraints and conflicts
+        data.shift_overlaps, data.shift_durations, data.system_constraints, \
+        data.time_off_conflicts, data.shift_rest_conflicts = self._build_constraints_and_conflicts(
+            data.employees, data.shifts, data.shift_index, time_off_map
         )
-        
-        # Detect shift overlaps (using improved overlap detection)
-        data.shift_overlaps = self.detect_shift_overlaps(data.shifts, data.shift_index)
-        
-        # Build shift durations (needed for max-hours and workload fairness constraints)
-        data.shift_durations = build_shift_durations(data.shifts)
-        
-        # Build system constraints (loads once to keep MIP builder clean)
-        data.system_constraints = self.build_system_constraints()
-        
-        # Build time-off conflicts
-        data.time_off_conflicts = build_time_off_conflicts(
-            data.employees, data.shifts, time_off_map
-        )
-        
-        # Build rest conflicts for MIN_REST_HOURS constraint
-        min_rest_constraint = data.system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
-        if min_rest_constraint and min_rest_constraint[1]:  # is_hard
-            min_rest_hours = min_rest_constraint[0]
-            data.shift_rest_conflicts = build_rest_conflicts(data.shifts, min_rest_hours)
-        else:
-            data.shift_rest_conflicts = {}
         
         return data
+    
+    def _verify_weekly_schedule(self, weekly_schedule_id: int) -> None:
+        """
+        Verify that the weekly schedule exists.
+        
+        Args:
+            weekly_schedule_id: ID of the weekly schedule
+        
+        Raises:
+            ValueError: If schedule not found
+        """
+        weekly_schedule = self.db.query(WeeklyScheduleModel).filter(
+            WeeklyScheduleModel.weekly_schedule_id == weekly_schedule_id
+        ).first()
+        
+        if not weekly_schedule:
+            raise ValueError(f"Weekly schedule {weekly_schedule_id} not found")
+    
+    def _extract_base_data(
+        self,
+        weekly_schedule_id: int
+    ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+        """
+        Extract base data from database: employees, shifts, and roles.
+        
+        Args:
+            weekly_schedule_id: ID of the weekly schedule
+        
+        Returns:
+            Tuple of (employees, shifts, roles)
+        
+        Raises:
+            ValueError: If no employees or shifts found
+        """
+        employees = self.build_employee_set()
+        shifts = self.build_shift_set(weekly_schedule_id)
+        roles = self.build_role_set()
+        
+        if not employees:
+            raise ValueError("No eligible employees found")
+        
+        if not shifts:
+            raise ValueError(f"No planned shifts found for weekly schedule {weekly_schedule_id}")
+        
+        return employees, shifts, roles
+    
+    def _build_indices(
+        self,
+        employees: List[Dict],
+        shifts: List[Dict]
+    ) -> Tuple[Dict[int, int], Dict[int, int]]:
+        """
+        Build index mappings for employees and shifts.
+        
+        Args:
+            employees: List of employee dictionaries
+            shifts: List of shift dictionaries
+        
+        Returns:
+            Tuple of (employee_index, shift_index)
+        """
+        employee_index = {emp['user_id']: idx for idx, emp in enumerate(employees)}
+        shift_index = {shift['planned_shift_id']: idx for idx, shift in enumerate(shifts)}
+        return employee_index, shift_index
+    
+    def _build_matrices(
+        self,
+        employees: List[Dict],
+        shifts: List[Dict],
+        employee_index: Dict[int, int],
+        shift_index: Dict[int, int],
+        existing_assignments: Set[Tuple[int, int, int]],
+        time_off_map: Dict[int, List[Tuple[date, date]]]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Build availability and preference score matrices.
+        
+        Args:
+            employees: List of employee dictionaries
+            shifts: List of shift dictionaries
+            employee_index: Mapping of user_id -> array index
+            shift_index: Mapping of shift_id -> array index
+            existing_assignments: Set of (employee_id, shift_id, role_id) tuples
+            time_off_map: Precomputed time-off map
+        
+        Returns:
+            Tuple of (availability_matrix, preference_scores)
+        """
+        availability_matrix = self.build_availability_matrix(
+            employees, shifts, employee_index, shift_index,
+            existing_assignments, time_off_map
+        )
+        
+        preference_scores = self.build_preference_scores(
+            employees, shifts, employee_index, shift_index
+        )
+        
+        return availability_matrix, preference_scores
+    
+    def _build_time_off_map_for_schedule(
+        self,
+        shifts: List[Dict]
+    ) -> Dict[int, List[Tuple[date, date]]]:
+        """
+        Build time-off map for the schedule date range.
+        
+        Args:
+            shifts: List of shift dictionaries
+        
+        Returns:
+            Dictionary mapping user_id to list of time-off date ranges
+        """
+        # Compute schedule date range to filter time-off requests
+        schedule_min_date = min(shift['date'] for shift in shifts) if shifts else None
+        schedule_max_date = max(shift['date'] for shift in shifts) if shifts else None
+        
+        return self._build_time_off_map(schedule_min_date, schedule_max_date)
+    
+    def _build_constraints_and_conflicts(
+        self,
+        employees: List[Dict],
+        shifts: List[Dict],
+        shift_index: Dict[int, int],
+        time_off_map: Dict[int, List[Tuple[date, date]]]
+    ) -> Tuple[Dict[int, List[int]], Dict[int, float], Dict, Dict[int, List[int]], Dict[int, Set[int]]]:
+        """
+        Build all constraints and conflict mappings.
+        
+        Args:
+            employees: List of employee dictionaries
+            shifts: List of shift dictionaries
+            shift_index: Mapping of shift_id -> array index
+            time_off_map: Precomputed time-off map
+        
+        Returns:
+            Tuple of (shift_overlaps, shift_durations, system_constraints,
+                     time_off_conflicts, shift_rest_conflicts)
+        """
+        # Detect shift overlaps (using improved overlap detection)
+        shift_overlaps = self.detect_shift_overlaps(shifts, shift_index)
+        
+        # Build shift durations (needed for max-hours and workload fairness constraints)
+        shift_durations = build_shift_durations(shifts)
+        
+        # Build system constraints (loads once to keep MIP builder clean)
+        system_constraints = self.build_system_constraints()
+        
+        # Build time-off conflicts
+        time_off_conflicts = build_time_off_conflicts(employees, shifts, time_off_map)
+        
+        # Build rest conflicts for MIN_REST_HOURS constraint
+        min_rest_constraint = system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
+        if min_rest_constraint and min_rest_constraint[1]:  # is_hard
+            min_rest_hours = min_rest_constraint[0]
+            shift_rest_conflicts = build_rest_conflicts(shifts, min_rest_hours)
+        else:
+            shift_rest_conflicts = {}
+        
+        return shift_overlaps, shift_durations, system_constraints, \
+               time_off_conflicts, shift_rest_conflicts
     
     def build_employee_set(self) -> List[Dict]:
         """
@@ -613,16 +733,24 @@ class OptimizationDataBuilder:
     
     # Helper methods
     
-    def _date_to_day_of_week(self, date) -> str:
-        """Convert date to day of week string (MONDAY, TUESDAY, etc.)."""
+    def _date_to_day_of_week(self, date_obj: date) -> str:
+        """
+        Convert date to day of week string (MONDAY, TUESDAY, etc.).
+        
+        Args:
+            date_obj: Date object to convert
+        
+        Returns:
+            Day of week string (MONDAY, TUESDAY, etc.)
+        """
         day_names = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
-        return day_names[date.weekday()]
+        return day_names[date_obj.weekday()]
     
     def _calculate_time_overlap(
-        self, 
-        pref_start: time, 
-        pref_end: time, 
-        shift_start: time, 
+        self,
+        pref_start: time,
+        pref_end: time,
+        shift_start: time,
         shift_end: time
     ) -> float:
         """

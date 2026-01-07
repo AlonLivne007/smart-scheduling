@@ -8,102 +8,8 @@ No DB queries in this module.
 from typing import Dict, List, Set, Tuple
 from datetime import date, datetime, time, timedelta
 
-
-def normalize_shift_datetimes(shift: Dict) -> Tuple[datetime, datetime]:
-    """
-    Normalize shift start/end times to datetime objects, handling overnight shifts.
-    
-    If end_time < start_time (time-only), assumes end is next day.
-    If both are datetime objects, returns as-is.
-    
-    Args:
-        shift: Shift dictionary with 'date', 'start_time', and 'end_time'
-        
-    Returns:
-        Tuple of (start_dt, end_dt) as datetime objects
-    """
-    start = shift["start_time"]
-    end = shift["end_time"]
-    shift_date = shift.get("date")
-    
-    # Convert to datetime if needed
-    if isinstance(start, time):
-        if shift_date is None:
-            raise ValueError("Cannot normalize time without date")
-        start_dt = datetime.combine(shift_date, start)
-    else:
-        start_dt = start
-    
-    if isinstance(end, time):
-        if shift_date is None:
-            raise ValueError("Cannot normalize time without date")
-        end_dt = datetime.combine(shift_date, end)
-        # Handle overnight: if end < start, end is next day
-        if end < start:
-            end_dt += timedelta(days=1)
-    else:
-        end_dt = end
-        # If both are datetime and end < start on same date, assume overnight
-        if end_dt.date() == start_dt.date() and end_dt < start_dt:
-            end_dt += timedelta(days=1)
-    
-    return start_dt, end_dt
-
-
-def _shifts_overlap(shift1: Dict, shift2: Dict) -> bool:
-    """
-    Check if two shifts overlap in time.
-    
-    Handles:
-    - Full datetime comparison (date + time)
-    - Overnight shifts (end_time < start_time means end is next day)
-    
-    Args:
-        shift1: First shift dictionary with 'date' and 'start_time'/'end_time'
-        shift2: Second shift dictionary with 'date' and 'start_time'/'end_time'
-        
-    Returns:
-        True if shifts overlap, False otherwise
-    """
-    start1_dt, end1_dt = normalize_shift_datetimes(shift1)
-    start2_dt, end2_dt = normalize_shift_datetimes(shift2)
-    
-    # Shifts overlap if one starts before the other ends
-    return start1_dt < end2_dt and start2_dt < end1_dt
-
-
-def build_shift_overlaps(shifts: List[Dict]) -> Dict[int, Set[int]]:
-    """
-    Build shift overlaps mapping: {shift_id: {overlapping_shift_ids}}.
-    
-    Memory-efficient: only stores overlapping pairs, not a full O(S²) matrix.
-    Two shifts overlap if their time ranges intersect.
-    Uses proper datetime overlap detection (handles overnight shifts).
-    
-    Args:
-        shifts: List of shift dictionaries
-        
-    Returns:
-        Dictionary mapping shift_id to set of overlapping shift IDs
-    """
-    shift_overlaps: Dict[int, Set[int]] = {}
-    
-    for i, shift1 in enumerate(shifts):
-        shift_id1 = shift1["planned_shift_id"]
-        if shift_id1 not in shift_overlaps:
-            shift_overlaps[shift_id1] = set()
-        
-        for shift2 in shifts[i+1:]:
-            shift_id2 = shift2["planned_shift_id"]
-            
-            if _shifts_overlap(shift1, shift2):
-                shift_overlaps[shift_id1].add(shift_id2)
-                # Initialize set for shift2 if not exists
-                if shift_id2 not in shift_overlaps:
-                    shift_overlaps[shift_id2] = set()
-                shift_overlaps[shift_id2].add(shift_id1)
-    
-    return shift_overlaps
+from app.services.utils.datetime_utils import normalize_shift_datetimes
+from app.services.utils.overlap_utils import shifts_overlap, build_shift_overlaps
 
 
 def build_shift_durations(shifts: List[Dict]) -> Dict[int, float]:
@@ -221,8 +127,8 @@ def build_rest_conflicts(
             shift_id2 = shift2["planned_shift_id"]
             start2_dt, end2_dt = normalize_shift_datetimes(shift2)
             
-            # Check if shifts overlap
-            if _shifts_overlap(shift1, shift2):
+            # Check if shifts overlap using shared utility
+            if shifts_overlap(shift1, shift2):
                 rest_conflicts[shift_id1].add(shift_id2)
                 if shift_id2 not in rest_conflicts:
                     rest_conflicts[shift_id2] = set()

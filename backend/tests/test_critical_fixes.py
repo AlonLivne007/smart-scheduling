@@ -6,13 +6,13 @@ Simple test functions for critical fixes:
 """
 
 from datetime import datetime, date, time, timedelta
+from app.services.utils.datetime_utils import normalize_shift_datetimes
+from app.services.utils.overlap_utils import shifts_overlap
 from app.services.optimization_data_services.optimization_precompute import (
-    normalize_shift_datetimes,
-    _shifts_overlap,
     build_shift_durations
 )
 from app.services.optimization_data_services.optimization_data import OptimizationData
-from app.services.schedulingService import SchedulingService
+from app.services.scheduling.scheduling_service import SchedulingService
 import numpy as np
 
 class MockDB:
