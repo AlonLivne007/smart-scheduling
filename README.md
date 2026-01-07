@@ -1,8 +1,15 @@
 # Smart Scheduling
 
-A full-stack automated shift scheduling system that uses **Mixed Integer Programming (MIP)** to optimally assign employees to shifts based on availability, time-off requests, work constraints, and fairness objectives.
+An intelligent employee scheduling system that uses **Mixed Integer Programming (MIP)** to automatically generate optimal shift assignments. The system balances employee preferences, availability, fairness, and business constraints to create schedules that maximize satisfaction while ensuring full coverage.
 
-## 🚀 Features
+## Architecture Overview
+
+**Frontend:** React 19 + Vite + TailwindCSS 4  
+**Backend:** FastAPI + SQLAlchemy + Celery  
+**Database:** PostgreSQL 14  
+**Optimization Engine:** Python-MIP with CBC Solver  
+**Task Queue:** Redis + Celery + Flower  
+**Deployment:** Docker Compose
 
 ### Core Functionality
 
@@ -151,44 +158,151 @@ The system uses **Mixed Integer Programming (MIP)** to solve the shift assignmen
 
 ### API Documentation
 
-When the backend is running, visit:
+## Technology Stack
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+### Frontend
+- **React 19** - UI framework with hooks and context
+- **Vite 7** - Fast build tool and dev server
+- **TailwindCSS 4** - Utility-first CSS framework
+- **React Router 6** - Client-side routing
+- **Axios** - HTTP client for API calls
+- **date-fns** - Date manipulation and formatting
+- **Lucide React** - Icon library
+- **React Hot Toast** - Toast notifications
 
+### Backend
+- **FastAPI** - Modern Python web framework
+- **SQLAlchemy** - ORM for database operations
+- **PostgreSQL 14** - Primary database
+- **Pydantic** - Data validation and settings management
+- **Python-JOSE** - JWT token handling
+- **Werkzeug** - Password hashing utilities
 
+### Optimization Engine
+- **Python-MIP 1.15+** - Mixed Integer Programming library
+- **CBC Solver** - Open-source MIP solver (bundled with Python-MIP)
+- **NumPy** - Numerical operations and matrix computations
+- Algorithm: Multi-objective optimization with weighted preferences, fairness, and coverage
 
+### Task Queue & Background Processing
+- **Celery 5.3+** - Distributed task queue for async optimization
+- **Redis 7** - Message broker and result backend
+- **Flower 2.0+** - Real-time Celery monitoring (http://localhost:5555)
 
-## 🔐 Authentication
+### Authentication & Security
+- **JWT (JSON Web Tokens)** - Stateless authentication
+- **Werkzeug** - Secure password hashing
+- **Role-based Access Control** - Manager vs Employee permissions
 
-The system uses JWT authentication:
+### Development & Deployment
+- **Docker & Docker Compose** - Containerization and orchestration
+- **PostgreSQL 14** - Production-grade relational database
+- **Uvicorn** - ASGI server for FastAPI
 
-1. User calls `POST /users/login` with email/password
-2. Backend returns `access_token` (JWT) and user data
-3. Frontend stores token in `localStorage`
-4. All subsequent requests include `Authorization: Bearer <token>` header
+## Design Patterns & Architecture
 
-**Role-Based Access:**
+### Backend Architecture
 
-- **Authenticated Users**: View basic data, manage own time-off
-- **Managers**: Create/edit users, assign shifts, approve time-off, manage constraints
+**Service Layer Pattern**
+- `SchedulingService` - Main orchestrator for optimization
+- `ConstraintService` - Manages system constraints
+- `OptimizationDataBuilder` - Prepares data for MIP solver
+- Separation of concerns: controllers → services → models
 
+**MIP Solver Design**
+- `MipSchedulingSolver` - Builds and solves optimization model
+- Decision variables: Binary variables x[i,j,r] (employee i, shift j, role r)
+- Multi-objective function: Weighted combination of preferences, fairness, and coverage
+- Hard constraints: Time-off, availability, max hours, no overlaps, min rest
+- Soft constraints: Min shifts per week (with penalties)
 
-## 📝 Environment Variables
+**Data Persistence Layer**
+- `SchedulingPersistence` - Database operations for solutions
+- `SchedulingRunModel` - Tracks optimization executions
+- `SchedulingSolutionModel` - Stores optimal assignments
 
-### Backend (`backend/.env`)
+### Frontend Architecture
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/scheduler_db
-JWT_SECRET_KEY=change-me-in-dev
-JWT_ALGORITHM=HS256
-JWT_EXPIRE_DAYS=3
-```
+**Component-Based Design**
+- Functional components with React hooks
+- Shared UI components library (Button, Card, Skeleton, etc.)
+- Layout components (MainLayout, PageLayout)
+- Page components with data fetching
 
-### Frontend (`frontend/.env.local`)
+**State Management**
+- React Context for global state (LoadingContext)
+- Local component state with useState
+- Auth state persisted in localStorage
 
-```env
-VITE_API_URL=http://localhost:8000
-```
+**Routing Strategy**
+- Protected routes with authentication checks
+- Admin-only routes with role verification
+- Lazy loading with React Router
+
+**UI/UX Design**
+- Blue gradient theme with professional appearance
+- Sidebar navigation with icons
+- Weekly calendar grid for schedule visualization
+- Quick stats dashboard with metrics
+- Toast notifications for feedback
+
+### Optimization Algorithm
+
+**MIP Model Components**
+
+1. **Decision Variables**
+   - x[i,j,r] = 1 if employee i assigned to shift j in role r, else 0
+   - Binary variables for discrete yes/no decisions
+
+2. **Objective Function** (Maximize)
+   - Component 1: Preference satisfaction (employee preferences)
+   - Component 2: Coverage (fill all required shifts)
+   - Component 3: Fairness (balanced workload distribution)
+   - Component 4: Soft penalty minimization
+   - Weighted combination with configurable weights
+
+3. **Hard Constraints** (Must Satisfy)
+   - Coverage: Each shift-role filled exactly once
+   - No time-off conflicts
+   - Role qualifications required
+   - No overlapping shift assignments
+   - Maximum hours per week
+   - Maximum shifts per week
+   - Minimum rest hours between shifts
+
+4. **Soft Constraints** (Penalties)
+   - Minimum shifts per week (with violation penalties)
+
+**Solver Configuration**
+- Timeout: Configurable max runtime (default 300s)
+- MIP Gap: Optimality tolerance (default 0.01 = 1%)
+- Solver: CBC (Coin-or Branch and Cut)
+
+## Key Features
+
+### For Employees
+- **Dashboard** - View upcoming shifts and weekly summary
+- **My Preferences** - Set preferred days, times, and shift templates
+- **Time-Off Requests** - Request vacation, sick leave, personal days
+- **Weekly Schedule** - Calendar view of assigned shifts
+
+### For Managers
+- **Schedule Optimization** - Automatic shift assignment with MIP solver
+- **Employee Management** - Add, edit, view employee profiles
+- **Shift Templates** - Define recurring shift patterns
+- **System Constraints** - Configure business rules (max hours, min rest, etc.)
+- **Time-Off Approval** - Review and approve employee requests
+- **Optimization Config** - Tune solver weights and parameters
+
+### Optimization Features
+- Multi-objective scheduling balancing 3+ criteria
+- Fair workload distribution across employees
+- Employee preference satisfaction
+- Automatic constraint validation
+- Infeasibility detection and reporting
+- Solution quality metrics
+- Background processing with progress tracking
+
+## Useful Links
 
 ---
