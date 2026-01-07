@@ -56,7 +56,23 @@ def clear_existing_data(db):
     db.query(WeeklyScheduleModel).delete()
     db.query(UserRoleModel).delete()
     db.query(UserModel).delete()
-    # Keep roles and shift templates
+    
+    # Delete shift role requirements (association table)
+    db.execute(delete(shift_role_requirements))
+    
+    # Delete shift templates and roles that are not in our current required list
+    required_roles = ["Waiter", "Bartender", "Host", "Manager"]
+    required_templates = ["Morning Shift", "Afternoon Shift", "Evening Shift"]
+    
+    # Delete templates not in required list
+    db.query(ShiftTemplateModel).filter(
+        ~ShiftTemplateModel.shift_template_name.in_(required_templates)
+    ).delete(synchronize_session=False)
+    
+    # Delete roles not in required list
+    db.query(RoleModel).filter(
+        ~RoleModel.role_name.in_(required_roles)
+    ).delete(synchronize_session=False)
     
     db.commit()
     print("✅ Data cleared")
@@ -163,7 +179,7 @@ def create_employees(db, roles):
         {"name": "Morgan Freeman", "email": "morgan@restaurant.com", "roles": ["Bartender"]},
         {"name": "Natalie Portman", "email": "natalie@restaurant.com", "roles": ["Bartender"]},
         
-        # Hostes (5 employees - expanded from 3)
+        # Hosts (5 employees - expanded from 3)
         {"name": "Oliver Twist", "email": "oliver@restaurant.com", "roles": ["Host"]},
         {"name": "Penny Lane", "email": "penny@restaurant.com", "roles": ["Host"]},
         {"name": "Quinn Fabray", "email": "quinn@restaurant.com", "roles": ["Host"]},

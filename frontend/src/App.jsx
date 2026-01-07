@@ -21,14 +21,12 @@ import ScheduleCalendarPage from "./pages/Admin/Schedule/ScheduleCalendarPage.js
 import ShiftAssignmentPage from "./pages/Admin/Schedule/ShiftAssignmentPage.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
-import SettingsPage from "./pages/SettingsPage.jsx";
 import ErrorTestPage from "./pages/debug/ErrorTestPage.jsx";
 import InputFieldDemo from "./pages/debug/InputFieldDemo.jsx";
 import ConfirmDialogDemo from "./pages/debug/ConfirmDialogDemo.jsx";
 import TimeOffRequestPage from "./pages/TimeOff/TimeOffRequestPage.jsx";
 import MyTimeOffPage from "./pages/TimeOff/MyTimeOffPage.jsx";
 import MyPreferencesPage from "./pages/MyPreferencesPage.jsx";
-import MySchedulePage from "./pages/MySchedulePage.jsx";
 import TimeOffManagementPage from "./pages/Admin/TimeOffManagementPage.jsx";
 import RolesManagementPage from "./pages/Admin/RolesManagementPage.jsx";
 import ShiftTemplatesManagementPage from "./pages/Admin/ShiftTemplatesManagementPage.jsx";
@@ -88,7 +86,6 @@ export default function App() {
         >
           <Route index element={<HomePage />} />
           <Route path="schedule" element={<SchedulePage />} />
-          <Route path="settings" element={<SettingsPage />} />
 
           {/* Schedules list (admin) */}
           <Route
@@ -165,9 +162,6 @@ export default function App() {
           
           {/* My Time-Off Requests (all employees) */}
           <Route path="time-off/my-requests" element={<MyTimeOffPage />} />
-
-          {/* My Schedule (all employees) */}
-          <Route path="my-schedule" element={<MySchedulePage />} />
 
           {/* My Preferences (all employees) */}
           <Route path="my-preferences" element={<MyPreferencesPage />} />
