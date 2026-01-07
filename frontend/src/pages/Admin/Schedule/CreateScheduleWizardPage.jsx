@@ -165,20 +165,10 @@ export default function CreateScheduleWizardPage() {
   async function handleSubmit() {
     setLoading(true);
     try {
-      // Get current user ID from localStorage
-      const authUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
-      const userId = authUser?.user_id;
-
-      if (!userId) {
-        toast.error("User not authenticated. Please log in again.");
-        navigate("/login");
-        return;
-      }
-
       // Step 1: Create weekly schedule
+      // Note: created_by_id is now set automatically by the backend from the authenticated user
       const schedulePayload = {
         week_start_date: weekStartDate,
-        created_by_id: userId,
       };
 
       const { data: schedule } = await api.post("/weekly-schedules/", schedulePayload);

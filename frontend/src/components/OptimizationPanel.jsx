@@ -279,31 +279,36 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
       {selectedRun && selectedRun.status === 'COMPLETED' && solutions.length > 0 && (
         <div className="border-t pt-6">
           <h4 className="text-sm font-medium text-gray-700 mb-3">Optimization Results</h4>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm text-blue-600 font-medium">Total Assignments</div>
-              <div className="text-2xl font-bold text-blue-900">{solutions.length}</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-sm text-green-600 font-medium">Objective Value</div>
-              <div className="text-2xl font-bold text-green-900">
-                {selectedRun.objective_value?.toFixed(2) || 'N/A'}
+
+          {(() => {
+            const uniqueEmployees = new Set(solutions.map(s => s.user_id)).size;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="text-sm text-blue-600 font-medium">Total Assignments</div>
+                  <div className="text-2xl font-bold text-blue-900">{solutions.length}</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="text-sm text-green-600 font-medium">Employees Assigned</div>
+                  <div className="text-2xl font-bold text-green-900">
+                    {uniqueEmployees}
+                  </div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <div className="text-sm text-purple-600 font-medium">Runtime</div>
+                  <div className="text-2xl font-bold text-purple-900">
+                    {selectedRun.runtime_seconds?.toFixed(2) || '0'}s
+                  </div>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-4">
+                  <div className="text-sm text-orange-600 font-medium">Status</div>
+                  <div className="text-2xl font-bold text-orange-900">
+                    {selectedRun.solver_status || 'N/A'}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="bg-purple-50 rounded-lg p-4">
-              <div className="text-sm text-purple-600 font-medium">Runtime</div>
-              <div className="text-2xl font-bold text-purple-900">
-                {selectedRun.runtime_seconds?.toFixed(2) || '0'}s
-              </div>
-            </div>
-            <div className="bg-orange-50 rounded-lg p-4">
-              <div className="text-sm text-orange-600 font-medium">Status</div>
-              <div className="text-2xl font-bold text-orange-900">
-                {selectedRun.solver_status || 'N/A'}
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <Button
             onClick={() => handleApplySolution(false)}

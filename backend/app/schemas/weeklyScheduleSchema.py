@@ -21,8 +21,9 @@ class WeeklyScheduleBase(BaseModel):
 class WeeklyScheduleCreate(WeeklyScheduleBase):
     """
     Schema for creating a new weekly schedule.
+    Note: created_by_id is set automatically from the authenticated user.
     """
-    created_by_id: int = Field(..., description="ID of the user creating this schedule", gt=0)
+    # created_by_id is now set from the authenticated user, not from the request
 
 
 # ---------- Read ----------

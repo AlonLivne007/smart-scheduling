@@ -79,13 +79,14 @@ def _serialize_weekly_schedule(db: Session, schedule: WeeklyScheduleModel) -> We
 # CRUD Functions
 # ------------------------
 
-async def create_weekly_schedule(db: Session, schedule_data: WeeklyScheduleCreate) -> WeeklyScheduleRead:
+async def create_weekly_schedule(db: Session, schedule_data: WeeklyScheduleCreate, user_id: int) -> WeeklyScheduleRead:
     """
     Create a new weekly schedule.
     
     Args:
         db: Database session
         schedule_data: Weekly schedule creation data
+        user_id: ID of the authenticated user creating this schedule
         
     Returns:
         Created WeeklyScheduleRead instance
@@ -96,7 +97,7 @@ async def create_weekly_schedule(db: Session, schedule_data: WeeklyScheduleCreat
     try:
         schedule = WeeklyScheduleModel(
             week_start_date=schedule_data.week_start_date,
-            created_by_id=schedule_data.created_by_id,
+            created_by_id=user_id,
         )
         db.add(schedule)
         db.commit()
