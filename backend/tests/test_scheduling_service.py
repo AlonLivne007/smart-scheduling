@@ -13,7 +13,7 @@ from app.db.models import (
 )
 
 from app.db.session import SessionLocal
-from app.services.schedulingService import SchedulingService
+from app.services.scheduling.scheduling_service import SchedulingService
 from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
 
 def test_scheduling_service():
