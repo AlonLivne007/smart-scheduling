@@ -224,12 +224,13 @@ Response to Frontend: Schedule solution ready
 
 ```python
 def _build_decision_variables(model, data, n_employees, n_shifts):
-    x = {}  # {(i, j, role_id): var}
-    vars_by_emp_shift = {}  # {(i, j): [var1, var2, ...]} - for performance
+    x = {}  # {(emp_idx, shift_idx, role_id): var}
+    vars_by_emp_shift = {}  # {(emp_idx, shift_idx): [var1, var2, ...]} - for performance
+    vars_by_employee = {}  # {emp_idx: [var1, var2, ...]} - for O(1) access
 
-    for i, emp in enumerate(data.employees):
-        for j, shift in enumerate(data.shifts):
-            if data.availability_matrix[i, j] != 1:
+    for emp_idx, emp in enumerate(data.employees):
+        for shift_idx, shift in enumerate(data.shifts):
+            if data.availability_matrix[emp_idx, shift_idx] != 1:
                 continue  # Skip if employee not available
 
             required_roles = shift.get('required_roles') or []
@@ -242,15 +243,20 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
             for role_req in required_roles:
                 role_id = role_req['role_id']
                 if role_id in emp_role_ids:
-                    var = model.add_var(var_type=mip.BINARY, name=f'x_{i}_{j}_{role_id}')
-                    x[i, j, role_id] = var
+                    var = model.add_var(var_type=mip.BINARY, name=f'x_{emp_idx}_{shift_idx}_{role_id}')
+                    x[emp_idx, shift_idx, role_id] = var
 
-                    # Build index for performance
-                    if (i, j) not in vars_by_emp_shift:
-                        vars_by_emp_shift[(i, j)] = []
-                    vars_by_emp_shift[(i, j)].append(var)
+                    # Build indexes for performance
+                    if (emp_idx, shift_idx) not in vars_by_emp_shift:
+                        vars_by_emp_shift[(emp_idx, shift_idx)] = []
+                    vars_by_emp_shift[(emp_idx, shift_idx)].append(var)
 
-    return x, vars_by_emp_shift
+                    # Build employee index for O(1) access
+                    if emp_idx not in vars_by_employee:
+                        vars_by_employee[emp_idx] = []
+                    vars_by_employee[emp_idx].append(var)
+
+    return x, vars_by_emp_shift, vars_by_employee
 ```
 
 ---
@@ -268,7 +274,7 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 ```python
 def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
-    for j, shift in enumerate(data.shifts):
+    for shift_idx, shift in enumerate(data.shifts):
         required_roles = shift.get('required_roles') or []
         if not required_roles:
             continue
@@ -277,8 +283,8 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
             role_id = role_req['role_id']
             required_count = int(role_req['required_count'])
 
-            eligible_vars = [x[i, j, role_id] for i in range(n_employees)
-                           if (i, j, role_id) in x]
+            eligible_vars = [x[emp_idx, shift_idx, role_id] for emp_idx in range(n_employees)
+                           if (emp_idx, shift_idx, role_id) in x]
 
             if not eligible_vars:
                 if required_count > 0:
@@ -288,7 +294,7 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
                 continue
 
             model += mip.xsum(eligible_vars) == required_count, \
-                    f'coverage_shift_{j}_role_{role_id}'
+                    f'coverage_shift_{shift_idx}_role_{role_id}'
 ```
 
 ##### Single Role Per Shift (תפקיד אחד למשמרת)
@@ -298,12 +304,12 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
 
 ```python
 def _add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shifts):
-    for i in range(n_employees):
-        for j in range(n_shifts):
-            if (i, j) in vars_by_emp_shift:
-                role_vars = vars_by_emp_shift[(i, j)]
+    for emp_idx in range(n_employees):
+        for shift_idx in range(n_shifts):
+            if (emp_idx, shift_idx) in vars_by_emp_shift:
+                role_vars = vars_by_emp_shift[(emp_idx, shift_idx)]
                 if len(role_vars) > 1:  # Only if employee has multiple roles for this shift
-                    model += mip.xsum(role_vars) <= 1, f'single_role_emp_{i}_shift_{j}'
+                    model += mip.xsum(role_vars) <= 1, f'single_role_emp_{emp_idx}_shift_{shift_idx}'
 ```
 
 ##### No Overlapping Shifts (אין משמרות חופפות)
@@ -321,13 +327,13 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
         for overlapping_id in overlapping_ids:
             overlapping_idx = data.shift_index[overlapping_id]
 
-            for i in range(n_employees):
-                vars_shift = vars_by_emp_shift.get((i, shift_idx), [])
-                vars_overlap = vars_by_emp_shift.get((i, overlapping_idx), [])
+            for emp_idx in range(n_employees):
+                vars_shift = vars_by_emp_shift.get((emp_idx, shift_idx), [])
+                vars_overlap = vars_by_emp_shift.get((emp_idx, overlapping_idx), [])
 
                 if vars_shift and vars_overlap:
                     model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1, \
-                            f'no_overlap_emp_{i}_shift_{shift_idx}_{overlapping_idx}'
+                            f'no_overlap_emp_{emp_idx}_shift_{shift_idx}_{overlapping_idx}'
 ```
 
 ##### Time Off מאושר (Approved Time Off)
@@ -359,13 +365,13 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
         for conflicting_id in conflicting_ids:
             conflicting_idx = data.shift_index[conflicting_id]
 
-            for i in range(n_employees):
-                vars_shift = vars_by_emp_shift.get((i, shift_idx), [])
-                vars_conflict = vars_by_emp_shift.get((i, conflicting_idx), [])
+            for emp_idx in range(n_employees):
+                vars_shift = vars_by_emp_shift.get((emp_idx, shift_idx), [])
+                vars_conflict = vars_by_emp_shift.get((emp_idx, conflicting_idx), [])
 
                 if vars_shift and vars_conflict:
                     model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1, \
-                            f'min_rest_emp_{i}_shift_{shift_idx}_{conflicting_idx}'
+                            f'min_rest_emp_{emp_idx}_shift_{shift_idx}_{conflicting_idx}'
 ```
 
 ##### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
@@ -373,10 +379,81 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
 - **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X משמרות בשבוע
 - **נוסחה**: `Σ_j Σ_r x(i,j,r) ≤ max_shifts` לכל i
 
+```python
+max_shifts_constraint = data.system_constraints.get(SystemConstraintType.MAX_SHIFTS_PER_WEEK)
+if max_shifts_constraint and max_shifts_constraint[1]:  # is_hard
+    max_shifts = int(max_shifts_constraint[0])
+    for emp_idx in range(n_employees):
+        emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
+        if emp_vars:
+            model += mip.xsum(emp_vars) <= max_shifts, f'max_shifts_emp_{emp_idx}'
+```
+
 ##### Max Hours Per Week (MAX_HOURS_PER_WEEK)
 
 - **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X שעות בשבוע
 - **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≤ max_hours` לכל i
+
+```python
+max_hours_constraint = data.system_constraints.get(SystemConstraintType.MAX_HOURS_PER_WEEK)
+if max_hours_constraint and max_hours_constraint[1]:  # is_hard
+    max_hours = max_hours_constraint[0]
+    for emp_idx in range(n_employees):
+        emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
+        if emp_hours_vars:
+            model += mip.xsum(emp_hours_vars) <= max_hours, f'max_hours_emp_{emp_idx}'
+```
+
+##### Max Consecutive Days (MAX_CONSECUTIVE_DAYS)
+
+- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X ימים רצופים
+- **נוסחה**: עבור כל רצף של `max_consecutive+1` ימים רצופים, `Σ_d works_on_day[i,d] ≤ max_consecutive`
+- **מימוש**: משתמש במשתנים בינאריים `works_on_day[i, date]` שמסמנים אם עובד עובד ביום מסוים
+
+```python
+max_consecutive_constraint = data.system_constraints.get(SystemConstraintType.MAX_CONSECUTIVE_DAYS)
+if max_consecutive_constraint and max_consecutive_constraint[1]:  # is_hard
+    max_consecutive = int(max_consecutive_constraint[0])
+    # Build works_on_day variables and add constraints for consecutive sequences
+    date_to_shifts = self._build_date_to_shifts_mapping(data)
+    works_on_day = self._build_works_on_day_variables(...)
+
+    # For each sequence of (max_consecutive+1) consecutive days
+    for sequence_dates in consecutive_sequences:
+        for emp_idx in range(n_employees):
+            day_vars = [works_on_day[(emp_idx, d)] for d in sequence_dates]
+            model += mip.xsum(day_vars) <= max_consecutive
+```
+
+##### Min Hours Per Week (MIN_HOURS_PER_WEEK)
+
+- **אינטואיציה**: עובד חייב לעבוד לפחות X שעות בשבוע
+- **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≥ min_hours` לכל i
+
+```python
+min_hours_constraint = data.system_constraints.get(SystemConstraintType.MIN_HOURS_PER_WEEK)
+if min_hours_constraint and min_hours_constraint[1]:  # is_hard
+    min_hours = min_hours_constraint[0]
+    for emp_idx in range(n_employees):
+        emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
+        if emp_hours_vars:
+            model += mip.xsum(emp_hours_vars) >= min_hours, f'min_hours_emp_{emp_idx}'
+```
+
+##### Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
+
+- **אינטואיציה**: עובד חייב לעבוד לפחות X משמרות בשבוע
+- **נוסחה**: `Σ_j Σ_r x(i,j,r) ≥ min_shifts` לכל i
+
+```python
+min_shifts_constraint = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
+if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
+    min_shifts = int(min_shifts_constraint[0])
+    for emp_idx in range(n_employees):
+        emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
+        if emp_vars:
+            model += mip.xsum(emp_vars) >= min_shifts, f'min_shifts_emp_{emp_idx}'
+```
 
 ---
 
@@ -397,22 +474,11 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
 min_hours_constraint = data.system_constraints.get(SystemConstraintType.MIN_HOURS_PER_WEEK)
 if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
     min_hours = min_hours_constraint[0]
-    for i in range(n_employees):
-        # Calculate total hours
-        emp_hours_vars = []
-        for (ei, ej) in vars_by_emp_shift.keys():
-            if ei == i:
-                shift = data.shifts[ej]
-                shift_id = shift['planned_shift_id']
-                shift_duration = data.shift_durations.get(shift_id, 0.0)
-                if shift_duration > 0:
-                    for var in vars_by_emp_shift[(ei, ej)]:
-                        emp_hours_vars.append(shift_duration * var)
-
+    for emp_idx in range(n_employees):
+        emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
         if emp_hours_vars:
             total_hours = mip.xsum(emp_hours_vars)
-            # Slack variable: deficit = max(0, min_hours - total_hours)
-            deficit = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_hours_deficit_{i}')
+            deficit = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_hours_deficit_{emp_idx}')
             model += deficit >= min_hours - total_hours
             soft_penalty_component += deficit
 ```
@@ -423,18 +489,96 @@ if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
 min_shifts_constraint = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
 if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
     min_shifts = int(min_shifts_constraint[0])
-    for i in range(n_employees):
-        emp_vars = []
-        for (ei, ej) in vars_by_emp_shift.keys():
-            if ei == i:
-                emp_vars.extend(vars_by_emp_shift[(ei, ej)])
-
+    for emp_idx in range(n_employees):
+        emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
         if emp_vars:
             total_shifts = mip.xsum(emp_vars)
-            # Slack variable: deficit = max(0, min_shifts - total_shifts)
-            deficit = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_shifts_deficit_{i}')
+            deficit = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_shifts_deficit_{emp_idx}')
             model += deficit >= min_shifts - total_shifts
             soft_penalty_component += deficit
+```
+
+#### Max Hours Per Week (MAX_HOURS_PER_WEEK - Soft)
+
+- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X שעות בשבוע, אך אם לא ניתן - יש עונש
+- **נוסחה**: `excess_i = max(0, Σ_j Σ_r x(i,j,r) * duration(j) - max_hours)`
+
+```python
+max_hours_constraint = data.system_constraints.get(SystemConstraintType.MAX_HOURS_PER_WEEK)
+if max_hours_constraint and not max_hours_constraint[1]:  # is_soft
+    max_hours = max_hours_constraint[0]
+    for emp_idx in range(n_employees):
+        emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
+        if emp_hours_vars:
+            total_hours = mip.xsum(emp_hours_vars)
+            excess = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'max_hours_excess_{emp_idx}')
+            model += excess >= total_hours - max_hours
+            soft_penalty_component += excess
+```
+
+#### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
+
+- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X משמרות בשבוע, אך אם לא ניתן - יש עונש
+- **נוסחה**: `excess_i = max(0, Σ_j Σ_r x(i,j,r) - max_shifts)`
+
+```python
+max_shifts_constraint = data.system_constraints.get(SystemConstraintType.MAX_SHIFTS_PER_WEEK)
+if max_shifts_constraint and not max_shifts_constraint[1]:  # is_soft
+    max_shifts = int(max_shifts_constraint[0])
+    for emp_idx in range(n_employees):
+        emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
+        if emp_vars:
+            total_shifts = mip.xsum(emp_vars)
+            excess = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'max_shifts_excess_{emp_idx}')
+            model += excess >= total_shifts - max_shifts
+            soft_penalty_component += excess
+```
+
+#### Min Rest Hours (MIN_REST_HOURS - Soft)
+
+- **אינטואיציה**: רצוי שעובד יקבל שעות מנוחה מינימליות בין משמרות, אך אם לא ניתן - יש עונש
+- **נוסחה**: `violation = max(0, Σ_r x(i,j1,r) + Σ_r x(i,j2,r) - 1)` לכל i, (j1,j2) עם מנוחה לא מספקת
+
+```python
+min_rest_constraint = data.system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
+if min_rest_constraint and not min_rest_constraint[1]:  # is_soft
+    for shift_id, conflicting_ids in data.shift_rest_conflicts.items():
+        shift_idx = data.shift_index[shift_id]
+        for conflicting_id in conflicting_ids:
+            conflicting_idx = data.shift_index[conflicting_id]
+
+            for emp_idx in range(n_employees):
+                vars_shift = vars_by_emp_shift.get((emp_idx, shift_idx), [])
+                vars_conflict = vars_by_emp_shift.get((emp_idx, conflicting_idx), [])
+
+                if vars_shift and vars_conflict:
+                    total_assignments = mip.xsum(vars_shift) + mip.xsum(vars_conflict)
+                    violation = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'min_rest_violation_emp_{emp_idx}_shift_{shift_idx}_{conflicting_idx}')
+                    model += violation >= total_assignments - 1
+                    soft_penalty_component += violation
+```
+
+#### Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
+
+- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X ימים רצופים, אך אם לא ניתן - יש עונש
+- **נוסחה**: `excess_days = max(0, Σ_d works_on_day[i,d] - max_consecutive)` עבור כל רצף של `max_consecutive+1` ימים רצופים
+
+```python
+max_consecutive_constraint = data.system_constraints.get(SystemConstraintType.MAX_CONSECUTIVE_DAYS)
+if max_consecutive_constraint and not max_consecutive_constraint[1]:  # is_soft
+    max_consecutive = int(max_consecutive_constraint[0])
+    date_to_shifts = self._build_date_to_shifts_mapping(data)
+    works_on_day = self._build_works_on_day_variables(...)
+
+    # For each sequence of (max_consecutive+1) consecutive days
+    for sequence_dates in consecutive_sequences:
+        for emp_idx in range(n_employees):
+            day_vars = [works_on_day[(emp_idx, d)] for d in sequence_dates]
+            if day_vars:
+                total_days = mip.xsum(day_vars)
+                excess_days = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'max_consecutive_excess_emp_{emp_idx}_days_{start_idx}')
+                model += excess_days >= total_days - max_consecutive
+                soft_penalty_component += excess_days
 ```
 
 #### Fairness Deviations (סטיות מהוגנות)
@@ -452,9 +596,9 @@ if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
   - ככל שהערך קטן יותר, כל העובדים קרובים יותר לממוצע → הוגנות גבוהה יותר
 
 ```python
-for i, emp_total in enumerate(assignments_per_employee):
-    deviation_pos = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'dev_pos_{i}')
-    deviation_neg = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'dev_neg_{i}')
+for emp_idx, emp_total in enumerate(assignments_per_employee):
+    deviation_pos = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'dev_pos_{emp_idx}')
+    deviation_neg = model.add_var(var_type=mip.CONTINUOUS, lb=0, name=f'dev_neg_{emp_idx}')
 
     # emp_total - avg = deviation_pos - deviation_neg
     model += emp_total - avg_assignments == deviation_pos - deviation_neg
@@ -545,15 +689,15 @@ if status in [mip.OptimizationStatus.OPTIMAL, mip.OptimizationStatus.FEASIBLE]:
 ```python
 def _extract_assignments(self, x, data):
     assignments = []
-    for (i, j, role_id), var in x.items():
+    for (emp_idx, shift_idx, role_id), var in x.items():
         if var.x > 0.5:  # Variable is 1 (assigned)
-            emp = data.employees[i]
-            shift = data.shifts[j]
+            emp = data.employees[emp_idx]
+            shift = data.shifts[shift_idx]
             assignments.append({
                 'user_id': emp['user_id'],
                 'planned_shift_id': shift['planned_shift_id'],
                 'role_id': role_id,
-                'preference_score': float(data.preference_scores[i, j])
+                'preference_score': float(data.preference_scores[emp_idx, shift_idx])
             })
     return assignments
 ```
