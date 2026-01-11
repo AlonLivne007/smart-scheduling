@@ -171,6 +171,14 @@ Response to Frontend: Schedule solution ready
    - `availability_matrix`: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
    - `preference_scores`: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
 
+   **טיפול ב-Time Off מאושר:**
+
+   - המערכת בונה `time_off_map`: `{user_id: [(start_date, end_date), ...]}` - מפה של כל חופשות מאושרות
+   - ב-`build_availability_matrix()`, עבור כל עובד עם time off מאושר:
+     - אם תאריך המשמרת נופל בתוך תקופת ה-time off (`start_date <= shift_date <= end_date`)
+     - המערכת מסמנת `availability_matrix[i, j] = 0` (לא זמין)
+   - **תוצאה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
+
 3. **זיהוי קונפליקטים** (`_build_constraints_and_conflicts()`)
 
    - `shift_overlaps`: משמרות חופפות (לא ניתן להקצות אותו עובד)
@@ -208,6 +216,7 @@ Response to Frontend: Schedule solution ready
 - כל משתנה מייצג החלטה: "האם להקצות עובד X למשמרת Y בתפקיד Z?"
 - משתנים נוצרים רק עבור צירופים תקפים:
   - עובד זמין למשמרת (`availability_matrix[i,j] == 1`)
+    - **כולל בדיקה של time off מאושר**: אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i,j] = 0` → לא נוצר משתנה
   - עובד בעל התפקיד הנדרש (`role_id in employee_roles[user_id]`)
   - משמרת דורשת את התפקיד (`role_id in shift['required_roles']`)
 
@@ -248,7 +257,11 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 ### 5.2 אילוצים קשים
 
-#### 5.2.1 Coverage Constraint (כיסוי תפקידים)
+#### 5.2.1 אילוצים קשים שלא חלק מ-`system_constraints`
+
+אלה אילוצים **תמיד קשים** שמובנים במערכת ולא ניתן לשנות אותם דרך ה-UI.
+
+##### Coverage Constraint (כיסוי תפקידים)
 
 - **אינטואיציה**: כל משמרת חייבת לקבל בדיוק את מספר העובדים הנדרש לכל תפקיד
 - **נוסחה**: `Σ_i x(i,j,r) = required_count[j,r]` לכל j, r
@@ -278,7 +291,7 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
                     f'coverage_shift_{j}_role_{role_id}'
 ```
 
-#### 5.2.2 Single Role Per Shift
+##### Single Role Per Shift (תפקיד אחד למשמרת)
 
 - **אינטואיציה**: עובד לא יכול להיות מוקצה ליותר מתפקיד אחד באותה משמרת
 - **נוסחה**: `Σ_r x(i,j,r) ≤ 1` לכל i, j
@@ -293,7 +306,7 @@ def _add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shi
                     model += mip.xsum(role_vars) <= 1, f'single_role_emp_{i}_shift_{j}'
 ```
 
-#### 5.2.3 No Overlapping Shifts
+##### No Overlapping Shifts (אין משמרות חופפות)
 
 - **אינטואיציה**: עובד לא יכול להיות מוקצה למשמרות חופפות בזמן
 - **נוסחה**: `Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1` לכל i, (j1,j2) חופפים
@@ -317,7 +330,23 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
                             f'no_overlap_emp_{i}_shift_{shift_idx}_{overlapping_idx}'
 ```
 
-#### 5.2.4 Minimum Rest Hours
+##### Time Off מאושר (Approved Time Off)
+
+- **אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
+- **איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות**
+  - אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
+  - ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
+  - **ללא משתנה = לא ניתן להקצות**: הפתרון לא יכול להקצות עובד למשמרת אם אין משתנה עבורו
+- **למה זה יעיל יותר מאילוץ מפורש?**
+  - פחות משתנים = מודל קטן יותר = פתרון מהיר יותר
+  - אין צורך להוסיף אילוצים נוספים למודל
+  - הגישה מבטיחה 100% שלא ניתן להקצות עובד ב-time off (כי אין משתנה)
+
+#### 5.2.2 אילוצים שהם חלק מ-`system_constraints` (קשים)
+
+אלה אילוצים שניתן להגדיר דרך ה-UI כ**קשים** (hard) או **רכים** (soft), בהתאם ל-`is_hard_constraint`. כאן מוצגים כאשר הם מוגדרים כקשים.
+
+##### Minimum Rest Hours (MIN_REST_HOURS)
 
 - **אינטואיציה**: עובד חייב לקבל שעות מנוחה מינימליות בין משמרות
 - **נוסחה**: `Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1` לכל i, (j1,j2) עם מנוחה לא מספקת
@@ -339,19 +368,19 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
                             f'min_rest_emp_{i}_shift_{shift_idx}_{conflicting_idx}'
 ```
 
-#### 5.2.5 Max Shifts Per Week
+##### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
 
 - **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X משמרות בשבוע
 - **נוסחה**: `Σ_j Σ_r x(i,j,r) ≤ max_shifts` לכל i
 
-#### 5.2.6 Max Hours Per Week
+##### Max Hours Per Week (MAX_HOURS_PER_WEEK)
 
 - **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X שעות בשבוע
 - **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≤ max_hours` לכל i
 
 ---
 
-### 5.3 אילוצים רכים
+### 5.3 אילוצים רכים (חלק מ-`system_constraints`)
 
 #### מושג אילוצים רכים
 
@@ -359,7 +388,7 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
 - **Slack Variables**: משתנים עזר שמייצגים את הסטייה מהאילוץ
 - **Penalty Weight**: משקל גבוה (100.0) כדי להרתיע הפרות, אך לא למנוע אותן
 
-#### דוגמה: Minimum Hours Per Week (Soft)
+#### Minimum Hours Per Week (MIN_HOURS_PER_WEEK - Soft)
 
 - **אינטואיציה**: רצוי שכל עובד יעבוד לפחות X שעות, אך אם לא ניתן - יש עונש
 - **נוסחה**: `deficit_i = max(0, min_hours - Σ_j Σ_r x(i,j,r) * duration(j))`
@@ -388,7 +417,7 @@ if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
-#### דוגמה: Minimum Shifts Per Week (Soft)
+#### Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
 
 ```python
 min_shifts_constraint = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
