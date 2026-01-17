@@ -415,11 +415,22 @@ graph TB
     Flower["Flower<br/>Port: 5555<br/>Monitoring Dashboard<br/>Real-time Task Status"]
 
     Frontend -->|HTTP Request| Backend
-    Backend -->|1. Create SchedulingRun (PENDING)<br/>2. Dispatch Celery Task<br/>3. Return task_id immediately| Redis
+    Backend -->|Dispatch Task| Redis
     Redis -->|Task Distribution| CeleryWorker
     CeleryWorker -->|Update Status| PostgreSQL
-    CeleryWorker --> Flower
+    CeleryWorker -->|Monitoring| Flower
 ```
+
+**הסבר על זרימת העבודה:**
+
+1. **Frontend → Backend**: המשתמש שולח בקשה HTTP
+2. **Backend → Redis**:
+   - יוצר `SchedulingRun` עם סטטוס `PENDING`
+   - שולח משימת Celery ל-Redis
+   - מחזיר `task_id` מיד למשתמש (לא מחכה לסיום)
+3. **Redis → Celery Worker**: Celery Worker קורא את המשימה מהתור
+4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות
+5. **Celery Worker → Flower**: Flower מציג את הסטטוס בזמן אמת
 
 ### 🔧 רכיבים
 
