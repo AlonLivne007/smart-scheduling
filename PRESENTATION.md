@@ -494,6 +494,8 @@ GET /api/scheduling/runs/{run_id}
 → {"status": "COMPLETED", "objective_value": 123.45, ...}
 ```
 
+[📄 קובץ מקור: `optimization_tasks.py`](backend/app/tasks/optimization_tasks.py#L17-L30)
+
 ### ✅ יתרונות
 
 - ⚡ **תגובה מהירה**: API מחזיר מיד (לא מחכה לסיום האופטימיזציה)
@@ -658,6 +660,8 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
     return x, vars_by_emp_shift, vars_by_employee
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
+
 ---
 
 ### 📥 דוגמה לקלט ופלט של הפותר
@@ -727,6 +731,8 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 }
 ```
 
+[📄 קובץ מקור: `optimization_data.py`](backend/app/services/optimization_data_services/optimization_data.py#L14-L100)
+
 #### פלט (Output) - `SchedulingSolution`
 
 ```python
@@ -781,6 +787,8 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
     }
 }
 ```
+
+[📄 קובץ מקור: `types.py`](backend/app/services/scheduling/types.py#L8-L28)
 
 ### 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
 
@@ -864,6 +872,8 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
 
             model += mip.xsum(eligible_vars) == required_count
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L261-L290)
 
 ---
 
