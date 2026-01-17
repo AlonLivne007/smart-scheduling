@@ -532,6 +532,8 @@ GET /api/scheduling/runs/{run_id}
    availability = np.ones((n_employees, n_shifts), dtype=int)
    ```
 
+   [📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L525-L605)
+
 2. **תנאי 1: Time Off מאושר** → `availability[i, j] = 0`
 
    - **תנאי**: אם לעובד יש time off מאושר בתאריך המשמרת
@@ -904,6 +906,8 @@ def _add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shi
                     model += mip.xsum(role_vars) <= 1
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L292-L315)
+
 ---
 
 #### ⚠️ No Overlapping Shifts (אין משמרות חופפות)
@@ -955,6 +959,8 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
                 if vars_shift and vars_overlap:
                     model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L317-L350)
 
 ---
 
@@ -1028,6 +1034,8 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
                     model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L389-L407)
+
 ---
 
 #### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
@@ -1068,6 +1076,8 @@ if max_shifts_constraint and max_shifts_constraint[1]:  # is_hard
         if emp_vars:
             model += mip.xsum(emp_vars) <= max_shifts
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L369-L377)
 
 ---
 
@@ -1113,6 +1123,8 @@ if max_hours_constraint and max_hours_constraint[1]:  # is_hard
         if emp_hours_vars:
             model += mip.xsum(emp_hours_vars) <= max_hours
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L379-L387)
 
 ---
 
@@ -1166,6 +1178,8 @@ if max_consecutive_constraint and max_consecutive_constraint[1]:  # is_hard
             model += mip.xsum(day_vars) <= max_consecutive
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L409-L498)
+
 ---
 
 #### ⏱️ Min Hours Per Week (MIN_HOURS_PER_WEEK)
@@ -1210,6 +1224,8 @@ if min_hours_constraint and min_hours_constraint[1]:  # is_hard
             model += mip.xsum(emp_hours_vars) >= min_hours
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L417-L425)
+
 ---
 
 #### 📊 Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
@@ -1250,6 +1266,8 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
         if emp_vars:
             model += mip.xsum(emp_vars) >= min_shifts
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L427-L435)
 
 ---
 
@@ -1306,6 +1324,8 @@ if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L549-L559)
+
 ---
 
 #### 📊 Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
@@ -1348,6 +1368,8 @@ if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
             model += deficit >= min_shifts - total_shifts
             soft_penalty_component += deficit
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L561-L571)
 
 ---
 
@@ -1393,6 +1415,8 @@ if max_hours_constraint and not max_hours_constraint[1]:  # is_soft
             soft_penalty_component += excess
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L573-L583)
+
 ---
 
 #### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
@@ -1435,6 +1459,8 @@ if max_shifts_constraint and not max_shifts_constraint[1]:  # is_soft
             model += excess >= total_shifts - max_shifts
             soft_penalty_component += excess
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L585-L595)
 
 ---
 
@@ -1488,6 +1514,8 @@ if min_rest_constraint and not min_rest_constraint[1]:  # is_soft
                     soft_penalty_component += violation
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L597-L618)
+
 ---
 
 #### 📅 Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
@@ -1537,6 +1565,8 @@ if max_consecutive_constraint and not max_consecutive_constraint[1]:  # is_soft
                 model += excess_days >= total_days - max_consecutive
                 soft_penalty_component += excess_days
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L620-L653)
 
 ---
 
@@ -1594,6 +1624,8 @@ for emp_idx, emp_total in enumerate(assignments_per_employee):
 
     fairness_vars.append(deviation_pos + deviation_neg)  # Absolute deviation
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L500-L530)
 
 **איך זה גורם להתקרבות לממוצע?**
 
