@@ -567,14 +567,6 @@ availability[i, j] = 1  אם:
 availability[i, j] = 0  אחרת
 ```
 
-> **💡 טיפול ב-Time Off מאושר:**
->
-> - המערכת בונה `time_off_map`: `{user_id: [(start_date, end_date), ...]}` - מפה של כל חופשות מאושרות
-> - ב-`build_availability_matrix()`, עבור כל עובד עם time off מאושר:
->   - אם תאריך המשמרת נופל בתוך תקופת ה-time off (`start_date <= shift_date <= end_date`)
->   - המערכת מסמנת `availability_matrix[i, j] = 0` (לא זמין)
-> - **תוצאה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
-
 #### 3. **⚠️ זיהוי קונפליקטים** (`_build_constraints_and_conflicts()`)
 
 - **`shift_overlaps`**: משמרות חופפות (לא ניתן להקצות אותו עובד)
@@ -597,6 +589,74 @@ availability[i, j] = 0  אחרת
 ---
 
 ## 6️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+
+### 6.1 משתני החלטה
+
+#### 📐 הגדרה מתמטית
+
+```
+x(i,j,r) ∈ {0,1}  - משתנה בינארי
+
+כאשר:
+  i = אינדקס עובד (0..n_employees-1)
+  j = אינדקס משמרת (0..n_shifts-1)
+  r = role_id (תפקיד: Waiter, Bartender, Chef, וכו')
+
+x(i,j,r) = 1  אם עובד i מוקצה למשמרת j בתפקיד r
+x(i,j,r) = 0  אחרת
+```
+
+#### 💡 אינטואיציה
+
+כל משתנה מייצג החלטה: **"האם להקצות עובד X למשמרת Y בתפקיד Z?"**
+
+**משתנים נוצרים רק עבור צירופים תקפים:**
+
+- ✅ עובד זמין למשמרת (`availability_matrix[i,j] == 1`)
+  - **כולל בדיקה של time off מאושר**: אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i,j] = 0` → לא נוצר משתנה
+- ✅ עובד בעל התפקיד הנדרש (`role_id in employee_roles[user_id]`)
+- ✅ משמרת דורשת את התפקיד (`role_id in shift['required_roles']`)
+
+#### 💻 קוד - יצירת משתנים
+
+```python
+def _build_decision_variables(model, data, n_employees, n_shifts):
+    x = {}  # {(emp_idx, shift_idx, role_id): var}
+    vars_by_emp_shift = {}  # {(emp_idx, shift_idx): [var1, var2, ...]} - for performance
+    vars_by_employee = {}  # {emp_idx: [var1, var2, ...]} - for O(1) access
+
+    for emp_idx, emp in enumerate(data.employees):
+        for shift_idx, shift in enumerate(data.shifts):
+            if data.availability_matrix[emp_idx, shift_idx] != 1:
+                continue  # Skip if employee not available
+
+            required_roles = shift.get('required_roles') or []
+            if not required_roles:
+                continue
+
+            emp_role_ids = set(emp.get('roles') or [])
+
+            # Create variable for each role that employee has AND shift requires
+            for role_req in required_roles:
+                role_id = role_req['role_id']
+                if role_id in emp_role_ids:
+                    var = model.add_var(var_type=mip.BINARY, name=f'x_{emp_idx}_{shift_idx}_{role_id}')
+                    x[emp_idx, shift_idx, role_id] = var
+
+                    # Build indexes for performance
+                    if (emp_idx, shift_idx) not in vars_by_emp_shift:
+                        vars_by_emp_shift[(emp_idx, shift_idx)] = []
+                    vars_by_emp_shift[(emp_idx, shift_idx)].append(var)
+
+                    # Build employee index for O(1) access
+                    if emp_idx not in vars_by_employee:
+                        vars_by_employee[emp_idx] = []
+                    vars_by_employee[emp_idx].append(var)
+
+    return x, vars_by_emp_shift, vars_by_employee
+```
+
+---
 
 ### 📥 דוגמה לקלט ופלט של הפותר
 
@@ -720,218 +780,21 @@ availability[i, j] = 0  אחרת
 }
 ```
 
-### 🔧 הגדרות הפונקציות המרכזיות ב-MIP
+### 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
 
-#### 1. `MipSchedulingSolver.solve()`
+הפותר `MipSchedulingSolver` מבצע את השלבים הבאים:
 
-**תפקיד**: פונקציה ראשית - בונה ופותר את מודל MIP
+1. **יצירת מודל MIP** (`mip.Model`) עם CBC Solver
+2. **בניית משתני החלטה** `x(i,j,r)` - לכל צירוף תקף של (עובד, משמרת, תפקיד)
+3. **הוספת אילוצים קשים** - Coverage, Single Role, No Overlap, System Constraints
+4. **הוספת אילוצים רכים** - עם משתני slack ו-penalties
+5. **בניית פונקציית מטרה** - משלבת העדפות, הוגנות, כיסוי ועונשים
+6. **פתרון המודל** - CBC Solver מחפש פתרון אופטימלי
+7. **חילוץ תוצאות** - המרת משתנים לקצאות בפועל
 
-**קלט**:
-
-- `data: OptimizationData` - כל הנתונים הנדרשים
-- `config: OptimizationConfigModel` - הגדרות אופטימיזציה
-
-**תהליך**:
-
-1. יצירת מודל MIP (`mip.Model`)
-2. הגדרת פרמטרים (max_runtime, mip_gap)
-3. בניית משתני החלטה
-4. הוספת אילוצים
-5. בניית פונקציית מטרה
-6. פתרון המודל
-7. חילוץ תוצאות
-
-**פלט**: `SchedulingSolution` עם הקצאות ומטריקות
+פרטים על כל שלב מופיעים בסעיפים הבאים.
 
 ---
-
-#### 2. `_build_decision_variables()`
-
-**תפקיד**: יוצר משתני החלטה `x(i,j,r)` עבור כל צירוף תקף
-
-**תנאים ליצירת משתנה**:
-
-- `availability_matrix[i, j] == 1` (עובד זמין)
-- `role_id in employee_roles[user_id]` (עובד בעל התפקיד)
-- `role_id in shift['required_roles']` (משמרת דורשת את התפקיד)
-
-**פלט**:
-
-- `x`: `{(emp_idx, shift_idx, role_id): var}` - מיפוי משתנים
-- `vars_by_emp_shift`: אינדקס לפי (עובד, משמרת)
-- `vars_by_employee`: אינדקס לפי עובד
-
----
-
-#### 3. `_add_coverage_constraints()`
-
-**תפקיד**: מבטיח כיסוי מלא של כל תפקיד בכל משמרת
-
-**אילוץ**: `Σ_i x(i,j,r) == required_count[j,r]`
-
-**דוגמה**:
-
-- משמרת 101 דורשת 2 Waiters → `x(0,0,1) + x(2,0,1) == 2`
-- משמרת 101 דורשת 1 Chef → `x(1,0,3) == 1`
-
----
-
-#### 4. `_add_single_role_constraints()`
-
-**תפקיד**: מבטיח שעובד לא מוקצה ליותר מתפקיד אחד באותה משמרת
-
-**אילוץ**: `Σ_r x(i,j,r) <= 1`
-
-**דוגמה**:
-
-- John (idx=0) יכול להיות Waiter או Bartender במשמרת 102, אבל לא שניהם:
-  - `x(0,1,1) + x(0,1,2) <= 1`
-
----
-
-#### 5. `_add_overlap_constraints()`
-
-**תפקיד**: מונע הקצאה למשמרות חופפות
-
-**אילוץ**: `Σ_r x(i,j1,r) + Σ_r x(i,j2,r) <= 1` לכל (j1, j2) חופפים
-
-**דוגמה**:
-
-- משמרת 101: 09:00-17:00
-- משמרת 102: 17:00-22:00
-- אם יש חפיפה → `x(i,0,r) + x(i,1,r) <= 1`
-
----
-
-#### 6. `_add_hard_constraints()`
-
-**תפקיד**: מוסיף אילוצים קשים מ-`system_constraints`
-
-**סוגי אילוצים**:
-
-- MAX_HOURS_PER_WEEK: `Σ_j Σ_r x(i,j,r) * duration(j) <= max_hours`
-- MAX_SHIFTS_PER_WEEK: `Σ_j Σ_r x(i,j,r) <= max_shifts`
-- MIN_REST_HOURS: `x(i,j1,r) + x(i,j2,r) <= 1` למשמרות עם מנוחה לא מספקת
-- MAX_CONSECUTIVE_DAYS: משתמש במשתנים `works_on_day[i, date]`
-- MIN_HOURS_PER_WEEK: `Σ_j Σ_r x(i,j,r) * duration(j) >= min_hours`
-- MIN_SHIFTS_PER_WEEK: `Σ_j Σ_r x(i,j,r) >= min_shifts`
-
----
-
-#### 7. `_add_soft_penalties()`
-
-**תפקיד**: מוסיף משתני slack ו-penalties לאילוצים רכים
-
-**משתנים נוצרים**:
-
-- `deficit_i`: חוסר שעות/משמרות (MIN constraints)
-- `excess_i`: עודף שעות/משמרות (MAX constraints)
-- `violation`: הפרת מנוחה מינימלית
-
-**אילוצים**:
-
-- `deficit >= min_value - actual_value`
-- `excess >= actual_value - max_value`
-
-**עונש**: `-100.0 * soft_penalty_component` בפונקציית המטרה
-
----
-
-#### 8. `_add_fairness_terms()`
-
-**תפקיד**: מוסיף משתנים למדידת הוגנות
-
-**משתנים נוצרים**:
-
-- `deviation_pos_i`: סטייה חיובית מהממוצע
-- `deviation_neg_i`: סטייה שלילית מהממוצע
-
-**אילוץ**: `emp_total - avg == deviation_pos - deviation_neg`
-
-**מטרה**: למזער `Σ_i (deviation_pos_i + deviation_neg_i)`
-
----
-
-#### 9. `_build_objective()`
-
-**תפקיד**: בונה פונקציית מטרה משולבת
-
-**מרכיבים**:
-
-1. **Preference Component**: `Σ_(i,j,r) preference_scores[i,j] * x(i,j,r)`
-2. **Fairness Component**: `-weight_fairness * Σ_i (deviation_pos_i + deviation_neg_i)`
-3. **Coverage Component**: `weight_coverage * Σ_(i,j,r) x(i,j,r)`
-4. **Soft Penalty Component**: `-100.0 * soft_penalty_component`
-
-**נוסחה**: `maximize: weight_preferences * preference + weight_coverage * coverage - weight_fairness * fairness - 100.0 * soft_penalty`
-
----
-
-### 6.1 משתני החלטה
-
-#### 📐 הגדרה מתמטית
-
-```
-x(i,j,r) ∈ {0,1}  - משתנה בינארי
-
-כאשר:
-  i = אינדקס עובד (0..n_employees-1)
-  j = אינדקס משמרת (0..n_shifts-1)
-  r = role_id (תפקיד: Waiter, Bartender, Chef, וכו')
-
-x(i,j,r) = 1  אם עובד i מוקצה למשמרת j בתפקיד r
-x(i,j,r) = 0  אחרת
-```
-
-#### 💡 אינטואיציה
-
-כל משתנה מייצג החלטה: **"האם להקצות עובד X למשמרת Y בתפקיד Z?"**
-
-**משתנים נוצרים רק עבור צירופים תקפים:**
-
-- ✅ עובד זמין למשמרת (`availability_matrix[i,j] == 1`)
-  - **כולל בדיקה של time off מאושר**: אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i,j] = 0` → לא נוצר משתנה
-- ✅ עובד בעל התפקיד הנדרש (`role_id in employee_roles[user_id]`)
-- ✅ משמרת דורשת את התפקיד (`role_id in shift['required_roles']`)
-
-#### 💻 קוד - יצירת משתנים
-
-```python
-def _build_decision_variables(model, data, n_employees, n_shifts):
-    x = {}  # {(emp_idx, shift_idx, role_id): var}
-    vars_by_emp_shift = {}  # {(emp_idx, shift_idx): [var1, var2, ...]} - for performance
-    vars_by_employee = {}  # {emp_idx: [var1, var2, ...]} - for O(1) access
-
-    for emp_idx, emp in enumerate(data.employees):
-        for shift_idx, shift in enumerate(data.shifts):
-            if data.availability_matrix[emp_idx, shift_idx] != 1:
-                continue  # Skip if employee not available
-
-            required_roles = shift.get('required_roles') or []
-            if not required_roles:
-                continue
-
-            emp_role_ids = set(emp.get('roles') or [])
-
-            # Create variable for each role that employee has AND shift requires
-            for role_req in required_roles:
-                role_id = role_req['role_id']
-                if role_id in emp_role_ids:
-                    var = model.add_var(var_type=mip.BINARY, name=f'x_{emp_idx}_{shift_idx}_{role_id}')
-                    x[emp_idx, shift_idx, role_id] = var
-
-                    # Build indexes for performance
-                    if (emp_idx, shift_idx) not in vars_by_emp_shift:
-                        vars_by_emp_shift[(emp_idx, shift_idx)] = []
-                    vars_by_emp_shift[(emp_idx, shift_idx)].append(var)
-
-                    # Build employee index for O(1) access
-                    if emp_idx not in vars_by_employee:
-                        vars_by_employee[emp_idx] = []
-                    vars_by_employee[emp_idx].append(var)
-
-    return x, vars_by_emp_shift, vars_by_employee
-```
 
 ---
 
@@ -1086,7 +949,7 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
 ##### 🏖️ Time Off מאושר (Approved Time Off)
 
 - **אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
-- **איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות**
+- **איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 5 - מטריצת הזמינות](#5-בניית-מודל-האופטימיזציה))
   - אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
   - ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
   - **ללא משתנה = לא ניתן להקצות**: הפתרון לא יכול להקצות עובד למשמרת אם אין משתנה עבורו
@@ -1670,15 +1533,17 @@ maximize:
 
 ---
 
+---
+
 ## 📊 סיכום
 
-מערכת **Smart Scheduling** מציגה פתרון מלא לאופטימיזציה של משמרות עובדים באמצעות MIP. המערכת משלבת:
+מערכת **Smart Scheduling** מציגה פתרון מלא לאופטימיזציה של משמרות עובדים באמצעות **Mixed Integer Programming (MIP)**. המערכת משלבת:
 
 ### 🎯 יכולות מרכזיות
 
-- **📐 מודל MIP מדויק** עם משתנים x(i,j,r) ותמיכה בתפקידים מרובים
+- **📐 מודל MIP מדויק** עם משתנים `x(i,j,r)` ותמיכה בתפקידים מרובים
 - **🔒 אילוצים קשים ורכים** עם penalties ו-fairness
-- **🏗️ ארכיטקטורה נקייה** עם הפרדת אחריות
+- **🏗️ ארכיטקטורה נקייה** עם הפרדת אחריות (Controllers → Services → Models)
 - **⚡ Background processing** עם Celery, Redis ו-Flower
 - **✅ Validation מלא** לפני החזרת הפתרון
 
@@ -1695,6 +1560,7 @@ maximize:
 ### 📈 תוצאות
 
 - ⚡ **מהירות**: מ-4-6 שעות עבודה ידנית → דקות ספורות
-- ⚖️ **הוגנות**: חלוקה מאוזנת של משמרות
-- ✅ **כיסוי מלא**: 100% כיסוי תפקידים
+- ⚖️ **הוגנות**: חלוקה מאוזנת של משמרות (מינימום סטייה מהממוצע)
+- ✅ **כיסוי מלא**: 100% כיסוי תפקידים בכל משמרת
 - 😊 **שביעות רצון**: מקסימיזציה של העדפות עובדים
+- 🎯 **איכות פתרון**: פתרון אופטימלי או קרוב לאופטימלי (MIP gap < 1%)
