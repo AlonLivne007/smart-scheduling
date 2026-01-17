@@ -804,13 +804,17 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 אלה אילוצים **תמיד קשים** שמובנים במערכת ולא ניתן לשנות אותם דרך ה-UI.
 
-##### ✅ Coverage Constraint (כיסוי תפקידים)
+---
 
-- **אינטואיציה**: כל משמרת חייבת לקבל בדיוק את מספר העובדים הנדרש לכל תפקיד
-- **נוסחה**:
-  ```
-  Σ_i x(i,j,r) = required_count[j,r]  לכל j, r
-  ```
+#### ✅ Coverage Constraint (כיסוי תפקידים)
+
+**אינטואיציה**: כל משמרת חייבת לקבל בדיוק את מספר העובדים הנדרש לכל תפקיד
+
+**נוסחה**:
+
+```
+Σ_i x(i,j,r) = required_count[j,r]  לכל j, r
+```
 
 **משתנים**:
 
@@ -856,17 +860,20 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
                                    f"but no eligible employees exist")
                 continue
 
-            model += mip.xsum(eligible_vars) == required_count, \
-                    f'coverage_shift_{shift_idx}_role_{role_id}'
+            model += mip.xsum(eligible_vars) == required_count
 ```
 
-##### 🔒 Single Role Per Shift (תפקיד אחד למשמרת)
+---
 
-- **אינטואיציה**: עובד לא יכול להיות מוקצה ליותר מתפקיד אחד באותה משמרת
-- **נוסחה**:
-  ```
-  Σ_r x(i,j,r) ≤ 1  לכל i, j
-  ```
+#### 🔒 Single Role Per Shift (תפקיד אחד למשמרת)
+
+**אינטואיציה**: עובד לא יכול להיות מוקצה ליותר מתפקיד אחד באותה משמרת
+
+**נוסחה**:
+
+```
+Σ_r x(i,j,r) ≤ 1  לכל i, j
+```
 
 **משתנים**:
 
@@ -893,17 +900,21 @@ def _add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shi
         for shift_idx in range(n_shifts):
             if (emp_idx, shift_idx) in vars_by_emp_shift:
                 role_vars = vars_by_emp_shift[(emp_idx, shift_idx)]
-                if len(role_vars) > 1:  # Only if employee has multiple roles for this shift
-                    model += mip.xsum(role_vars) <= 1, f'single_role_emp_{emp_idx}_shift_{shift_idx}'
+                if len(role_vars) > 1:
+                    model += mip.xsum(role_vars) <= 1
 ```
 
-##### ⚠️ No Overlapping Shifts (אין משמרות חופפות)
+---
 
-- **אינטואיציה**: עובד לא יכול להיות מוקצה למשמרות חופפות בזמן
-- **נוסחה**:
-  ```
-  Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1  לכל i, (j1,j2) חופפים
-  ```
+#### ⚠️ No Overlapping Shifts (אין משמרות חופפות)
+
+**אינטואיציה**: עובד לא יכול להיות מוקצה למשמרות חופפות בזמן
+
+**נוסחה**:
+
+```
+Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1  לכל i, (j1,j2) חופפים
+```
 
 **משתנים**:
 
@@ -942,17 +953,20 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
                 vars_overlap = vars_by_emp_shift.get((emp_idx, overlapping_idx), [])
 
                 if vars_shift and vars_overlap:
-                    model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1, \
-                            f'no_overlap_emp_{emp_idx}_shift_{shift_idx}_{overlapping_idx}'
+                    model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1
 ```
 
-##### 🏖️ Time Off מאושר (Approved Time Off)
+---
 
-- **אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
-- **איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 5 - מטריצת הזמינות](#5-בניית-מודל-האופטימיזציה))
-  - אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
-  - ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
-  - **ללא משתנה = לא ניתן להקצות**: הפתרון לא יכול להקצות עובד למשמרת אם אין משתנה עבורו
+#### 🏖️ Time Off מאושר (Approved Time Off)
+
+**אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
+
+**איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 5 - מטריצת הזמינות](#5-בניית-מודל-האופטימיזציה))
+
+- אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
+- ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
+- **ללא משתנה = לא ניתן להקצות**: הפתרון לא יכול להקצות עובד למשמרת אם אין משתנה עבורו
 
 > **💡 למה זה יעיל יותר מאילוץ מפורש?**
 >
@@ -964,10 +978,17 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
 
 אלה אילוצים שניתן להגדיר דרך ה-UI כ**קשים** (hard) או **רכים** (soft), בהתאם ל-`is_hard_constraint`. כאן מוצגים כאשר הם מוגדרים כקשים.
 
-##### Minimum Rest Hours (MIN_REST_HOURS)
+---
 
-- **אינטואיציה**: עובד חייב לקבל שעות מנוחה מינימליות בין משמרות
-- **נוסחה**: `Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1` לכל i, (j1,j2) עם מנוחה לא מספקת
+#### ⏰ Minimum Rest Hours (MIN_REST_HOURS)
+
+**אינטואיציה**: עובד חייב לקבל שעות מנוחה מינימליות בין משמרות
+
+**נוסחה**:
+
+```
+Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1  לכל i, (j1,j2) עם מנוחה לא מספקת
+```
 
 **משתנים**:
 
@@ -1004,14 +1025,20 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
                 vars_conflict = vars_by_emp_shift.get((emp_idx, conflicting_idx), [])
 
                 if vars_shift and vars_conflict:
-                    model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1, \
-                            f'min_rest_emp_{emp_idx}_shift_{shift_idx}_{conflicting_idx}'
+                    model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1
 ```
 
-##### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X משמרות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) ≤ max_shifts` לכל i
+#### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
+
+**אינטואיציה**: עובד לא יכול לעבוד יותר מ-X משמרות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) ≤ max_shifts  לכל i
+```
 
 **משתנים**:
 
@@ -1039,13 +1066,20 @@ if max_shifts_constraint and max_shifts_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
         if emp_vars:
-            model += mip.xsum(emp_vars) <= max_shifts, f'max_shifts_emp_{emp_idx}'
+            model += mip.xsum(emp_vars) <= max_shifts
 ```
 
-##### Max Hours Per Week (MAX_HOURS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X שעות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≤ max_hours` לכל i
+#### ⏱️ Max Hours Per Week (MAX_HOURS_PER_WEEK)
+
+**אינטואיציה**: עובד לא יכול לעבוד יותר מ-X שעות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) * duration(j) ≤ max_hours  לכל i
+```
 
 **משתנים**:
 
@@ -1077,14 +1111,23 @@ if max_hours_constraint and max_hours_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
         if emp_hours_vars:
-            model += mip.xsum(emp_hours_vars) <= max_hours, f'max_hours_emp_{emp_idx}'
+            model += mip.xsum(emp_hours_vars) <= max_hours
 ```
 
-##### Max Consecutive Days (MAX_CONSECUTIVE_DAYS)
+---
 
-- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X ימים רצופים
-- **נוסחה**: עבור כל רצף של `max_consecutive+1` ימים רצופים, `Σ_d works_on_day[i,d] ≤ max_consecutive`
-- **מימוש**: משתמש במשתנים בינאריים `works_on_day[i, date]` שמסמנים אם עובד עובד ביום מסוים
+#### 📅 Max Consecutive Days (MAX_CONSECUTIVE_DAYS)
+
+**אינטואיציה**: עובד לא יכול לעבוד יותר מ-X ימים רצופים
+
+**נוסחה**:
+
+```
+עבור כל רצף של max_consecutive+1 ימים רצופים:
+Σ_d works_on_day[i,d] ≤ max_consecutive
+```
+
+**מימוש**: משתמש במשתנים בינאריים `works_on_day[i, date]` שמסמנים אם עובד עובד ביום מסוים
 
 **משתנים**:
 
@@ -1123,10 +1166,17 @@ if max_consecutive_constraint and max_consecutive_constraint[1]:  # is_hard
             model += mip.xsum(day_vars) <= max_consecutive
 ```
 
-##### Min Hours Per Week (MIN_HOURS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד חייב לעבוד לפחות X שעות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≥ min_hours` לכל i
+#### ⏱️ Min Hours Per Week (MIN_HOURS_PER_WEEK)
+
+**אינטואיציה**: עובד חייב לעבוד לפחות X שעות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) * duration(j) ≥ min_hours  לכל i
+```
 
 **משתנים**:
 
@@ -1157,13 +1207,20 @@ if min_hours_constraint and min_hours_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
         if emp_hours_vars:
-            model += mip.xsum(emp_hours_vars) >= min_hours, f'min_hours_emp_{emp_idx}'
+            model += mip.xsum(emp_hours_vars) >= min_hours
 ```
 
-##### Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד חייב לעבוד לפחות X משמרות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) ≥ min_shifts` לכל i
+#### 📊 Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
+
+**אינטואיציה**: עובד חייב לעבוד לפחות X משמרות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) ≥ min_shifts  לכל i
+```
 
 **משתנים**:
 
@@ -1191,7 +1248,7 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
         if emp_vars:
-            model += mip.xsum(emp_vars) >= min_shifts, f'min_shifts_emp_{emp_idx}'
+            model += mip.xsum(emp_vars) >= min_shifts
 ```
 
 ---
@@ -1204,10 +1261,17 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
 - **Slack Variables**: משתנים עזר שמייצגים את הסטייה מהאילוץ
 - **Penalty Weight**: משקל גבוה (100.0) כדי להרתיע הפרות, אך לא למנוע אותן
 
-#### Minimum Hours Per Week (MIN_HOURS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שכל עובד יעבוד לפחות X שעות, אך אם לא ניתן - יש עונש
-- **נוסחה**: `deficit_i = max(0, min_hours - Σ_j Σ_r x(i,j,r) * duration(j))`
+#### ⏱️ Minimum Hours Per Week (MIN_HOURS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שכל עובד יעבוד לפחות X שעות, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+deficit_i = max(0, min_hours - Σ_j Σ_r x(i,j,r) * duration(j))
+```
 
 **משתנים**:
 
@@ -1242,10 +1306,17 @@ if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
-#### Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שכל עובד יעבוד לפחות X משמרות, אך אם לא ניתן - יש עונש
-- **נוסחה**: `deficit_i = max(0, min_shifts - Σ_j Σ_r x(i,j,r))`
+#### 📊 Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שכל עובד יעבוד לפחות X משמרות, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+deficit_i = max(0, min_shifts - Σ_j Σ_r x(i,j,r))
+```
 
 **משתנים**:
 
@@ -1278,10 +1349,17 @@ if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
-#### Max Hours Per Week (MAX_HOURS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X שעות בשבוע, אך אם לא ניתן - יש עונש
-- **נוסחה**: `excess_i = max(0, Σ_j Σ_r x(i,j,r) * duration(j) - max_hours)`
+#### ⏱️ Max Hours Per Week (MAX_HOURS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X שעות בשבוע, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+excess_i = max(0, Σ_j Σ_r x(i,j,r) * duration(j) - max_hours)
+```
 
 **משתנים**:
 
@@ -1315,10 +1393,17 @@ if max_hours_constraint and not max_hours_constraint[1]:  # is_soft
             soft_penalty_component += excess
 ```
 
-#### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X משמרות בשבוע, אך אם לא ניתן - יש עונש
-- **נוסחה**: `excess_i = max(0, Σ_j Σ_r x(i,j,r) - max_shifts)`
+#### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X משמרות בשבוע, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+excess_i = max(0, Σ_j Σ_r x(i,j,r) - max_shifts)
+```
 
 **משתנים**:
 
@@ -1351,10 +1436,17 @@ if max_shifts_constraint and not max_shifts_constraint[1]:  # is_soft
             soft_penalty_component += excess
 ```
 
-#### Min Rest Hours (MIN_REST_HOURS - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד יקבל שעות מנוחה מינימליות בין משמרות, אך אם לא ניתן - יש עונש
-- **נוסחה**: `violation = max(0, Σ_r x(i,j1,r) + Σ_r x(i,j2,r) - 1)` לכל i, (j1,j2) עם מנוחה לא מספקת
+#### ⏰ Min Rest Hours (MIN_REST_HOURS - Soft)
+
+**אינטואיציה**: רצוי שעובד יקבל שעות מנוחה מינימליות בין משמרות, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+violation = max(0, Σ_r x(i,j1,r) + Σ_r x(i,j2,r) - 1)  לכל i, (j1,j2) עם מנוחה לא מספקת
+```
 
 **משתנים**:
 
@@ -1396,10 +1488,18 @@ if min_rest_constraint and not min_rest_constraint[1]:  # is_soft
                     soft_penalty_component += violation
 ```
 
-#### Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X ימים רצופים, אך אם לא ניתן - יש עונש
-- **נוסחה**: `excess_days = max(0, Σ_d works_on_day[i,d] - max_consecutive)` עבור כל רצף של `max_consecutive+1` ימים רצופים
+#### 📅 Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
+
+**אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X ימים רצופים, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+excess_days = max(0, Σ_d works_on_day[i,d] - max_consecutive)
+עבור כל רצף של max_consecutive+1 ימים רצופים
+```
 
 **משתנים**:
 
@@ -1438,19 +1538,29 @@ if max_consecutive_constraint and not max_consecutive_constraint[1]:  # is_soft
                 soft_penalty_component += excess_days
 ```
 
-#### Fairness Deviations (סטיות מהוגנות)
+---
 
-- **אינטואיציה**: רצוי שכל עובד יעבוד מספר דומה של משמרות (הוגנות)
-- **מטרה**: למזער את הסטייה המוחלטת של כל עובד מהממוצע
-- **למה שני משתנים?** (deviation_pos ו-deviation_neg):
-  - אם עובד עובד **יותר** מהממוצע: `emp_total > avg` → `deviation_pos = emp_total - avg`, `deviation_neg = 0`
-  - אם עובד עובד **פחות** מהממוצע: `emp_total < avg` → `deviation_pos = 0`, `deviation_neg = avg - emp_total`
-  - אם עובד עובד **בדיוק** הממוצע: `emp_total = avg` → `deviation_pos = 0`, `deviation_neg = 0`
-- **האילוץ**: `emp_total - avg = deviation_pos - deviation_neg`
-  - מבטיח ש-`deviation_pos - deviation_neg` שווה בדיוק לסטייה מהממוצע (חיובית או שלילית)
-- **מינימיזציה**: בפונקציית המטרה, אנו ממזערים את `Σ_i (deviation_pos_i + deviation_neg_i)`
-  - זה מייצג את **הסטייה המוחלטת** מהממוצע (absolute deviation)
-  - ככל שהערך קטן יותר, כל העובדים קרובים יותר לממוצע → הוגנות גבוהה יותר
+#### ⚖️ Fairness Deviations (סטיות מהוגנות)
+
+**אינטואיציה**: רצוי שכל עובד יעבוד מספר דומה של משמרות (הוגנות)
+
+**מטרה**: למזער את הסטייה המוחלטת של כל עובד מהממוצע
+
+**למה שני משתנים?** (deviation_pos ו-deviation_neg):
+
+- אם עובד עובד **יותר** מהממוצע: `emp_total > avg` → `deviation_pos = emp_total - avg`, `deviation_neg = 0`
+- אם עובד עובד **פחות** מהממוצע: `emp_total < avg` → `deviation_pos = 0`, `deviation_neg = avg - emp_total`
+- אם עובד עובד **בדיוק** הממוצע: `emp_total = avg` → `deviation_pos = 0`, `deviation_neg = 0`
+
+**האילוץ**:
+
+```
+emp_total - avg = deviation_pos - deviation_neg
+```
+
+מבטיח ש-`deviation_pos - deviation_neg` שווה בדיוק לסטייה מהממוצע (חיובית או שלילית)
+
+**מינימיזציה**: בפונקציית המטרה, אנו ממזערים את `Σ_i (deviation_pos_i + deviation_neg_i)` - זה מייצג את **הסטייה המוחלטת** מהממוצע (absolute deviation). ככל שהערך קטן יותר, כל העובדים קרובים יותר לממוצע → הוגנות גבוהה יותר
 
 **משתנים**:
 
