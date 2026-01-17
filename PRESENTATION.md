@@ -573,9 +573,9 @@ availability[i, j] = 0  אחרת
 
 #### 3. **⚠️ זיהוי קונפליקטים** (`_build_constraints_and_conflicts()`)
 
-- **`shift_overlaps`**: משמרות חופפות (לא ניתן להקצות אותו עובד)
-- **`time_off_conflicts`**: עובדים עם חופשות מאושרות
-- **`shift_rest_conflicts`**: משמרות שלא מספקות שעות מנוחה מינימליות
+- **`shift_overlaps`**: `{shift_id: [overlapping_shift_ids]}` - משמרות חופפות (לא ניתן להקצות אותו עובד)
+- **`time_off_conflicts`**: `{emp_id: [conflicting_shift_ids]}` - עובדים עם חופשות מאושרות
+- **`shift_rest_conflicts`**: `{shift_id: {conflicting_shift_ids}}` - משמרות שלא מספקות שעות מנוחה מינימליות
 
 #### 4. **⚙️ אילוצי מערכת** (`build_system_constraints()`)
 
