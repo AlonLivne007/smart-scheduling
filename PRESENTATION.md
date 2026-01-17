@@ -91,66 +91,49 @@
 
 ### 🏗️ High-Level Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           CLIENT LAYER                                   │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │  Frontend (React 19 + Vite)                                      │   │
-│  │  Port: 5173                                                      │   │
-│  │  - UI Components (Schedule, Preferences, Admin)                 │   │
-│  │  - API Client (Axios)                                            │   │
-│  │  - State Management                                               │   │
-│  └───────────────────────┬──────────────────────────────────────────┘   │
-└──────────────────────────┼──────────────────────────────────────────────┘
-                           │ HTTP/REST API
-                           ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        APPLICATION LAYER                                 │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │  Backend API (FastAPI)                                            │   │
-│  │  Port: 8000                                                       │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │   │
-│  │  │ Controllers  │→ │  Services   │→ │    Models    │           │   │
-│  │  │ (REST API)    │  │ (Business    │  │  (SQLAlchemy)│           │   │
-│  │  │               │  │  Logic)      │  │              │           │   │
-│  │  └──────────────┘  └──────┬───────┘  └──────┬───────┘           │   │
-│  └───────────────────────────┼─────────────────┼───────────────────┘   │
-└───────────────────────────────┼─────────────────┼─────────────────────────┘
-                                │                 │
-                ┌───────────────┴───┐   ┌─────────┴──────────┐
-                │                   │   │                     │
-                ▼                   ▼   ▼                     ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         DATA & PROCESSING LAYER                         │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
-│  │  PostgreSQL 14   │  │  Redis 7         │  │  Celery Worker   │    │
-│  │  Port: 5432      │  │  Port: 6379      │  │  (Background)     │    │
-│  │  - User Data     │  │  - Task Queue    │  │  - Optimization  │    │
-│  │  - Schedules     │  │  - Results Cache │  │  - Async Tasks   │    │
-│  │  - Constraints   │  │                  │  │                  │    │
-│  └──────────────────┘  └──────────────────┘  └────────┬─────────┘    │
-│                                                        │                │
-│  ┌─────────────────────────────────────────────────────┴────────────┐   │
-│  │  Optimization Engine                                             │   │
-│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐ │   │
-│  │  │ Data Builder     │→ │  MIP Solver      │→ │  Validator   │ │   │
-│  │  │ (Extract & Prep) │  │  (Python-MIP)    │  │  (Constraints)│ │   │
-│  │  │                  │  │  + CBC Solver    │  │              │ │   │
-│  │  └──────────────────┘  └──────────────────┘  └──────────────┘ │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         MONITORING LAYER                                 │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │  Flower (Celery Monitoring)                                        │   │
-│  │  Port: 5555                                                       │   │
-│  │  - Task Status Dashboard                                          │   │
-│  │  - Performance Metrics                                            │   │
-│  │  - Error Tracking                                                 │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph CLIENT["CLIENT LAYER"]
+        Frontend["Frontend<br/>React 19 + Vite<br/>Port: 5173<br/>- UI Components<br/>- API Client (Axios)<br/>- State Management"]
+    end
+
+    subgraph APP["APPLICATION LAYER"]
+        Backend["Backend API<br/>FastAPI<br/>Port: 8000"]
+        Controllers["Controllers<br/>(REST API)"]
+        Services["Services<br/>(Business Logic)"]
+        Models["Models<br/>(SQLAlchemy)"]
+
+        Controllers --> Services
+        Services --> Models
+        Backend --> Controllers
+    end
+
+    subgraph DATA["DATA & PROCESSING LAYER"]
+        PostgreSQL["PostgreSQL 14<br/>Port: 5432<br/>- User Data<br/>- Schedules<br/>- Constraints"]
+        Redis["Redis 7<br/>Port: 6379<br/>- Task Queue<br/>- Results Cache"]
+        CeleryWorker["Celery Worker<br/>(Background)<br/>- Optimization<br/>- Async Tasks"]
+
+        subgraph OPT["Optimization Engine"]
+            DataBuilder["Data Builder<br/>(Extract & Prep)"]
+            MIPSolver["MIP Solver<br/>(Python-MIP)<br/>+ CBC Solver"]
+            Validator["Validator<br/>(Constraints)"]
+
+            DataBuilder --> MIPSolver
+            MIPSolver --> Validator
+        end
+    end
+
+    subgraph MONITOR["MONITORING LAYER"]
+        Flower["Flower<br/>Celery Monitoring<br/>Port: 5555<br/>- Task Status Dashboard<br/>- Performance Metrics<br/>- Error Tracking"]
+    end
+
+    Frontend -->|HTTP/REST API| Backend
+    Backend --> PostgreSQL
+    Backend --> Redis
+    Backend --> CeleryWorker
+    CeleryWorker --> OPT
+    OPT --> PostgreSQL
+    CeleryWorker --> Flower
 ```
 
 ### 🗄️ Infrastructure Components
@@ -167,40 +150,30 @@
 
 ### 🏗️ רכיבים מרכזיים (Detailed View)
 
-```
-┌─────────────────┐
-│   Frontend      │  React 19 + Vite + TailwindCSS
-│   (Port 5173)   │  └─ API calls via Axios
-└────────┬────────┘
-         │ HTTP/REST
-         ▼
-┌─────────────────┐
-│   Backend API   │  FastAPI (Port 8000)
-│   (FastAPI)     │  └─ Controllers → Services → Models
-└────────┬────────┘
-         │
-    ┌────┴────┬──────────────┬──────────────┐
-    │         │              │              │
-    ▼         ▼              ▼              ▼
-┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│   DB   │ │  Celery  │ │Optimization│ │Constraint│
-│PostgreSQL│ │  Worker  │ │DataBuilder│ │ Service  │
-│  :5432  │ │  (Redis) │ │            │ │          │
-└────────┘ └──────────┘ └─────┬──────┘ └──────────┘
-                               │
-                               ▼
-                        ┌──────────────┐
-                        │ MipSolver    │
-                        │ (Python-MIP) │
-                        │   + CBC      │
-                        └──────┬───────┘
-                               │
-                               ▼
-                        ┌──────────────┐
-                        │ Scheduling   │
-                        │  Solution    │
-                        │  (Assignments)│
-                        └──────────────┘
+```mermaid
+graph TD
+    Frontend["Frontend<br/>React 19 + Vite + TailwindCSS<br/>Port: 5173<br/>API calls via Axios"]
+
+    Backend["Backend API<br/>FastAPI<br/>Port: 8000<br/>Controllers → Services → Models"]
+
+    DB["PostgreSQL<br/>Port: 5432"]
+    CeleryWorker["Celery Worker<br/>(Redis)"]
+    DataBuilder["Optimization<br/>DataBuilder"]
+    ConstraintService["Constraint<br/>Service"]
+
+    MIPSolver["MipSolver<br/>(Python-MIP)<br/>+ CBC"]
+
+    Solution["Scheduling<br/>Solution<br/>(Assignments)"]
+
+    Frontend -->|HTTP/REST| Backend
+    Backend --> DB
+    Backend --> CeleryWorker
+    Backend --> DataBuilder
+    Backend --> ConstraintService
+
+    DataBuilder --> MIPSolver
+    MIPSolver --> Solution
+    Solution --> ConstraintService
 ```
 
 ### 📦 מודולים מרכזיים
@@ -231,176 +204,158 @@
 
 ### 🔄 זרימת נתונים (End-to-End)
 
-```
-User Request (Frontend)
-  ↓
-API Controller (schedulingRunController.py)
-  ↓
-SchedulingService.optimize_schedule()
-  ↓
-OptimizationDataBuilder.build() → OptimizationData
-  ↓
-MipSchedulingSolver.solve() → SchedulingSolution
-  ↓
-ConstraintService.validate_weekly_schedule()
-  ↓
-Response to Frontend: Schedule solution ready
+```mermaid
+sequenceDiagram
+    participant User as User Request<br/>(Frontend)
+    participant Controller as API Controller<br/>(schedulingRunController.py)
+    participant Service as SchedulingService<br/>optimize_schedule()
+    participant Builder as OptimizationDataBuilder<br/>build()
+    participant Solver as MipSchedulingSolver<br/>solve()
+    participant Validator as ConstraintService<br/>validate_weekly_schedule()
+
+    User->>Controller: HTTP Request
+    Controller->>Service: optimize_schedule()
+    Service->>Builder: build()
+    Builder-->>Service: OptimizationData
+    Service->>Solver: solve()
+    Solver-->>Service: SchedulingSolution
+    Service->>Validator: validate_weekly_schedule()
+    Validator-->>Service: Validation Result
+    Service-->>Controller: Schedule solution ready
+    Controller-->>User: HTTP Response
 ```
 
 ### 📊 דיאגרמת יישויות (Entity Relationship Diagram)
 
 #### ישויות מורכבות - אופטימיזציה
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    OPTIMIZATION ENTITIES                            │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+erDiagram
+    WeeklySchedule ||--o{ PlannedShift : "1:N"
+    WeeklySchedule ||--o{ SchedulingRun : "1:N"
+    ShiftTemplate ||--o{ PlannedShift : "N:1"
+    ShiftTemplate ||--o{ EmployeePreferences : "N:1"
+    Role ||--o{ PlannedShift : "N:M"
+    Role ||--o{ SchedulingSolution : "N:1"
+    Role ||--o{ ShiftAssignment : "N:1"
+    User ||--o{ TimeOffRequest : "1:N"
+    User ||--o{ EmployeePreferences : "1:N"
+    User ||--o{ SchedulingSolution : "1:N"
+    User ||--o{ ShiftAssignment : "1:N"
+    OptimizationConfig ||--o{ SchedulingRun : "1:N"
+    SchedulingRun ||--o{ SchedulingSolution : "1:N"
+    PlannedShift ||--o{ SchedulingSolution : "1:N"
+    PlannedShift ||--o{ ShiftAssignment : "1:N"
 
-┌──────────────────┐
-│  WeeklySchedule  │
-│  (לוח זמנים)     │
-├──────────────────┤
-│ weekly_schedule_id│──┐
-│ start_date        │  │
-│ end_date          │  │
-│ status (DRAFT/    │  │
-│       PUBLISHED)  │  │
-└──────────────────┘  │
-                      │ 1:N
-                      │
-                      ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  PlannedShift                                                    │
-│  (משמרות מתוכננות)                                              │
-├──────────────────────────────────────────────────────────────────┤
-│ planned_shift_id                                                 │
-│ weekly_schedule_id ──FK──┐                                       │
-│ shift_template_id ──FK──┐│                                       │
-│ date                     ││                                       │
-│ start_time               ││                                       │
-│ end_time                 ││                                       │
-│ location                 ││                                       │
-│ status                   ││                                       │
-└──────────────────────────┼┼───────────────────────────────────────┘
-                           ││
-                           ││ N:1
-                           ││
-                           │└──► ┌──────────────────┐
-                           │     │  ShiftTemplate   │
-                           │     │  (תבנית משמרת)   │
-                           │     ├──────────────────┤
-                           │     │ shift_template_id│
-                           │     │ template_name    │
-                           │     │ default_start    │
-                           │     │ default_end      │
-                           │     └──────────────────┘
-                           │
-                           │ N:M (via ShiftRoleRequirements)
-                           │
-                           └──► ┌──────────────────┐
-                                 │      Role        │
-                                 │  (תפקיד)         │
-                                 ├──────────────────┤
-                                 │ role_id          │
-                                 │ role_name        │
-                                 │ (Waiter, Chef...)│
-                                 └──────────────────┘
+    WeeklySchedule {
+        int weekly_schedule_id PK
+        date start_date
+        date end_date
+        string status "DRAFT/PUBLISHED"
+    }
 
-┌──────────────────────────────────────────────────────────────────┐
-│  SchedulingRun                                                   │
-│  (ריצת אופטימיזציה)                                             │
-├──────────────────────────────────────────────────────────────────┤
-│ run_id ────────────PK                                           │
-│ weekly_schedule_id ──FK──► WeeklySchedule                        │
-│ config_id ─────────FK──► OptimizationConfig                      │
-│ status (PENDING/RUNNING/COMPLETED/FAILED)                        │
-│ solver_status (OPTIMAL/FEASIBLE/INFEASIBLE)                      │
-│ started_at                                                       │
-│ completed_at                                                     │
-│ runtime_seconds                                                  │
-│ objective_value                                                  │
-│ mip_gap                                                          │
-│ total_assignments                                                 │
-│ error_message                                                    │
-└──────────────────┬───────────────────────────────────────────────┘
-                   │ 1:N
-                   │
-                   ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  SchedulingSolution                                              │
-│  (הצעות הקצאה מהפותר)                                            │
-├──────────────────────────────────────────────────────────────────┤
-│ solution_id ─────PK                                             │
-│ run_id ───────────FK──► SchedulingRun                           │
-│ planned_shift_id ──FK──► PlannedShift                            │
-│ user_id ───────────FK──► User (Employee)                        │
-│ role_id ───────────FK──► Role                                   │
-│ is_selected (True/False)                                        │
-│ assignment_score                                                 │
-│ created_at                                                       │
-└──────────────────────────────────────────────────────────────────┘
+    PlannedShift {
+        int planned_shift_id PK
+        int weekly_schedule_id FK
+        int shift_template_id FK
+        date date
+        time start_time
+        time end_time
+        string location
+        string status
+    }
 
-┌──────────────────────────────────────────────────────────────────┐
-│  OptimizationConfig                                              │
-│  (הגדרות אופטימיזציה)                                            │
-├──────────────────────────────────────────────────────────────────┤
-│ config_id ───────PK                                              │
-│ config_name (unique)                                             │
-│ weight_fairness (0.0-1.0)                                        │
-│ weight_preferences (0.0-1.0)                                     │
-│ weight_coverage (0.0-1.0)                                        │
-│ max_runtime_seconds                                              │
-│ mip_gap (0.01 = 1%)                                              │
-│ is_default                                                       │
-└──────────────────────────────────────────────────────────────────┘
+    ShiftTemplate {
+        int shift_template_id PK
+        string template_name
+        time default_start
+        time default_end
+    }
 
-┌──────────────────────────────────────────────────────────────────┐
-│  SystemConstraints                                               │
-│  (אילוצי מערכת)                                                 │
-├──────────────────────────────────────────────────────────────────┤
-│ constraint_id ───PK                                              │
-│ constraint_type (MAX_HOURS_PER_WEEK, MIN_REST_HOURS, etc.)       │
-│ constraint_value                                                 │
-│ is_hard_constraint (True/False)                                  │
-│ description                                                      │
-└──────────────────────────────────────────────────────────────────┘
+    Role {
+        int role_id PK
+        string role_name "Waiter, Chef, etc."
+    }
 
-┌──────────────────────────────────────────────────────────────────┐
-│  TimeOffRequest                                                  │
-│  (בקשות חופשה)                                                   │
-├──────────────────────────────────────────────────────────────────┤
-│ request_id ─────PK                                               │
-│ user_id ─────────FK──► User                                      │
-│ start_date                                                       │
-│ end_date                                                         │
-│ status (PENDING/APPROVED/REJECTED)                               │
-│ reason                                                           │
-└──────────────────────────────────────────────────────────────────┘
+    SchedulingRun {
+        int run_id PK
+        int weekly_schedule_id FK
+        int config_id FK
+        string status "PENDING/RUNNING/COMPLETED/FAILED"
+        string solver_status "OPTIMAL/FEASIBLE/INFEASIBLE"
+        datetime started_at
+        datetime completed_at
+        float runtime_seconds
+        float objective_value
+        float mip_gap
+        int total_assignments
+        text error_message
+    }
 
-┌──────────────────────────────────────────────────────────────────┐
-│  EmployeePreferences                                             │
-│  (העדפות עובדים)                                                 │
-├──────────────────────────────────────────────────────────────────┤
-│ preference_id ───PK                                               │
-│ user_id ─────────FK──► User                                      │
-│ preferred_shift_template_id ──FK──► ShiftTemplate                │
-│ preferred_day_of_week (MONDAY-SUNDAY)                            │
-│ preferred_start_time                                             │
-│ preferred_end_time                                               │
-│ preference_weight (0.0-1.0)                                      │
-└──────────────────────────────────────────────────────────────────┘
+    SchedulingSolution {
+        int solution_id PK
+        int run_id FK
+        int planned_shift_id FK
+        int user_id FK
+        int role_id FK
+        boolean is_selected
+        float assignment_score
+        datetime created_at
+    }
 
-┌──────────────────────────────────────────────────────────────────┐
-│  ShiftAssignment                                                 │
-│  (הקצאות מאושרות)                                                │
-├──────────────────────────────────────────────────────────────────┤
-│ assignment_id ───PK                                              │
-│ planned_shift_id ──FK──► PlannedShift                            │
-│ user_id ───────────FK──► User                                    │
-│ role_id ───────────FK──► Role                                    │
-│ assigned_at                                                      │
-│ status                                                           │
-└──────────────────────────────────────────────────────────────────┘
+    OptimizationConfig {
+        int config_id PK
+        string config_name "unique"
+        float weight_fairness "0.0-1.0"
+        float weight_preferences "0.0-1.0"
+        float weight_coverage "0.0-1.0"
+        int max_runtime_seconds
+        float mip_gap "0.01 = 1%"
+        boolean is_default
+    }
+
+    SystemConstraints {
+        int constraint_id PK
+        string constraint_type "MAX_HOURS_PER_WEEK, MIN_REST_HOURS, etc."
+        float constraint_value
+        boolean is_hard_constraint
+        string description
+    }
+
+    TimeOffRequest {
+        int request_id PK
+        int user_id FK
+        date start_date
+        date end_date
+        string status "PENDING/APPROVED/REJECTED"
+        string reason
+    }
+
+    EmployeePreferences {
+        int preference_id PK
+        int user_id FK
+        int preferred_shift_template_id FK
+        string preferred_day_of_week "MONDAY-SUNDAY"
+        time preferred_start_time
+        time preferred_end_time
+        float preference_weight "0.0-1.0"
+    }
+
+    ShiftAssignment {
+        int assignment_id PK
+        int planned_shift_id FK
+        int user_id FK
+        int role_id FK
+        datetime assigned_at
+        string status
+    }
+
+    User {
+        int user_id PK
+        string user_full_name
+        string user_email
+        boolean is_manager
+    }
 ```
 
 **הסבר על ישויות מורכבות:**
@@ -450,44 +405,20 @@ Response to Frontend: Schedule solution ready
 
 ### 🏗️ ארכיטקטורה
 
-```
-┌─────────────┐
-│  Frontend   │
-└──────┬──────┘
-       │ HTTP Request
-       ▼
-┌─────────────────┐
-│  FastAPI Backend│
-│  (Port 8000)    │
-└──────┬──────────┘
-       │
-       │ 1. Create SchedulingRun (PENDING)
-       │ 2. Dispatch Celery Task
-       │ 3. Return task_id immediately
-       │
-       ▼
-┌─────────────────┐
-│     Redis        │  ← Message Broker
-│   (Port 6379)    │  ← Task Queue
-└──────┬───────────┘
-       │
-       │ Task Distribution
-       ▼
-┌─────────────────┐
-│ Celery Worker   │  ← Background Processing
-│  (Background)   │  ← Runs optimization
-└──────┬──────────┘
-       │
-       │ Update Status
-       ▼
-┌─────────────────┐
-│   PostgreSQL    │  ← Store Results
-└─────────────────┘
+```mermaid
+graph TB
+    Frontend["Frontend"]
+    Backend["FastAPI Backend<br/>Port: 8000"]
+    Redis["Redis<br/>Port: 6379<br/>Message Broker<br/>Task Queue"]
+    CeleryWorker["Celery Worker<br/>(Background)<br/>Runs optimization"]
+    PostgreSQL["PostgreSQL<br/>Store Results"]
+    Flower["Flower<br/>Port: 5555<br/>Monitoring Dashboard<br/>Real-time Task Status"]
 
-┌─────────────────┐
-│     Flower      │  ← Monitoring Dashboard
-│  (Port 5555)    │  ← Real-time Task Status
-└─────────────────┘
+    Frontend -->|HTTP Request| Backend
+    Backend -->|1. Create SchedulingRun (PENDING)<br/>2. Dispatch Celery Task<br/>3. Return task_id immediately| Redis
+    Redis -->|Task Distribution| CeleryWorker
+    CeleryWorker -->|Update Status| PostgreSQL
+    CeleryWorker --> Flower
 ```
 
 ### 🔧 רכיבים
