@@ -30,7 +30,7 @@
 
 ### 👥 למי מיועדת המערכת
 
-- **👔 מנהלי משמרות** (Restaurant Managers, Shift Supervisors)
+- **👔 מנהלי משמרות** (Shift Supervisors)
 - **🏢 מחלקות משאבי אנוש** המנהלות לוחות זמנים שבועיים
 - **👤 עובדים** המבקשים לראות את המשמרות שלהם ולעדכן העדפות
 
@@ -129,11 +129,12 @@ graph TB
 
     Frontend -->|HTTP/REST API| Backend
     Backend --> PostgreSQL
-    Backend --> Redis
-    Backend --> CeleryWorker
+    Backend -->|Dispatch Tasks| Redis
+    Redis -->|Task Queue| CeleryWorker
+    CeleryWorker -->|Return Results| Redis
     CeleryWorker --> OPT
     OPT --> PostgreSQL
-    CeleryWorker --> Flower
+    Redis -->|Monitor Tasks| Flower
 ```
 
 ### 🗄️ Infrastructure Components
@@ -147,83 +148,6 @@ graph TB
 | **Background Worker**   | Celery 5.3+      | -    | עיבוד אופטימיזציה        |
 | **Monitoring**          | Flower           | 5555 | ניטור משימות Celery      |
 | **Optimization Solver** | Python-MIP + CBC | -    | פתרון MIP                |
-
-### 🏗️ רכיבים מרכזיים (Detailed View)
-
-```mermaid
-graph TD
-    Frontend["Frontend<br/>React 19 + Vite + TailwindCSS<br/>Port: 5173<br/>API calls via Axios"]
-
-    Backend["Backend API<br/>FastAPI<br/>Port: 8000<br/>Controllers → Services → Models"]
-
-    DB["PostgreSQL<br/>Port: 5432"]
-    CeleryWorker["Celery Worker<br/>(Redis)"]
-    DataBuilder["Optimization<br/>DataBuilder"]
-    ConstraintService["Constraint<br/>Service"]
-
-    MIPSolver["MipSolver<br/>(Python-MIP)<br/>+ CBC"]
-
-    Solution["Scheduling<br/>Solution<br/>(Assignments)"]
-
-    Frontend -->|HTTP/REST| Backend
-    Backend --> DB
-    Backend --> CeleryWorker
-    Backend --> DataBuilder
-    Backend --> ConstraintService
-
-    DataBuilder --> MIPSolver
-    MIPSolver --> Solution
-    Solution --> ConstraintService
-```
-
-### 📦 מודולים מרכזיים
-
-#### 1. **SchedulingService**
-
-- **תפקיד**: Orchestrator ראשי של תהליך האופטימיזציה
-- **זרימה**: `optimize_schedule()` → `_execute_run()` → `_build_and_solve()`
-- **אחריות**: ניהול SchedulingRun records, טיפול בשגיאות, validation
-
-#### 2. **OptimizationDataBuilder**
-
-- **תפקיד**: הכנת נתונים למודל MIP
-- **פונקציה עיקרית**: `build()` - איסוף נתונים מ-DB והכנה למודל MIP
-- **תוצר**: בניית מטריצות זמינות והעדפות, mapping של אינדקסים
-
-#### 3. **MipSchedulingSolver** (`app/services/scheduling/mip_solver.py`)
-
-- **תפקיד**: בניית ופתרון מודל MIP
-- **פונקציה עיקרית**: `solve()` - בניית מודל MIP ופתרון
-- **תוצר**: משתני החלטה, אילוצים, פונקציית מטרה
-
-#### 4. **ConstraintService** (`app/services/constraintService.py`)
-
-- **תפקיד**: בדיקת תקינות הפתרון
-- **פונקציה עיקרית**: `validate_weekly_schedule()` - בדיקת הפתרון נגד אילוצים קשים
-- **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
-
-### 🔄 זרימת נתונים (End-to-End)
-
-```mermaid
-sequenceDiagram
-    participant User as User Request<br/>(Frontend)
-    participant Controller as API Controller<br/>(schedulingRunController.py)
-    participant Service as SchedulingService<br/>optimize_schedule()
-    participant Builder as OptimizationDataBuilder<br/>build()
-    participant Solver as MipSchedulingSolver<br/>solve()
-    participant Validator as ConstraintService<br/>validate_weekly_schedule()
-
-    User->>Controller: HTTP Request
-    Controller->>Service: optimize_schedule()
-    Service->>Builder: build()
-    Builder-->>Service: OptimizationData
-    Service->>Solver: solve()
-    Solver-->>Service: SchedulingSolution
-    Service->>Validator: validate_weekly_schedule()
-    Validator-->>Service: Validation Result
-    Service-->>Controller: Schedule solution ready
-    Controller-->>User: HTTP Response
-```
 
 ### 📊 דיאגרמת יישויות (Entity Relationship Diagram)
 
@@ -390,6 +314,55 @@ erDiagram
    - משמש לחישוב `preference_scores[i, j]`
 
 ---
+
+### 📦 מודולים מרכזיים
+
+#### 1. **SchedulingService**
+
+- **תפקיד**: Orchestrator ראשי של תהליך האופטימיזציה
+- **זרימה**: `optimize_schedule()` → `_execute_run()` → `_build_and_solve()`
+- **אחריות**: ניהול SchedulingRun records, טיפול בשגיאות, validation
+
+#### 2. **OptimizationDataBuilder**
+
+- **תפקיד**: הכנת נתונים למודל MIP
+- **פונקציה עיקרית**: `build()` - איסוף נתונים מ-DB והכנה למודל MIP
+- **תוצר**: בניית מטריצות זמינות והעדפות, mapping של אינדקסים
+
+#### 3. **MipSchedulingSolver** (`app/services/scheduling/mip_solver.py`)
+
+- **תפקיד**: בניית ופתרון מודל MIP
+- **פונקציה עיקרית**: `solve()` - בניית מודל MIP ופתרון
+- **תוצר**: משתני החלטה, אילוצים, פונקציית מטרה
+
+#### 4. **ConstraintService** (`app/services/constraintService.py`)
+
+- **תפקיד**: בדיקת תקינות הפתרון
+- **פונקציה עיקרית**: `validate_weekly_schedule()` - בדיקת הפתרון נגד אילוצים קשים
+- **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
+
+### 🔄 זרימת נתונים (End-to-End)
+
+```mermaid
+sequenceDiagram
+    participant User as User Request<br/>(Frontend)
+    participant Controller as API Controller<br/>(schedulingRunController.py)
+    participant Service as SchedulingService<br/>optimize_schedule()
+    participant Builder as OptimizationDataBuilder<br/>build()
+    participant Solver as MipSchedulingSolver<br/>solve()
+    participant Validator as ConstraintService<br/>validate_weekly_schedule()
+
+    User->>Controller: HTTP Request
+    Controller->>Service: optimize_schedule()
+    Service->>Builder: build()
+    Builder-->>Service: OptimizationData
+    Service->>Solver: solve()
+    Solver-->>Service: SchedulingSolution
+    Service->>Validator: validate_weekly_schedule()
+    Validator-->>Service: Validation Result
+    Service-->>Controller: Schedule solution ready
+    Controller-->>User: HTTP Response
+```
 
 ## 4️⃣ עיבוד רקע: Celery, Redis ו-Flower
 
