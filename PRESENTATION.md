@@ -588,7 +588,7 @@ flowchart TD
     DataBuilder --> Solver[MipSchedulingSolver.solve<br/>בניית ופתרון מודל MIP]
 
     Solver --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
-    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x(i,j,r)]
+    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
 
     BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
     AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
