@@ -719,8 +719,7 @@ availability[i, j] = 0  אחרת
 flowchart TD
     Start([solve<br/>נקודת כניסה מ-SchedulingService]) --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
 
-    CreateModel --> ValidateMatrices[בדיקת ממדי מטריצות<br/>availability_matrix, preference_scores]
-    ValidateMatrices --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
+    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
 
     BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
     AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
@@ -752,12 +751,10 @@ flowchart TD
 
    - מקבל `OptimizationData` (נתונים מוכנים) ו-`OptimizationConfig` (הגדרות)
    - יוצר מודל MIP עם CBC Solver
-   - בודק ממדי מטריצות (validation)
 
 2. **בניית משתני החלטה** (`_build_decision_variables`):
 
    - יוצר משתנים בינאריים `x(i,j,r)` לכל צירוף תקף
-   - בונה אינדקסים לביצועים (`vars_by_emp_shift`, `vars_by_employee`)
 
 3. **הוספת אילוצים קשים**:
 
@@ -784,6 +781,94 @@ flowchart TD
 7. **חילוץ תוצאות**:
    - `_extract_assignments` - המרת משתנים לקצאות בפועל
    - `calculate_metrics` - חישוב מטריקות (כיסוי, הוגנות, וכו')
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L28-L101)
+
+```python
+def solve(
+    self,
+    data: OptimizationData,
+    config: OptimizationConfigModel
+) -> SchedulingSolution:
+    """
+    Build and solve the MIP model.
+
+    Args:
+        data: OptimizationData with employees, shifts, and matrices
+        config: OptimizationConfig with weights and solver parameters
+
+    Returns:
+        SchedulingSolution with results
+    """
+    solution = SchedulingSolution()
+    start_time = datetime.now()
+
+    # Create MIP model
+    model = mip.Model(sense=mip.MAXIMIZE, solver_name=mip.CBC)
+
+    # Set solver parameters
+    model.max_seconds = config.max_runtime_seconds
+    model.max_mip_gap = config.mip_gap
+
+    n_employees = len(data.employees)
+    n_shifts = len(data.shifts)
+
+    # Validate matrix dimensions
+    if data.preference_scores.shape != (n_employees, n_shifts):
+        raise ValueError(
+            f"Preference scores matrix shape mismatch: expected ({n_employees}, {n_shifts}), "
+            f"got {data.preference_scores.shape}"
+        )
+    if data.availability_matrix.shape != (n_employees, n_shifts):
+        raise ValueError(
+            f"Availability matrix shape mismatch: expected ({n_employees}, {n_shifts}), "
+            f"got {data.availability_matrix.shape}"
+        )
+
+    # Build decision variables and indexes
+    x, vars_by_emp_shift, vars_by_employee = self._build_decision_variables(
+        model, data, n_employees, n_shifts
+    )
+
+    # Add constraints
+    self._add_coverage_constraints(model, data, x, n_employees, n_shifts)
+    self._add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shifts)
+    self._add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees)
+    self._add_hard_constraints(model, data, x, vars_by_emp_shift, vars_by_employee, n_employees)
+
+    # Build objective function
+    assignments_per_employee, avg_assignments = self._add_fairness_terms(
+        model, data, x, vars_by_employee, n_employees
+    )
+    soft_penalty_component = self._add_soft_penalties(
+        model, data, x, vars_by_emp_shift, vars_by_employee, n_employees
+    )
+    objective = self._build_objective(
+        model, data, x, config, assignments_per_employee,
+        soft_penalty_component, avg_assignments
+    )
+    model.objective = objective
+
+    # Solve the model
+    status = model.optimize()
+
+    # Record results
+    end_time = datetime.now()
+    solution.runtime_seconds = (end_time - start_time).total_seconds()
+    solution.status = map_solver_status(status)
+
+    if status in [mip.OptimizationStatus.OPTIMAL, mip.OptimizationStatus.FEASIBLE]:
+        solution.objective_value = model.objective_value
+        solution.mip_gap = model.gap
+
+        # Extract assignments
+        solution.assignments = self._extract_assignments(x, data)
+        solution.metrics = calculate_metrics(data, solution.assignments)
+
+    return solution
+```
+
+---
 
 ## 7.1 משתני החלטה
 
@@ -852,134 +937,6 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 ```
 
 [📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
-
----
-
-## 📥 דוגמה לקלט ופלט של הפותר
-
-#### קלט (Input) - `OptimizationData`
-
-```python
-{
-    # רשימת עובדים
-    'employees': [
-        {'user_id': 1, 'user_full_name': 'John Doe', 'roles': [1, 2]},  # Waiter, Bartender
-        {'user_id': 2, 'user_full_name': 'Jane Smith', 'roles': [3]},   # Chef
-        {'user_id': 3, 'user_full_name': 'Bob Johnson', 'roles': [1]}   # Waiter
-    ],
-
-    # רשימת משמרות
-    'shifts': [
-        {
-            'planned_shift_id': 101,
-            'date': date(2024, 1, 15),
-            'start_time': time(9, 0),
-            'end_time': time(17, 0),
-            'required_roles': [
-                {'role_id': 1, 'required_count': 2},  # 2 Waiters
-                {'role_id': 3, 'required_count': 1}   # 1 Chef
-            ]
-        },
-        {
-            'planned_shift_id': 102,
-            'date': date(2024, 1, 15),
-            'start_time': time(17, 0),
-            'end_time': time(22, 0),
-            'required_roles': [
-                {'role_id': 1, 'required_count': 3},  # 3 Waiters
-                {'role_id': 2, 'required_count': 1}   # 1 Bartender
-            ]
-        }
-    ],
-
-    # מטריצת זמינות (3 עובדים × 2 משמרות)
-    'availability_matrix': np.array([
-        [1, 1],  # John: זמין לשתי המשמרות
-        [1, 0],  # Jane: זמינה רק למשמרת הראשונה
-        [1, 1]   # Bob: זמין לשתי המשמרות
-    ]),
-
-    # מטריצת העדפות (3 עובדים × 2 משמרות)
-    'preference_scores': np.array([
-        [0.8, 0.9],  # John: מעדיף משמרת ערב (0.9)
-        [0.7, 0.0],  # Jane: לא זמינה למשמרת ערב
-        [0.6, 0.7]   # Bob: מעדיף משמרת ערב (0.7)
-    ]),
-
-    # אילוצי מערכת
-    'system_constraints': {
-        SystemConstraintType.MAX_HOURS_PER_WEEK: (40.0, True),   # Hard: מקסימום 40 שעות
-        SystemConstraintType.MIN_REST_HOURS: (11.0, True),        # Hard: מינימום 11 שעות מנוחה
-        SystemConstraintType.MAX_SHIFTS_PER_WEEK: (5, False)      # Soft: רצוי מקסימום 5 משמרות
-    },
-
-    # מיפוי אינדקסים
-    'employee_index': {1: 0, 2: 1, 3: 2},
-    'shift_index': {101: 0, 102: 1},
-
-    # משך משמרות (שעות)
-    'shift_durations': {101: 8.0, 102: 5.0}
-}
-```
-
-[📄 קובץ מקור: `optimization_data.py`](backend/app/services/optimization_data_services/optimization_data.py#L14-L100)
-
-#### פלט (Output) - `SchedulingSolution`
-
-```python
-{
-    'status': 'OPTIMAL',              # סטטוס הפותר
-    'objective_value': 12.45,          # ערך פונקציית המטרה
-    'runtime_seconds': 3.2,           # זמן ריצה (שניות)
-    'mip_gap': 0.001,                 # פער אופטימליות (0.1%)
-
-    # רשימת הקצאות
-    'assignments': [
-        {
-            'user_id': 1,              # John
-            'planned_shift_id': 101,    # משמרת בוקר
-            'role_id': 1,               # Waiter
-            'preference_score': 0.8
-        },
-        {
-            'user_id': 3,              # Bob
-            'planned_shift_id': 101,    # משמרת בוקר
-            'role_id': 1,               # Waiter
-            'preference_score': 0.6
-        },
-        {
-            'user_id': 2,              # Jane
-            'planned_shift_id': 101,    # משמרת בוקר
-            'role_id': 3,               # Chef
-            'preference_score': 0.7
-        },
-        {
-            'user_id': 1,              # John
-            'planned_shift_id': 102,    # משמרת ערב
-            'role_id': 2,               # Bartender
-            'preference_score': 0.9
-        },
-        {
-            'user_id': 3,              # Bob
-            'planned_shift_id': 102,    # משמרת ערב
-            'role_id': 1,               # Waiter
-            'preference_score': 0.7
-        }
-        # הערה: משמרת 102 דורשת 3 Waiters, אבל יש רק 2 זמינים
-        # הפותר ימצא פתרון חלופי או יודיע על infeasibility
-    ],
-
-    # מטריקות
-    'metrics': {
-        'total_assignments': 5,
-        'coverage_percentage': 100.0,   # כיסוי מלא
-        'avg_preference_score': 0.74,
-        'fairness_score': 0.85          # הוגנות גבוהה
-    }
-}
-```
-
-[📄 קובץ מקור: `types.py`](backend/app/services/scheduling/types.py#L8-L28)
 
 ## 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
 
