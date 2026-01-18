@@ -21,21 +21,21 @@
 
 ---
 
-## 1️⃣ מטרות הפרויקט
+# 1️⃣ מטרות הפרויקט
 
-### 🎯 הבעיה שהמערכת פותרת
+## 🎯 הבעיה שהמערכת פותרת
 
 - **📋 ניהול ידני מורכב**: יצירת לוח זמנים שבועי עם עשרות עובדים, משמרות ותפקידים דורש שעות עבודה
 - **⚖️ קונפליקטים ואי-הוגנות**: קושי לאזן בין העדפות עובדים, זמינות, כיסוי תפקידים והוגנות בעומס עבודה
 - **🔒 אילוצים מורכבים**: שעות מנוחה מינימליות, מקסימום שעות שבועי, חפיפות משמרות, חופשות מאושרות
 
-### 👥 למי מיועדת המערכת
+## 👥 למי מיועדת המערכת
 
 - **👔 מנהלי משמרות** (Shift Supervisors)
 - **🏢 מחלקות משאבי אנוש** המנהלות לוחות זמנים שבועיים
 - **👤 עובדים** המבקשים לראות את המשמרות שלהם ולעדכן העדפות
 
-### ✅ מדדי הצלחה
+## ✅ מדדי הצלחה
 
 - **⚖️ הוגנות**: חלוקה מאוזנת של משמרות בין עובדים (מינימום סטייה מהממוצע)
 - **✅ כיסוי מלא**: כל משמרת מקבלת את כל התפקידים הנדרשים (Coverage = 100%)
@@ -45,9 +45,9 @@
 
 ---
 
-## 2️⃣ טכנולוגיות מרכזיות
+# 2️⃣ טכנולוגיות מרכזיות
 
-### 🔧 Backend
+## 🔧 Backend
 
 | טכנולוגיה         | תיאור                                            |
 | ----------------- | ------------------------------------------------ |
@@ -57,20 +57,20 @@
 | **Celery 5.3+**   | עיבוד רקע אסינכרוני                              |
 | **Redis 7**       | Message broker עבור Celery                       |
 
-### 🎨 Frontend
+## 🎨 Frontend
 
 | טכנולוגיה    | תיאור               |
 | ------------ | ------------------- |
 | **React 19** | UI framework מודרני |
 
-### ⚙️ Optimization Engine
+## ⚙️ Optimization Engine
 
 | טכנולוגיה                | תיאור                                         |
 | ------------------------ | --------------------------------------------- |
 | **Python-MIP >= 1.15.0** | ספריית MIP                                    |
 | **CBC Solver**           | פתרון MIP open-source (bundled עם Python-MIP) |
 
-### 🐳 Deployment
+## 🐳 Deployment
 
 | טכנולוגיה          | תיאור                      |
 | ------------------ | -------------------------- |
@@ -88,9 +88,9 @@
 
 ---
 
-## 3️⃣ ארכיטקטורת המערכת
+# 3️⃣ ארכיטקטורת המערכת
 
-### 🏗️ High-Level Architecture Diagram
+## 🏗️ High-Level Architecture Diagram
 
 ```mermaid
 graph TB
@@ -138,7 +138,7 @@ graph TB
     Redis -->|Monitor Tasks| Flower
 ```
 
-### 🗄️ Infrastructure Components
+## 🗄️ Infrastructure Components
 
 | רכיב                    | טכנולוגיה        | פורט | תפקיד                    |
 | ----------------------- | ---------------- | ---- | ------------------------ |
@@ -150,7 +150,7 @@ graph TB
 | **Monitoring**          | Flower           | 5555 | ניטור משימות Celery      |
 | **Optimization Solver** | Python-MIP + CBC | -    | פתרון MIP                |
 
-### 📊 דיאגרמת יישויות (Entity Relationship Diagram)
+## 📊 דיאגרמת יישויות (Entity Relationship Diagram)
 
 #### ישויות מורכבות - אופטימיזציה
 
@@ -316,7 +316,7 @@ erDiagram
 
 ---
 
-### 📦 מודולים מרכזיים
+## 📦 מודולים מרכזיים
 
 #### 1. **SchedulingService**
 
@@ -342,7 +342,7 @@ erDiagram
 - **פונקציה עיקרית**: `validate_weekly_schedule()` - בדיקת הפתרון נגד אילוצים קשים
 - **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
 
-### 🔄 זרימת נתונים (End-to-End)
+## 🔄 זרימת נתונים (End-to-End)
 
 ```mermaid
 sequenceDiagram
@@ -365,9 +365,11 @@ sequenceDiagram
     Controller-->>User: HTTP Response
 ```
 
-## 4️⃣ עיבוד רקע: Celery, Redis ו-Flower
+---
 
-### 🎯 למה עיבוד רקע?
+# 4️⃣ עיבוד רקע: Celery, Redis ו-Flower
+
+## 🎯 למה עיבוד רקע?
 
 תהליך האופטימיזציה של לוח זמנים שבועי יכול לקחת **דקות** (תלוי בגודל הבעיה). ביצוע התהליך באופן סינכרוני יגרום ל:
 
@@ -377,7 +379,7 @@ sequenceDiagram
 
 **הפתרון**: עיבוד אסינכרוני עם **Celery** ו-**Redis**.
 
-### 🏗️ ארכיטקטורה
+## 🏗️ ארכיטקטורה
 
 ```mermaid
 graph TB
@@ -406,7 +408,7 @@ graph TB
 4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות
 5. **Celery Worker → Flower**: Flower מציג את הסטטוס בזמן אמת
 
-### 🔧 רכיבים
+## 🔧 רכיבים
 
 #### **Redis** - Message Broker
 
@@ -462,7 +464,7 @@ GET /api/scheduling/runs/{run_id}
 
 [📄 קובץ מקור: `optimization_tasks.py`](backend/app/tasks/optimization_tasks.py#L17-L30)
 
-### ✅ יתרונות
+## ✅ יתרונות
 
 - ⚡ **תגובה מהירה**: API מחזיר מיד (לא מחכה לסיום האופטימיזציה)
 - 🔄 **Scalability**: ניתן להוסיף מספר Celery Workers
@@ -472,9 +474,9 @@ GET /api/scheduling/runs/{run_id}
 
 ---
 
-## 5️⃣ SchedulingService - Orchestrator ראשי
+# 5️⃣ SchedulingService - Orchestrator ראשי
 
-### 🔨 תפקיד SchedulingService
+## 🔨 תפקיד SchedulingService
 
 המודול `SchedulingService` הוא ה-**Orchestrator הראשי** של תהליך האופטימיזציה. הוא מנהל את כל התהליך מקצה לקצה, כולל אינטגרציה עם DB, validation ו-persistence.
 
@@ -486,31 +488,25 @@ GET /api/scheduling/runs/{run_id}
 - **Validation** - בדיקת תקינות הפתרון נגד אילוצים קשים לפני שמירה
 - **Persistence** - שמירת תוצאות ב-DB (SchedulingSolution records)
 
-### 🔄 זרימת עבודה - SchedulingService
+## 🔄 זרימת עבודה - SchedulingService
 
 ```mermaid
-flowchart LR
-    Start([_execute_optimization_for_run]) --> ExecuteRun[_execute_run]
+flowchart TD
+    Start([_execute_optimization_for_run<br/>נקודת כניסה]) --> ExecuteRun[_execute_run<br/>Executor משותף]
 
-    subgraph Init["הכנה"]
-        ExecuteRun --> StartRun[_start_run]
-        StartRun --> LoadConfig[_load_optimization_config]
-    end
+    ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING<br/>SELECT FOR UPDATE]
+    StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
+    LoadConfig --> BuildSolve[_build_and_solve<br/>בניית נתונים ופתרון]
 
-    subgraph Solve["בנייה ופתרון"]
-        LoadConfig --> BuildSolve[_build_and_solve]
-        BuildSolve --> DataBuilder[OptimizationDataBuilder.build]
-        DataBuilder --> Solver[MipSchedulingSolver.solve]
-    end
+    BuildSolve --> DataBuilder[OptimizationDataBuilder.build<br/>איסוף נתונים מ-DB]
+    DataBuilder --> Solver[MipSchedulingSolver.solve<br/>פתרון מודל MIP]
+    Solver --> CheckStatus{בדיקת סטטוס<br/>פתרון}
 
-    subgraph Validate["בדיקה ושמירה"]
-        Solver --> CheckStatus{סטטוס פתרון}
-        CheckStatus -->|INFEASIBLE| HandleInfeasible[_handle_infeasible_solution]
-        CheckStatus -->|OPTIMAL/FEASIBLE| Validate[_validate_solution]
-        HandleInfeasible --> Persist[_persist_solution]
-        Validate --> Persist
-    end
+    CheckStatus -->|INFEASIBLE| HandleInfeasible[_handle_infeasible_solution<br/>עדכון סטטוס]
+    CheckStatus -->|OPTIMAL/FEASIBLE| Validate[_validate_solution<br/>בדיקת תקינות נגד<br/>אילוצים קשים]
 
+    Validate --> Persist[_persist_solution<br/>שמירת תוצאות ב-DB]
+    HandleInfeasible --> Persist
     Persist --> End([החזרת run + solution])
 
     style Start fill:#e1f5ff
@@ -519,7 +515,7 @@ flowchart LR
     style End fill:#e1ffe1
 ```
 
-### 📋 פונקציות מרכזיות
+## 📋 פונקציות מרכזיות
 
 #### 1. **`_execute_optimization_for_run()`**
 
@@ -605,7 +601,7 @@ def _execute_run(
   - יצירת `SchedulingSolution` records
   - אופציונלי: יצירת `ShiftAssignment` records (אם `apply_assignments=True`)
 
-### 🔗 אינטגרציה עם רכיבים אחרים
+## 🔗 אינטגרציה עם רכיבים אחרים
 
 `SchedulingService` משתמש ב-4 רכיבים עיקריים:
 
@@ -618,9 +614,9 @@ def _execute_run(
 
 ---
 
-## 6️⃣ בניית מודל האופטימיזציה - OptimizationDataBuilder
+# 6️⃣ בניית מודל האופטימיזציה - OptimizationDataBuilder
 
-### 🔨 תפקיד OptimizationDataBuilder
+## 🔨 תפקיד OptimizationDataBuilder
 
 המודול `OptimizationDataBuilder` אחראי על איסוף והכנת כל הנתונים הנדרשים לבניית מודל MIP.
 
@@ -704,9 +700,9 @@ availability[i, j] = 0  אחרת
 
 ---
 
-## 7️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+# 7️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
 
-### 🔨 תפקיד MipSchedulingSolver
+## 🔨 תפקיד MipSchedulingSolver
 
 המודול `MipSchedulingSolver` אחראי על בניית ופתרון מודל **Mixed Integer Programming (MIP)** לאופטימיזציה של הקצאות משמרות. המודל מקבל את הנתונים המוכנים מ-`OptimizationDataBuilder` ובונה מודל מתמטי הכולל:
 
@@ -717,35 +713,32 @@ availability[i, j] = 0  אחרת
 
 הפותר משתמש ב-**CBC Solver** (bundled עם Python-MIP) כדי למצוא פתרון אופטימלי או קרוב לאופטימלי.
 
-### 🔄 זרימת עבודה - בניית ופתרון מודל MIP
+## 🔄 זרימת עבודה - בניית ופתרון מודל MIP
 
 ```mermaid
-flowchart LR
-    Start([solve]) --> CreateModel[יצירת מודל MIP]
-    CreateModel --> ValidateMatrices[בדיקת מטריצות]
-    ValidateMatrices --> BuildVars[_build_decision_variables]
+flowchart TD
+    Start([solve<br/>נקודת כניסה מ-SchedulingService]) --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
 
-    subgraph Constraints["אילוצים קשים"]
-        BuildVars --> AddCoverage[_add_coverage_constraints]
-        AddCoverage --> AddSingleRole[_add_single_role_constraints]
-        AddSingleRole --> AddOverlap[_add_overlap_constraints]
-        AddOverlap --> AddHard[_add_hard_constraints]
-    end
+    CreateModel --> ValidateMatrices[בדיקת ממדי מטריצות<br/>availability_matrix, preference_scores]
+    ValidateMatrices --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
 
-    subgraph Soft["אילוצים רכים והוגנות"]
-        AddHard --> AddFairness[_add_fairness_terms]
-        AddFairness --> AddSoft[_add_soft_penalties]
-        AddSoft --> BuildObj[_build_objective]
-    end
+    BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
+    AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
+    AddSingleRole --> AddOverlap[_add_overlap_constraints<br/>אילוץ אין חפיפות]
+    AddOverlap --> AddHard[_add_hard_constraints<br/>אילוצים קשים מהמערכת]
 
-    subgraph Solve["פתרון וחילוץ"]
-        BuildObj --> Optimize[model.optimize]
-        Optimize --> CheckStatus{סטטוס}
-        CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments]
-        CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת פתרון])
-        Extract --> Metrics[calculate_metrics]
-        Metrics --> End
-    end
+    AddHard --> AddFairness[_add_fairness_terms<br/>משתני הוגנות]
+    AddFairness --> AddSoft[_add_soft_penalties<br/>אילוצים רכים עם penalties]
+    AddSoft --> BuildObj[_build_objective<br/>בניית פונקציית מטרה]
+
+    BuildObj --> Optimize[model.optimize<br/>פתרון המודל - CBC Solver]
+    Optimize --> CheckStatus{בדיקת סטטוס<br/>פתרון}
+
+    CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
+    CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת SchedulingSolution<br/>עם סטטוס שגיאה])
+
+    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
+    Metrics --> End
 
     style Start fill:#e1f5ff
     style BuildVars fill:#fff4e1
@@ -792,7 +785,7 @@ flowchart LR
    - `_extract_assignments` - המרת משתנים לקצאות בפועל
    - `calculate_metrics` - חישוב מטריקות (כיסוי, הוגנות, וכו')
 
-### 7.1 משתני החלטה
+## 7.1 משתני החלטה
 
 #### 📐 הגדרה מתמטית
 
@@ -862,7 +855,7 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 ---
 
-### 📥 דוגמה לקלט ופלט של הפותר
+## 📥 דוגמה לקלט ופלט של הפותר
 
 #### קלט (Input) - `OptimizationData`
 
@@ -988,7 +981,7 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 [📄 קובץ מקור: `types.py`](backend/app/services/scheduling/types.py#L8-L28)
 
-### 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
+## 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
 
 הפותר `MipSchedulingSolver` מבצע את השלבים הבאים:
 
@@ -1006,7 +999,7 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 ---
 
-### 7.2 אילוצים קשים
+## 7.2 אילוצים קשים
 
 #### 7.2.1 אילוצים קשים שלא חלק מ-`system_constraints`
 
@@ -1479,7 +1472,7 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
 
 ---
 
-### 7.3 אילוצים רכים (חלק מ-`system_constraints`)
+## 7.3 אילוצים רכים (חלק מ-`system_constraints`)
 
 #### מושג אילוצים רכים
 
@@ -1844,7 +1837,7 @@ for emp_idx, emp_total in enumerate(assignments_per_employee):
 
 ---
 
-### 7.4 פונקציית מטרה
+## 7.4 פונקציית מטרה
 
 #### 📊 פירוק למרכיבים
 
@@ -1885,11 +1878,11 @@ maximize:
 
 ---
 
-## 📊 סיכום
+# 📊 סיכום
 
 מערכת **Smart Scheduling** מציגה פתרון מלא לאופטימיזציה של משמרות עובדים באמצעות **Mixed Integer Programming (MIP)**. המערכת משלבת:
 
-### 🎯 יכולות מרכזיות
+## 🎯 יכולות מרכזיות
 
 - **📐 מודל MIP מדויק** עם משתנים `x(i,j,r)` ותמיכה בתפקידים מרובים
 - **🔒 אילוצים קשים ורכים** עם penalties ו-fairness
@@ -1897,7 +1890,7 @@ maximize:
 - **⚡ Background processing** עם Celery, Redis ו-Flower
 - **✅ Validation מלא** לפני החזרת הפתרון
 
-### 🚀 טכנולוגיות
+## 🚀 טכנולוגיות
 
 | שכבה                 | טכנולוגיות                      |
 | -------------------- | ------------------------------- |
@@ -1907,7 +1900,7 @@ maximize:
 | **Background Tasks** | Celery, Redis, Flower           |
 | **Deployment**       | Docker, Docker Compose          |
 
-### 📈 תוצאות
+## 📈 תוצאות
 
 - ⚡ **מהירות**: מ-4-6 שעות עבודה ידנית → דקות ספורות
 - ⚖️ **הוגנות**: חלוקה מאוזנת של משמרות (מינימום סטייה מהממוצע)
