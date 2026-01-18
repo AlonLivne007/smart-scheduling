@@ -667,12 +667,29 @@ def build(self, weekly_schedule_id: int) -> OptimizationData:
     return data
 ```
 
-#### 2. **`_build_matrices()` - בניית מטריצות**
+#### 2. **`build_role_requirements()` ו-`build_employee_roles()` - מיפוי תפקידים**
+
+- **תפקיד**: בונה מיפוי בין משמרות לתפקידים נדרשים ובין עובדים לתפקידים שלהם
+- **תוצר**:
+- **`role_requirements`**: `{shift_id: [role_id, ...]}` - אילו תפקידים נדרשים לכל משמרת
+- **`employee_roles`**: `{user_id: [role_id, ...]}` - אילו תפקידים יש לכל עובד
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L388-L422)
+
+#### 3. **`build_existing_assignments()` - הקצאות קיימות**
+
+- **תפקיד**: אוסף הקצאות קיימות מהמסד נתונים
+- **תוצר**: **`existing_assignments`**: `{(employee_id, shift_id, role_id)}` - הקצאות שנשמרו
+- **שימוש**: משמש לבניית מטריצת הזמינות (הקצאות קיימות לא זמינות להקצאה מחדש)
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L423-L461)
+
+#### 4. **`_build_matrices()` - בניית מטריצות**
 
 - **תפקיד**: בונה את מטריצת הזמינות ומטריצת העדפות
 - **תוצר**:
-  - **`availability_matrix`**: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
-  - **`preference_scores`**: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
+- **`availability_matrix`**: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
+- **`preference_scores`**: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
 
 **מטריצת הזמינות** (`availability_matrix[i, j]`) קובעת אם עובד `i` זמין למשמרת `j`:
 
@@ -682,16 +699,9 @@ def build(self, weekly_schedule_id: int) -> OptimizationData:
 - **חפיפה עם משמרת אחרת** → `availability[i, j] = 0` (אם העובד כבר משובץ למשמרת חופפת)
 - **אין תפקיד מתאים** → `availability[i, j] = 0` (אם לעובד אין אף תפקיד שמתאים לדרישות המשמרת)
 
-[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L525-L605)
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L162-L194)
 
-#### 3. **`build_role_requirements()` ו-`build_employee_roles()` - מיפוי תפקידים**
-
-- **תפקיד**: בונה מיפוי בין משמרות לתפקידים נדרשים ובין עובדים לתפקידים שלהם
-- **תוצר**:
-  - **`role_requirements`**: `{shift_id: [role_id, ...]}` - אילו תפקידים נדרשים לכל משמרת
-  - **`employee_roles`**: `{user_id: [role_id, ...]}` - אילו תפקידים יש לכל עובד
-
-#### 4. **`_build_constraints_and_conflicts()` - זיהוי קונפליקטים**
+#### 5. **`_build_constraints_and_conflicts()` - זיהוי קונפליקטים**
 
 - **תפקיד**: מזהה קונפליקטים ואילוצים בין משמרות ועובדים
 - **תוצר**:
@@ -701,10 +711,7 @@ def build(self, weekly_schedule_id: int) -> OptimizationData:
   - **`system_constraints`**: `{SystemConstraintType: (value, is_hard)}` - אילוצי מערכת
   - **`shift_durations`**: `{shift_id: duration_hours}` - משך משמרות
 
-#### 5. **`build_existing_assignments()` - הקצאות קיימות**
-
-- **תפקיד**: אוסף הקצאות קיימות מהמסד נתונים
-- **תוצר**: **`existing_assignments`**: `{(employee_id, shift_id, role_id)}` - הקצאות שנשמרו
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L215-L258)
 
 ---
 
