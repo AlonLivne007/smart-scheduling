@@ -93,56 +93,47 @@
 
 ```mermaid
 graph TB
-    subgraph Frontend["🖥️ Frontend Layer"]
-        React["React 19 App<br/>Port: 5173"]
-        Router["React Router"]
-        State["State Management"]
+    subgraph CLIENT["CLIENT LAYER"]
+        Frontend["Frontend<br/>React 19 + Vite<br/>Port: 5173<br/>- UI Components<br/>- API Client (Axios)<br/>- State Management"]
     end
-    
-    subgraph API["🔌 API Layer"]
-        FastAPI["FastAPI Server<br/>Port: 8000"]
-        Auth["JWT Authentication"]
-        Validation["Pydantic Validation"]
+
+    subgraph APP["APPLICATION LAYER"]
+        Backend["Backend API<br/>FastAPI<br/>Port: 8000"]
+        Controllers["Controllers<br/>(REST API)"]
+        Services["Services<br/>(Business Logic)"]
+        Models["Models<br/>(SQLAlchemy)"]
+
+        Controllers --> Services
+        Services --> Models
+        Backend --> Controllers
     end
-    
-    subgraph Services["⚙️ Service Layer"]
-        SchedulingService["SchedulingService"]
-        DataBuilder["OptimizationDataBuilder"]
-        ConstraintService["ConstraintService"]
+
+    subgraph DATA["DATA & PROCESSING LAYER"]
+        PostgreSQL["PostgreSQL 14<br/>Port: 5432<br/>- User Data<br/>- Schedules<br/>- Constraints"]
+        Redis["Redis 7<br/>Port: 6379<br/>- Task Queue<br/>- Results Cache"]
+        CeleryWorker["Celery Worker<br/>(Background)<br/>- Optimization<br/>- Async Tasks"]
+
+        subgraph OPT["Optimization Engine"]
+            DataBuilder["Data Builder<br/>(Extract & Prep)"]
+            MIPSolver["MIP Solver<br/>(Python-MIP)<br/>+ CBC Solver"]
+            Validator["Validator<br/>(Constraints)"]
+
+            DataBuilder --> MIPSolver
+            MIPSolver --> Validator
+        end
     end
-    
-    subgraph Async["🔄 Async Processing"]
-        Celery["Celery Workers"]
-        Redis["Redis Broker<br/>Port: 6379"]
-        Flower["Flower UI<br/>Port: 5555"]
+
+    subgraph MONITOR["MONITORING LAYER"]
+        Flower["Flower<br/>Celery Monitoring<br/>Port: 5555<br/>- Task Status Dashboard<br/>- Performance Metrics<br/>- Error Tracking"]
     end
-    
-    subgraph Optimization["🎯 Optimization"]
-        MipSolver["MipSchedulingSolver"]
-        CBC["CBC Solver Engine"]
-    end
-    
-    subgraph Data["💾 Data Layer"]
-        DB["PostgreSQL<br/>Port: 5432"]
-        Models["SQLAlchemy Models"]
-    end
-    
-    React -->|HTTP/REST| FastAPI
-    Router -.-> React
-    State -.-> React
-    FastAPI --> Auth
-    FastAPI --> Validation
-    FastAPI --> SchedulingService
-    SchedulingService --> DataBuilder
-    SchedulingService --> MipSolver
-    DataBuilder --> DB
-    MipSolver --> CBC
-    SchedulingService --> ConstraintService
-    SchedulingService -->|dispatch| Celery
-    Celery -->|fetch| Redis
-    Redis -->|results| DB
-    Celery -.->|monitor| Flower
-    DB --> Models
+
+    Frontend -->|HTTP/REST API| Backend
+    Backend --> PostgreSQL
+    Backend --> Redis
+    Backend --> CeleryWorker
+    CeleryWorker --> OPT
+    OPT --> PostgreSQL
+    CeleryWorker --> Flower
 ```
 
 ### 🗄️ Infrastructure Components
@@ -161,23 +152,28 @@ graph TB
 
 ```mermaid
 graph TD
-    Frontend["Frontend<br/>React 19 + Vite<br/>Port 5173"] -->|HTTP/REST| Backend
-    Backend["Backend API<br/>FastAPI Port 8000<br/>Controllers → Services → Models"] --> DB
-    Backend --> Celery
-    Backend --> OptData
-    Backend --> Constraint
-    
-    DB[("Database<br/>PostgreSQL<br/>Port 5432")]
-    Celery["Celery Worker<br/>Redis Queue<br/>Port 6379"]
-    OptData["Optimization<br/>DataBuilder<br/>Data Preparation"]
-    Constraint["Constraint<br/>Service<br/>Validation"]
-    
-    OptData --> MipSolver
-    Celery --> MipSolver
-    
-    MipSolver["MIP Solver<br/>Python-MIP<br/>+ CBC Engine"]
-    MipSolver --> Solution["Scheduling<br/>Solution<br/>Assignments"]
-    Solution --> DB
+    Frontend["Frontend<br/>React 19 + Vite + TailwindCSS<br/>Port: 5173<br/>API calls via Axios"]
+
+    Backend["Backend API<br/>FastAPI<br/>Port: 8000<br/>Controllers → Services → Models"]
+
+    DB["PostgreSQL<br/>Port: 5432"]
+    CeleryWorker["Celery Worker<br/>(Redis)"]
+    DataBuilder["Optimization<br/>DataBuilder"]
+    ConstraintService["Constraint<br/>Service"]
+
+    MIPSolver["MipSolver<br/>(Python-MIP)<br/>+ CBC"]
+
+    Solution["Scheduling<br/>Solution<br/>(Assignments)"]
+
+    Frontend -->|HTTP/REST| Backend
+    Backend --> DB
+    Backend --> CeleryWorker
+    Backend --> DataBuilder
+    Backend --> ConstraintService
+
+    DataBuilder --> MIPSolver
+    MIPSolver --> Solution
+    Solution --> ConstraintService
 ```
 
 ### 📦 מודולים מרכזיים
@@ -209,44 +205,157 @@ graph TD
 ### 🔄 זרימת נתונים (End-to-End)
 
 ```mermaid
-graph TD
-    A["User Request<br/>Frontend"] --> B["API Controller<br/>schedulingRunController.py"]
-    B --> C["SchedulingService<br/>optimize_schedule"]
-    C --> D["OptimizationDataBuilder<br/>build → OptimizationData"]
-    D --> E["MipSchedulingSolver<br/>solve → SchedulingSolution"]
-    E --> F["ConstraintService<br/>validate_weekly_schedule"]
-    F --> G["Response to Frontend<br/>Schedule solution ready"]
+sequenceDiagram
+    participant User as User Request<br/>(Frontend)
+    participant Controller as API Controller<br/>(schedulingRunController.py)
+    participant Service as SchedulingService<br/>optimize_schedule()
+    participant Builder as OptimizationDataBuilder<br/>build()
+    participant Solver as MipSchedulingSolver<br/>solve()
+    participant Validator as ConstraintService<br/>validate_weekly_schedule()
+
+    User->>Controller: HTTP Request
+    Controller->>Service: optimize_schedule()
+    Service->>Builder: build()
+    Builder-->>Service: OptimizationData
+    Service->>Solver: solve()
+    Solver-->>Service: SchedulingSolution
+    Service->>Validator: validate_weekly_schedule()
+    Validator-->>Service: Validation Result
+    Service-->>Controller: Schedule solution ready
+    Controller-->>User: HTTP Response
 ```
 
 ### 📊 דיאגרמת יישויות (Entity Relationship Diagram)
 
+#### ישויות מורכבות - אופטימיזציה
+
 ```mermaid
 erDiagram
-    USER ||--o{ EMPLOYEE_PREFERENCES : has
-    USER ||--o{ TIME_OFF_REQUEST : creates
-    USER ||--o{ SHIFT_ASSIGNMENT : assigned_in
-    USER ||--o{ SCHEDULING_SOLUTION : assigned_in
-    USER ||--o{ USER_ROLE : "has"
-    
-    ROLE ||--o{ USER_ROLE : "assigned_to"
-    ROLE ||--o{ SHIFT_ROLE_REQUIREMENTS : "required_for"
-    ROLE ||--o{ SHIFT_ASSIGNMENT : "in_role"
-    ROLE ||--o{ SCHEDULING_SOLUTION : "in_role"
-    
-    WEEKLY_SCHEDULE ||--o{ PLANNED_SHIFT : contains
-    PLANNED_SHIFT ||--o{ SHIFT_ASSIGNMENT : assigned_in
-    PLANNED_SHIFT ||--o{ SCHEDULING_SOLUTION : assigned_in
-    PLANNED_SHIFT ||--o{ SHIFT_ROLE_REQUIREMENTS : requires
-    
-    SHIFT_TEMPLATE ||--o{ PLANNED_SHIFT : generates
-    SHIFT_TEMPLATE ||--o{ SHIFT_ROLE_REQUIREMENTS : specifies
-    
-    SCHEDULING_RUN ||--o{ SCHEDULING_SOLUTION : produces
-    OPTIMIZATION_CONFIG ||--o{ SCHEDULING_RUN : uses
-    SYSTEM_CONSTRAINTS ||--o{ SCHEDULING_RUN : applies
-    
-    ACTIVITY_LOG ||--o{ SCHEDULING_RUN : logs_action
-    ACTIVITY_LOG ||--o{ SYSTEM_CONSTRAINTS : tracks
+    WeeklySchedule ||--o{ PlannedShift : "1:N"
+    WeeklySchedule ||--o{ SchedulingRun : "1:N"
+    ShiftTemplate ||--o{ PlannedShift : "N:1"
+    ShiftTemplate ||--o{ EmployeePreferences : "N:1"
+    Role ||--o{ PlannedShift : "N:M"
+    Role ||--o{ SchedulingSolution : "N:1"
+    Role ||--o{ ShiftAssignment : "N:1"
+    User ||--o{ TimeOffRequest : "1:N"
+    User ||--o{ EmployeePreferences : "1:N"
+    User ||--o{ SchedulingSolution : "1:N"
+    User ||--o{ ShiftAssignment : "1:N"
+    OptimizationConfig ||--o{ SchedulingRun : "1:N"
+    SchedulingRun ||--o{ SchedulingSolution : "1:N"
+    PlannedShift ||--o{ SchedulingSolution : "1:N"
+    PlannedShift ||--o{ ShiftAssignment : "1:N"
+
+    WeeklySchedule {
+        int weekly_schedule_id PK
+        date start_date
+        date end_date
+        string status "DRAFT/PUBLISHED"
+    }
+
+    PlannedShift {
+        int planned_shift_id PK
+        int weekly_schedule_id FK
+        int shift_template_id FK
+        date date
+        time start_time
+        time end_time
+        string location
+        string status
+    }
+
+    ShiftTemplate {
+        int shift_template_id PK
+        string template_name
+        time default_start
+        time default_end
+    }
+
+    Role {
+        int role_id PK
+        string role_name "Waiter, Chef, etc."
+    }
+
+    SchedulingRun {
+        int run_id PK
+        int weekly_schedule_id FK
+        int config_id FK
+        string status "PENDING/RUNNING/COMPLETED/FAILED"
+        string solver_status "OPTIMAL/FEASIBLE/INFEASIBLE"
+        datetime started_at
+        datetime completed_at
+        float runtime_seconds
+        float objective_value
+        float mip_gap
+        int total_assignments
+        text error_message
+    }
+
+    SchedulingSolution {
+        int solution_id PK
+        int run_id FK
+        int planned_shift_id FK
+        int user_id FK
+        int role_id FK
+        boolean is_selected
+        float assignment_score
+        datetime created_at
+    }
+
+    OptimizationConfig {
+        int config_id PK
+        string config_name "unique"
+        float weight_fairness "0.0-1.0"
+        float weight_preferences "0.0-1.0"
+        float weight_coverage "0.0-1.0"
+        int max_runtime_seconds
+        float mip_gap "0.01 = 1%"
+        boolean is_default
+    }
+
+    SystemConstraints {
+        int constraint_id PK
+        string constraint_type "MAX_HOURS_PER_WEEK, MIN_REST_HOURS, etc."
+        float constraint_value
+        boolean is_hard_constraint
+        string description
+    }
+
+    TimeOffRequest {
+        int request_id PK
+        int user_id FK
+        date start_date
+        date end_date
+        string status "PENDING/APPROVED/REJECTED"
+        string reason
+    }
+
+    EmployeePreferences {
+        int preference_id PK
+        int user_id FK
+        int preferred_shift_template_id FK
+        string preferred_day_of_week "MONDAY-SUNDAY"
+        time preferred_start_time
+        time preferred_end_time
+        float preference_weight "0.0-1.0"
+    }
+
+    ShiftAssignment {
+        int assignment_id PK
+        int planned_shift_id FK
+        int user_id FK
+        int role_id FK
+        datetime assigned_at
+        string status
+    }
+
+    User {
+        int user_id PK
+        string user_full_name
+        string user_email
+        boolean is_manager
+    }
 ```
 
 **הסבר על ישויות מורכבות:**
@@ -297,41 +406,31 @@ erDiagram
 ### 🏗️ ארכיטקטורה
 
 ```mermaid
-graph LR
-    FE["Frontend<br/>HTTP Request"]
-    API["FastAPI<br/>Backend<br/>Port 8000"]
-    
-    subgraph QueueSystem["Queue & Broker System"]
-        Redis["Redis<br/>Port 6379<br/>Task Queue"]
-    end
-    
-    subgraph Workers["Background Processing"]
-        W1["Celery Worker 1"]
-        W2["Celery Worker 2"]
-        W3["Celery Worker N"]
-    end
-    
-    Monitor["Flower<br/>Monitoring<br/>Port 5555"]
-    DB["PostgreSQL<br/>Store Results"]
-    
-    FE -->|HTTP Request| API
-    API -->|1. Create Run PENDING| DB
-    API -->|2. Dispatch Task| Redis
-    API -->|3. Return task_id| FE
-    
-    Redis -->|Distribute| W1
-    Redis -->|Distribute| W2
-    Redis -->|Distribute| W3
-    
-    W1 -->|Update Status RUNNING| DB
-    W1 -->|Store Results| DB
-    
-    W1 -.->|Monitor| Monitor
-    W2 -.->|Monitor| Monitor
-    W3 -.->|Monitor| Monitor
-    
-    FE -->|Poll Status| API
+graph TB
+    Frontend["Frontend"]
+    Backend["FastAPI Backend<br/>Port: 8000"]
+    Redis["Redis<br/>Port: 6379<br/>Message Broker<br/>Task Queue"]
+    CeleryWorker["Celery Worker<br/>(Background)<br/>Runs optimization"]
+    PostgreSQL["PostgreSQL<br/>Store Results"]
+    Flower["Flower<br/>Port: 5555<br/>Monitoring Dashboard<br/>Real-time Task Status"]
+
+    Frontend -->|HTTP Request| Backend
+    Backend -->|Dispatch Task| Redis
+    Redis -->|Task Distribution| CeleryWorker
+    CeleryWorker -->|Update Status| PostgreSQL
+    CeleryWorker -->|Monitoring| Flower
 ```
+
+**הסבר על זרימת העבודה:**
+
+1. **Frontend → Backend**: המשתמש שולח בקשה HTTP
+2. **Backend → Redis**:
+   - יוצר `SchedulingRun` עם סטטוס `PENDING`
+   - שולח משימת Celery ל-Redis
+   - מחזיר `task_id` מיד למשתמש (לא מחכה לסיום)
+3. **Redis → Celery Worker**: Celery Worker קורא את המשימה מהתור
+4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות
+5. **Celery Worker → Flower**: Flower מציג את הסטטוס בזמן אמת
 
 ### 🔧 רכיבים
 
@@ -468,14 +567,6 @@ availability[i, j] = 1  אם:
 availability[i, j] = 0  אחרת
 ```
 
-> **💡 טיפול ב-Time Off מאושר:**
->
-> - המערכת בונה `time_off_map`: `{user_id: [(start_date, end_date), ...]}` - מפה של כל חופשות מאושרות
-> - ב-`build_availability_matrix()`, עבור כל עובד עם time off מאושר:
->   - אם תאריך המשמרת נופל בתוך תקופת ה-time off (`start_date <= shift_date <= end_date`)
->   - המערכת מסמנת `availability_matrix[i, j] = 0` (לא זמין)
-> - **תוצאה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
-
 #### 3. **⚠️ זיהוי קונפליקטים** (`_build_constraints_and_conflicts()`)
 
 - **`shift_overlaps`**: משמרות חופפות (לא ניתן להקצות אותו עובד)
@@ -498,6 +589,74 @@ availability[i, j] = 0  אחרת
 ---
 
 ## 6️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+
+### 6.1 משתני החלטה
+
+#### 📐 הגדרה מתמטית
+
+```
+x(i,j,r) ∈ {0,1}  - משתנה בינארי
+
+כאשר:
+  i = אינדקס עובד (0..n_employees-1)
+  j = אינדקס משמרת (0..n_shifts-1)
+  r = role_id (תפקיד: Waiter, Bartender, Chef, וכו')
+
+x(i,j,r) = 1  אם עובד i מוקצה למשמרת j בתפקיד r
+x(i,j,r) = 0  אחרת
+```
+
+#### 💡 אינטואיציה
+
+כל משתנה מייצג החלטה: **"האם להקצות עובד X למשמרת Y בתפקיד Z?"**
+
+**משתנים נוצרים רק עבור צירופים תקפים:**
+
+- ✅ עובד זמין למשמרת (`availability_matrix[i,j] == 1`)
+  - **כולל בדיקה של time off מאושר**: אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i,j] = 0` → לא נוצר משתנה
+- ✅ עובד בעל התפקיד הנדרש (`role_id in employee_roles[user_id]`)
+- ✅ משמרת דורשת את התפקיד (`role_id in shift['required_roles']`)
+
+#### 💻 קוד - יצירת משתנים
+
+```python
+def _build_decision_variables(model, data, n_employees, n_shifts):
+    x = {}  # {(emp_idx, shift_idx, role_id): var}
+    vars_by_emp_shift = {}  # {(emp_idx, shift_idx): [var1, var2, ...]} - for performance
+    vars_by_employee = {}  # {emp_idx: [var1, var2, ...]} - for O(1) access
+
+    for emp_idx, emp in enumerate(data.employees):
+        for shift_idx, shift in enumerate(data.shifts):
+            if data.availability_matrix[emp_idx, shift_idx] != 1:
+                continue  # Skip if employee not available
+
+            required_roles = shift.get('required_roles') or []
+            if not required_roles:
+                continue
+
+            emp_role_ids = set(emp.get('roles') or [])
+
+            # Create variable for each role that employee has AND shift requires
+            for role_req in required_roles:
+                role_id = role_req['role_id']
+                if role_id in emp_role_ids:
+                    var = model.add_var(var_type=mip.BINARY, name=f'x_{emp_idx}_{shift_idx}_{role_id}')
+                    x[emp_idx, shift_idx, role_id] = var
+
+                    # Build indexes for performance
+                    if (emp_idx, shift_idx) not in vars_by_emp_shift:
+                        vars_by_emp_shift[(emp_idx, shift_idx)] = []
+                    vars_by_emp_shift[(emp_idx, shift_idx)].append(var)
+
+                    # Build employee index for O(1) access
+                    if emp_idx not in vars_by_employee:
+                        vars_by_employee[emp_idx] = []
+                    vars_by_employee[emp_idx].append(var)
+
+    return x, vars_by_emp_shift, vars_by_employee
+```
+
+---
 
 ### 📥 דוגמה לקלט ופלט של הפותר
 
@@ -621,218 +780,21 @@ availability[i, j] = 0  אחרת
 }
 ```
 
-### 🔧 הגדרות הפונקציות המרכזיות ב-MIP
+### 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
 
-#### 1. `MipSchedulingSolver.solve()`
+הפותר `MipSchedulingSolver` מבצע את השלבים הבאים:
 
-**תפקיד**: פונקציה ראשית - בונה ופותר את מודל MIP
+1. **יצירת מודל MIP** (`mip.Model`) עם CBC Solver
+2. **בניית משתני החלטה** `x(i,j,r)` - לכל צירוף תקף של (עובד, משמרת, תפקיד)
+3. **הוספת אילוצים קשים** - Coverage, Single Role, No Overlap, System Constraints
+4. **הוספת אילוצים רכים** - עם משתני slack ו-penalties
+5. **בניית פונקציית מטרה** - משלבת העדפות, הוגנות, כיסוי ועונשים
+6. **פתרון המודל** - CBC Solver מחפש פתרון אופטימלי
+7. **חילוץ תוצאות** - המרת משתנים לקצאות בפועל
 
-**קלט**:
-
-- `data: OptimizationData` - כל הנתונים הנדרשים
-- `config: OptimizationConfigModel` - הגדרות אופטימיזציה
-
-**תהליך**:
-
-1. יצירת מודל MIP (`mip.Model`)
-2. הגדרת פרמטרים (max_runtime, mip_gap)
-3. בניית משתני החלטה
-4. הוספת אילוצים
-5. בניית פונקציית מטרה
-6. פתרון המודל
-7. חילוץ תוצאות
-
-**פלט**: `SchedulingSolution` עם הקצאות ומטריקות
+פרטים על כל שלב מופיעים בסעיפים הבאים.
 
 ---
-
-#### 2. `_build_decision_variables()`
-
-**תפקיד**: יוצר משתני החלטה `x(i,j,r)` עבור כל צירוף תקף
-
-**תנאים ליצירת משתנה**:
-
-- `availability_matrix[i, j] == 1` (עובד זמין)
-- `role_id in employee_roles[user_id]` (עובד בעל התפקיד)
-- `role_id in shift['required_roles']` (משמרת דורשת את התפקיד)
-
-**פלט**:
-
-- `x`: `{(emp_idx, shift_idx, role_id): var}` - מיפוי משתנים
-- `vars_by_emp_shift`: אינדקס לפי (עובד, משמרת)
-- `vars_by_employee`: אינדקס לפי עובד
-
----
-
-#### 3. `_add_coverage_constraints()`
-
-**תפקיד**: מבטיח כיסוי מלא של כל תפקיד בכל משמרת
-
-**אילוץ**: `Σ_i x(i,j,r) == required_count[j,r]`
-
-**דוגמה**:
-
-- משמרת 101 דורשת 2 Waiters → `x(0,0,1) + x(2,0,1) == 2`
-- משמרת 101 דורשת 1 Chef → `x(1,0,3) == 1`
-
----
-
-#### 4. `_add_single_role_constraints()`
-
-**תפקיד**: מבטיח שעובד לא מוקצה ליותר מתפקיד אחד באותה משמרת
-
-**אילוץ**: `Σ_r x(i,j,r) <= 1`
-
-**דוגמה**:
-
-- John (idx=0) יכול להיות Waiter או Bartender במשמרת 102, אבל לא שניהם:
-  - `x(0,1,1) + x(0,1,2) <= 1`
-
----
-
-#### 5. `_add_overlap_constraints()`
-
-**תפקיד**: מונע הקצאה למשמרות חופפות
-
-**אילוץ**: `Σ_r x(i,j1,r) + Σ_r x(i,j2,r) <= 1` לכל (j1, j2) חופפים
-
-**דוגמה**:
-
-- משמרת 101: 09:00-17:00
-- משמרת 102: 17:00-22:00
-- אם יש חפיפה → `x(i,0,r) + x(i,1,r) <= 1`
-
----
-
-#### 6. `_add_hard_constraints()`
-
-**תפקיד**: מוסיף אילוצים קשים מ-`system_constraints`
-
-**סוגי אילוצים**:
-
-- MAX_HOURS_PER_WEEK: `Σ_j Σ_r x(i,j,r) * duration(j) <= max_hours`
-- MAX_SHIFTS_PER_WEEK: `Σ_j Σ_r x(i,j,r) <= max_shifts`
-- MIN_REST_HOURS: `x(i,j1,r) + x(i,j2,r) <= 1` למשמרות עם מנוחה לא מספקת
-- MAX_CONSECUTIVE_DAYS: משתמש במשתנים `works_on_day[i, date]`
-- MIN_HOURS_PER_WEEK: `Σ_j Σ_r x(i,j,r) * duration(j) >= min_hours`
-- MIN_SHIFTS_PER_WEEK: `Σ_j Σ_r x(i,j,r) >= min_shifts`
-
----
-
-#### 7. `_add_soft_penalties()`
-
-**תפקיד**: מוסיף משתני slack ו-penalties לאילוצים רכים
-
-**משתנים נוצרים**:
-
-- `deficit_i`: חוסר שעות/משמרות (MIN constraints)
-- `excess_i`: עודף שעות/משמרות (MAX constraints)
-- `violation`: הפרת מנוחה מינימלית
-
-**אילוצים**:
-
-- `deficit >= min_value - actual_value`
-- `excess >= actual_value - max_value`
-
-**עונש**: `-100.0 * soft_penalty_component` בפונקציית המטרה
-
----
-
-#### 8. `_add_fairness_terms()`
-
-**תפקיד**: מוסיף משתנים למדידת הוגנות
-
-**משתנים נוצרים**:
-
-- `deviation_pos_i`: סטייה חיובית מהממוצע
-- `deviation_neg_i`: סטייה שלילית מהממוצע
-
-**אילוץ**: `emp_total - avg == deviation_pos - deviation_neg`
-
-**מטרה**: למזער `Σ_i (deviation_pos_i + deviation_neg_i)`
-
----
-
-#### 9. `_build_objective()`
-
-**תפקיד**: בונה פונקציית מטרה משולבת
-
-**מרכיבים**:
-
-1. **Preference Component**: `Σ_(i,j,r) preference_scores[i,j] * x(i,j,r)`
-2. **Fairness Component**: `-weight_fairness * Σ_i (deviation_pos_i + deviation_neg_i)`
-3. **Coverage Component**: `weight_coverage * Σ_(i,j,r) x(i,j,r)`
-4. **Soft Penalty Component**: `-100.0 * soft_penalty_component`
-
-**נוסחה**: `maximize: weight_preferences * preference + weight_coverage * coverage - weight_fairness * fairness - 100.0 * soft_penalty`
-
----
-
-### 6.1 משתני החלטה
-
-#### 📐 הגדרה מתמטית
-
-```
-x(i,j,r) ∈ {0,1}  - משתנה בינארי
-
-כאשר:
-  i = אינדקס עובד (0..n_employees-1)
-  j = אינדקס משמרת (0..n_shifts-1)
-  r = role_id (תפקיד: Waiter, Bartender, Chef, וכו')
-
-x(i,j,r) = 1  אם עובד i מוקצה למשמרת j בתפקיד r
-x(i,j,r) = 0  אחרת
-```
-
-#### 💡 אינטואיציה
-
-כל משתנה מייצג החלטה: **"האם להקצות עובד X למשמרת Y בתפקיד Z?"**
-
-**משתנים נוצרים רק עבור צירופים תקפים:**
-
-- ✅ עובד זמין למשמרת (`availability_matrix[i,j] == 1`)
-  - **כולל בדיקה של time off מאושר**: אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i,j] = 0` → לא נוצר משתנה
-- ✅ עובד בעל התפקיד הנדרש (`role_id in employee_roles[user_id]`)
-- ✅ משמרת דורשת את התפקיד (`role_id in shift['required_roles']`)
-
-#### 💻 קוד - יצירת משתנים
-
-```python
-def _build_decision_variables(model, data, n_employees, n_shifts):
-    x = {}  # {(emp_idx, shift_idx, role_id): var}
-    vars_by_emp_shift = {}  # {(emp_idx, shift_idx): [var1, var2, ...]} - for performance
-    vars_by_employee = {}  # {emp_idx: [var1, var2, ...]} - for O(1) access
-
-    for emp_idx, emp in enumerate(data.employees):
-        for shift_idx, shift in enumerate(data.shifts):
-            if data.availability_matrix[emp_idx, shift_idx] != 1:
-                continue  # Skip if employee not available
-
-            required_roles = shift.get('required_roles') or []
-            if not required_roles:
-                continue
-
-            emp_role_ids = set(emp.get('roles') or [])
-
-            # Create variable for each role that employee has AND shift requires
-            for role_req in required_roles:
-                role_id = role_req['role_id']
-                if role_id in emp_role_ids:
-                    var = model.add_var(var_type=mip.BINARY, name=f'x_{emp_idx}_{shift_idx}_{role_id}')
-                    x[emp_idx, shift_idx, role_id] = var
-
-                    # Build indexes for performance
-                    if (emp_idx, shift_idx) not in vars_by_emp_shift:
-                        vars_by_emp_shift[(emp_idx, shift_idx)] = []
-                    vars_by_emp_shift[(emp_idx, shift_idx)].append(var)
-
-                    # Build employee index for O(1) access
-                    if emp_idx not in vars_by_employee:
-                        vars_by_employee[emp_idx] = []
-                    vars_by_employee[emp_idx].append(var)
-
-    return x, vars_by_emp_shift, vars_by_employee
-```
 
 ---
 
@@ -842,13 +804,17 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 אלה אילוצים **תמיד קשים** שמובנים במערכת ולא ניתן לשנות אותם דרך ה-UI.
 
-##### ✅ Coverage Constraint (כיסוי תפקידים)
+---
 
-- **אינטואיציה**: כל משמרת חייבת לקבל בדיוק את מספר העובדים הנדרש לכל תפקיד
-- **נוסחה**:
-  ```
-  Σ_i x(i,j,r) = required_count[j,r]  לכל j, r
-  ```
+#### ✅ Coverage Constraint (כיסוי תפקידים)
+
+**אינטואיציה**: כל משמרת חייבת לקבל בדיוק את מספר העובדים הנדרש לכל תפקיד
+
+**נוסחה**:
+
+```
+Σ_i x(i,j,r) = required_count[j,r]  לכל j, r
+```
 
 **משתנים**:
 
@@ -894,17 +860,20 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
                                    f"but no eligible employees exist")
                 continue
 
-            model += mip.xsum(eligible_vars) == required_count, \
-                    f'coverage_shift_{shift_idx}_role_{role_id}'
+            model += mip.xsum(eligible_vars) == required_count
 ```
 
-##### 🔒 Single Role Per Shift (תפקיד אחד למשמרת)
+---
 
-- **אינטואיציה**: עובד לא יכול להיות מוקצה ליותר מתפקיד אחד באותה משמרת
-- **נוסחה**:
-  ```
-  Σ_r x(i,j,r) ≤ 1  לכל i, j
-  ```
+#### 🔒 Single Role Per Shift (תפקיד אחד למשמרת)
+
+**אינטואיציה**: עובד לא יכול להיות מוקצה ליותר מתפקיד אחד באותה משמרת
+
+**נוסחה**:
+
+```
+Σ_r x(i,j,r) ≤ 1  לכל i, j
+```
 
 **משתנים**:
 
@@ -931,17 +900,21 @@ def _add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shi
         for shift_idx in range(n_shifts):
             if (emp_idx, shift_idx) in vars_by_emp_shift:
                 role_vars = vars_by_emp_shift[(emp_idx, shift_idx)]
-                if len(role_vars) > 1:  # Only if employee has multiple roles for this shift
-                    model += mip.xsum(role_vars) <= 1, f'single_role_emp_{emp_idx}_shift_{shift_idx}'
+                if len(role_vars) > 1:
+                    model += mip.xsum(role_vars) <= 1
 ```
 
-##### ⚠️ No Overlapping Shifts (אין משמרות חופפות)
+---
 
-- **אינטואיציה**: עובד לא יכול להיות מוקצה למשמרות חופפות בזמן
-- **נוסחה**:
-  ```
-  Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1  לכל i, (j1,j2) חופפים
-  ```
+#### ⚠️ No Overlapping Shifts (אין משמרות חופפות)
+
+**אינטואיציה**: עובד לא יכול להיות מוקצה למשמרות חופפות בזמן
+
+**נוסחה**:
+
+```
+Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1  לכל i, (j1,j2) חופפים
+```
 
 **משתנים**:
 
@@ -980,17 +953,20 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
                 vars_overlap = vars_by_emp_shift.get((emp_idx, overlapping_idx), [])
 
                 if vars_shift and vars_overlap:
-                    model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1, \
-                            f'no_overlap_emp_{emp_idx}_shift_{shift_idx}_{overlapping_idx}'
+                    model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1
 ```
 
-##### 🏖️ Time Off מאושר (Approved Time Off)
+---
 
-- **אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
-- **איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות**
-  - אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
-  - ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
-  - **ללא משתנה = לא ניתן להקצות**: הפתרון לא יכול להקצות עובד למשמרת אם אין משתנה עבורו
+#### 🏖️ Time Off מאושר (Approved Time Off)
+
+**אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
+
+**איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 5 - מטריצת הזמינות](#5-בניית-מודל-האופטימיזציה))
+
+- אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
+- ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
+- **ללא משתנה = לא ניתן להקצות**: הפתרון לא יכול להקצות עובד למשמרת אם אין משתנה עבורו
 
 > **💡 למה זה יעיל יותר מאילוץ מפורש?**
 >
@@ -1002,10 +978,17 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
 
 אלה אילוצים שניתן להגדיר דרך ה-UI כ**קשים** (hard) או **רכים** (soft), בהתאם ל-`is_hard_constraint`. כאן מוצגים כאשר הם מוגדרים כקשים.
 
-##### Minimum Rest Hours (MIN_REST_HOURS)
+---
 
-- **אינטואיציה**: עובד חייב לקבל שעות מנוחה מינימליות בין משמרות
-- **נוסחה**: `Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1` לכל i, (j1,j2) עם מנוחה לא מספקת
+#### ⏰ Minimum Rest Hours (MIN_REST_HOURS)
+
+**אינטואיציה**: עובד חייב לקבל שעות מנוחה מינימליות בין משמרות
+
+**נוסחה**:
+
+```
+Σ_r x(i,j1,r) + Σ_r x(i,j2,r) ≤ 1  לכל i, (j1,j2) עם מנוחה לא מספקת
+```
 
 **משתנים**:
 
@@ -1042,14 +1025,20 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
                 vars_conflict = vars_by_emp_shift.get((emp_idx, conflicting_idx), [])
 
                 if vars_shift and vars_conflict:
-                    model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1, \
-                            f'min_rest_emp_{emp_idx}_shift_{shift_idx}_{conflicting_idx}'
+                    model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1
 ```
 
-##### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X משמרות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) ≤ max_shifts` לכל i
+#### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
+
+**אינטואיציה**: עובד לא יכול לעבוד יותר מ-X משמרות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) ≤ max_shifts  לכל i
+```
 
 **משתנים**:
 
@@ -1077,13 +1066,20 @@ if max_shifts_constraint and max_shifts_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
         if emp_vars:
-            model += mip.xsum(emp_vars) <= max_shifts, f'max_shifts_emp_{emp_idx}'
+            model += mip.xsum(emp_vars) <= max_shifts
 ```
 
-##### Max Hours Per Week (MAX_HOURS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X שעות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≤ max_hours` לכל i
+#### ⏱️ Max Hours Per Week (MAX_HOURS_PER_WEEK)
+
+**אינטואיציה**: עובד לא יכול לעבוד יותר מ-X שעות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) * duration(j) ≤ max_hours  לכל i
+```
 
 **משתנים**:
 
@@ -1115,14 +1111,23 @@ if max_hours_constraint and max_hours_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
         if emp_hours_vars:
-            model += mip.xsum(emp_hours_vars) <= max_hours, f'max_hours_emp_{emp_idx}'
+            model += mip.xsum(emp_hours_vars) <= max_hours
 ```
 
-##### Max Consecutive Days (MAX_CONSECUTIVE_DAYS)
+---
 
-- **אינטואיציה**: עובד לא יכול לעבוד יותר מ-X ימים רצופים
-- **נוסחה**: עבור כל רצף של `max_consecutive+1` ימים רצופים, `Σ_d works_on_day[i,d] ≤ max_consecutive`
-- **מימוש**: משתמש במשתנים בינאריים `works_on_day[i, date]` שמסמנים אם עובד עובד ביום מסוים
+#### 📅 Max Consecutive Days (MAX_CONSECUTIVE_DAYS)
+
+**אינטואיציה**: עובד לא יכול לעבוד יותר מ-X ימים רצופים
+
+**נוסחה**:
+
+```
+עבור כל רצף של max_consecutive+1 ימים רצופים:
+Σ_d works_on_day[i,d] ≤ max_consecutive
+```
+
+**מימוש**: משתמש במשתנים בינאריים `works_on_day[i, date]` שמסמנים אם עובד עובד ביום מסוים
 
 **משתנים**:
 
@@ -1161,10 +1166,17 @@ if max_consecutive_constraint and max_consecutive_constraint[1]:  # is_hard
             model += mip.xsum(day_vars) <= max_consecutive
 ```
 
-##### Min Hours Per Week (MIN_HOURS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד חייב לעבוד לפחות X שעות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) * duration(j) ≥ min_hours` לכל i
+#### ⏱️ Min Hours Per Week (MIN_HOURS_PER_WEEK)
+
+**אינטואיציה**: עובד חייב לעבוד לפחות X שעות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) * duration(j) ≥ min_hours  לכל i
+```
 
 **משתנים**:
 
@@ -1195,13 +1207,20 @@ if min_hours_constraint and min_hours_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_hours_vars = self._get_employee_hours_vars(emp_idx, vars_by_emp_shift, data)
         if emp_hours_vars:
-            model += mip.xsum(emp_hours_vars) >= min_hours, f'min_hours_emp_{emp_idx}'
+            model += mip.xsum(emp_hours_vars) >= min_hours
 ```
 
-##### Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
+---
 
-- **אינטואיציה**: עובד חייב לעבוד לפחות X משמרות בשבוע
-- **נוסחה**: `Σ_j Σ_r x(i,j,r) ≥ min_shifts` לכל i
+#### 📊 Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
+
+**אינטואיציה**: עובד חייב לעבוד לפחות X משמרות בשבוע
+
+**נוסחה**:
+
+```
+Σ_j Σ_r x(i,j,r) ≥ min_shifts  לכל i
+```
 
 **משתנים**:
 
@@ -1229,7 +1248,7 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
     for emp_idx in range(n_employees):
         emp_vars = self._get_employee_vars(emp_idx, vars_by_employee)
         if emp_vars:
-            model += mip.xsum(emp_vars) >= min_shifts, f'min_shifts_emp_{emp_idx}'
+            model += mip.xsum(emp_vars) >= min_shifts
 ```
 
 ---
@@ -1242,10 +1261,17 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
 - **Slack Variables**: משתנים עזר שמייצגים את הסטייה מהאילוץ
 - **Penalty Weight**: משקל גבוה (100.0) כדי להרתיע הפרות, אך לא למנוע אותן
 
-#### Minimum Hours Per Week (MIN_HOURS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שכל עובד יעבוד לפחות X שעות, אך אם לא ניתן - יש עונש
-- **נוסחה**: `deficit_i = max(0, min_hours - Σ_j Σ_r x(i,j,r) * duration(j))`
+#### ⏱️ Minimum Hours Per Week (MIN_HOURS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שכל עובד יעבוד לפחות X שעות, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+deficit_i = max(0, min_hours - Σ_j Σ_r x(i,j,r) * duration(j))
+```
 
 **משתנים**:
 
@@ -1280,10 +1306,17 @@ if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
-#### Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שכל עובד יעבוד לפחות X משמרות, אך אם לא ניתן - יש עונש
-- **נוסחה**: `deficit_i = max(0, min_shifts - Σ_j Σ_r x(i,j,r))`
+#### 📊 Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שכל עובד יעבוד לפחות X משמרות, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+deficit_i = max(0, min_shifts - Σ_j Σ_r x(i,j,r))
+```
 
 **משתנים**:
 
@@ -1316,10 +1349,17 @@ if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
-#### Max Hours Per Week (MAX_HOURS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X שעות בשבוע, אך אם לא ניתן - יש עונש
-- **נוסחה**: `excess_i = max(0, Σ_j Σ_r x(i,j,r) * duration(j) - max_hours)`
+#### ⏱️ Max Hours Per Week (MAX_HOURS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X שעות בשבוע, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+excess_i = max(0, Σ_j Σ_r x(i,j,r) * duration(j) - max_hours)
+```
 
 **משתנים**:
 
@@ -1353,10 +1393,17 @@ if max_hours_constraint and not max_hours_constraint[1]:  # is_soft
             soft_penalty_component += excess
 ```
 
-#### Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X משמרות בשבוע, אך אם לא ניתן - יש עונש
-- **נוסחה**: `excess_i = max(0, Σ_j Σ_r x(i,j,r) - max_shifts)`
+#### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
+
+**אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X משמרות בשבוע, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+excess_i = max(0, Σ_j Σ_r x(i,j,r) - max_shifts)
+```
 
 **משתנים**:
 
@@ -1389,10 +1436,17 @@ if max_shifts_constraint and not max_shifts_constraint[1]:  # is_soft
             soft_penalty_component += excess
 ```
 
-#### Min Rest Hours (MIN_REST_HOURS - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד יקבל שעות מנוחה מינימליות בין משמרות, אך אם לא ניתן - יש עונש
-- **נוסחה**: `violation = max(0, Σ_r x(i,j1,r) + Σ_r x(i,j2,r) - 1)` לכל i, (j1,j2) עם מנוחה לא מספקת
+#### ⏰ Min Rest Hours (MIN_REST_HOURS - Soft)
+
+**אינטואיציה**: רצוי שעובד יקבל שעות מנוחה מינימליות בין משמרות, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+violation = max(0, Σ_r x(i,j1,r) + Σ_r x(i,j2,r) - 1)  לכל i, (j1,j2) עם מנוחה לא מספקת
+```
 
 **משתנים**:
 
@@ -1434,10 +1488,18 @@ if min_rest_constraint and not min_rest_constraint[1]:  # is_soft
                     soft_penalty_component += violation
 ```
 
-#### Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
+---
 
-- **אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X ימים רצופים, אך אם לא ניתן - יש עונש
-- **נוסחה**: `excess_days = max(0, Σ_d works_on_day[i,d] - max_consecutive)` עבור כל רצף של `max_consecutive+1` ימים רצופים
+#### 📅 Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
+
+**אינטואיציה**: רצוי שעובד לא יעבוד יותר מ-X ימים רצופים, אך אם לא ניתן - יש עונש
+
+**נוסחה**:
+
+```
+excess_days = max(0, Σ_d works_on_day[i,d] - max_consecutive)
+עבור כל רצף של max_consecutive+1 ימים רצופים
+```
 
 **משתנים**:
 
@@ -1476,19 +1538,29 @@ if max_consecutive_constraint and not max_consecutive_constraint[1]:  # is_soft
                 soft_penalty_component += excess_days
 ```
 
-#### Fairness Deviations (סטיות מהוגנות)
+---
 
-- **אינטואיציה**: רצוי שכל עובד יעבוד מספר דומה של משמרות (הוגנות)
-- **מטרה**: למזער את הסטייה המוחלטת של כל עובד מהממוצע
-- **למה שני משתנים?** (deviation_pos ו-deviation_neg):
-  - אם עובד עובד **יותר** מהממוצע: `emp_total > avg` → `deviation_pos = emp_total - avg`, `deviation_neg = 0`
-  - אם עובד עובד **פחות** מהממוצע: `emp_total < avg` → `deviation_pos = 0`, `deviation_neg = avg - emp_total`
-  - אם עובד עובד **בדיוק** הממוצע: `emp_total = avg` → `deviation_pos = 0`, `deviation_neg = 0`
-- **האילוץ**: `emp_total - avg = deviation_pos - deviation_neg`
-  - מבטיח ש-`deviation_pos - deviation_neg` שווה בדיוק לסטייה מהממוצע (חיובית או שלילית)
-- **מינימיזציה**: בפונקציית המטרה, אנו ממזערים את `Σ_i (deviation_pos_i + deviation_neg_i)`
-  - זה מייצג את **הסטייה המוחלטת** מהממוצע (absolute deviation)
-  - ככל שהערך קטן יותר, כל העובדים קרובים יותר לממוצע → הוגנות גבוהה יותר
+#### ⚖️ Fairness Deviations (סטיות מהוגנות)
+
+**אינטואיציה**: רצוי שכל עובד יעבוד מספר דומה של משמרות (הוגנות)
+
+**מטרה**: למזער את הסטייה המוחלטת של כל עובד מהממוצע
+
+**למה שני משתנים?** (deviation_pos ו-deviation_neg):
+
+- אם עובד עובד **יותר** מהממוצע: `emp_total > avg` → `deviation_pos = emp_total - avg`, `deviation_neg = 0`
+- אם עובד עובד **פחות** מהממוצע: `emp_total < avg` → `deviation_pos = 0`, `deviation_neg = avg - emp_total`
+- אם עובד עובד **בדיוק** הממוצע: `emp_total = avg` → `deviation_pos = 0`, `deviation_neg = 0`
+
+**האילוץ**:
+
+```
+emp_total - avg = deviation_pos - deviation_neg
+```
+
+מבטיח ש-`deviation_pos - deviation_neg` שווה בדיוק לסטייה מהממוצע (חיובית או שלילית)
+
+**מינימיזציה**: בפונקציית המטרה, אנו ממזערים את `Σ_i (deviation_pos_i + deviation_neg_i)` - זה מייצג את **הסטייה המוחלטת** מהממוצע (absolute deviation). ככל שהערך קטן יותר, כל העובדים קרובים יותר לממוצע → הוגנות גבוהה יותר
 
 **משתנים**:
 
@@ -1571,15 +1643,17 @@ maximize:
 
 ---
 
+---
+
 ## 📊 סיכום
 
-מערכת **Smart Scheduling** מציגה פתרון מלא לאופטימיזציה של משמרות עובדים באמצעות MIP. המערכת משלבת:
+מערכת **Smart Scheduling** מציגה פתרון מלא לאופטימיזציה של משמרות עובדים באמצעות **Mixed Integer Programming (MIP)**. המערכת משלבת:
 
 ### 🎯 יכולות מרכזיות
 
-- **📐 מודל MIP מדויק** עם משתנים x(i,j,r) ותמיכה בתפקידים מרובים
+- **📐 מודל MIP מדויק** עם משתנים `x(i,j,r)` ותמיכה בתפקידים מרובים
 - **🔒 אילוצים קשים ורכים** עם penalties ו-fairness
-- **🏗️ ארכיטקטורה נקייה** עם הפרדת אחריות
+- **🏗️ ארכיטקטורה נקייה** עם הפרדת אחריות (Controllers → Services → Models)
 - **⚡ Background processing** עם Celery, Redis ו-Flower
 - **✅ Validation מלא** לפני החזרת הפתרון
 
@@ -1596,6 +1670,7 @@ maximize:
 ### 📈 תוצאות
 
 - ⚡ **מהירות**: מ-4-6 שעות עבודה ידנית → דקות ספורות
-- ⚖️ **הוגנות**: חלוקה מאוזנת של משמרות
-- ✅ **כיסוי מלא**: 100% כיסוי תפקידים
+- ⚖️ **הוגנות**: חלוקה מאוזנת של משמרות (מינימום סטייה מהממוצע)
+- ✅ **כיסוי מלא**: 100% כיסוי תפקידים בכל משמרת
 - 😊 **שביעות רצון**: מקסימיזציה של העדפות עובדים
+- 🎯 **איכות פתרון**: פתרון אופטימלי או קרוב לאופטימלי (MIP gap < 1%)
