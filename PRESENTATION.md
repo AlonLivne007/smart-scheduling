@@ -489,22 +489,28 @@ GET /api/scheduling/runs/{run_id}
 ### 🔄 זרימת עבודה - SchedulingService
 
 ```mermaid
-flowchart TD
-    Start([_execute_optimization_for_run<br/>נקודת כניסה]) --> ExecuteRun[_execute_run<br/>Executor משותף]
+flowchart LR
+    Start([_execute_optimization_for_run]) --> ExecuteRun[_execute_run]
 
-    ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING<br/>SELECT FOR UPDATE]
-    StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
-    LoadConfig --> BuildSolve[_build_and_solve<br/>בניית נתונים ופתרון]
+    subgraph Init["הכנה"]
+        ExecuteRun --> StartRun[_start_run]
+        StartRun --> LoadConfig[_load_optimization_config]
+    end
 
-    BuildSolve --> DataBuilder[OptimizationDataBuilder.build<br/>איסוף נתונים מ-DB]
-    DataBuilder --> Solver[MipSchedulingSolver.solve<br/>פתרון מודל MIP]
-    Solver --> CheckStatus{בדיקת סטטוס<br/>פתרון}
+    subgraph Solve["בנייה ופתרון"]
+        LoadConfig --> BuildSolve[_build_and_solve]
+        BuildSolve --> DataBuilder[OptimizationDataBuilder.build]
+        DataBuilder --> Solver[MipSchedulingSolver.solve]
+    end
 
-    CheckStatus -->|INFEASIBLE| HandleInfeasible[_handle_infeasible_solution<br/>עדכון סטטוס]
-    CheckStatus -->|OPTIMAL/FEASIBLE| Validate[_validate_solution<br/>בדיקת תקינות נגד<br/>אילוצים קשים]
+    subgraph Validate["בדיקה ושמירה"]
+        Solver --> CheckStatus{סטטוס פתרון}
+        CheckStatus -->|INFEASIBLE| HandleInfeasible[_handle_infeasible_solution]
+        CheckStatus -->|OPTIMAL/FEASIBLE| Validate[_validate_solution]
+        HandleInfeasible --> Persist[_persist_solution]
+        Validate --> Persist
+    end
 
-    Validate --> Persist[_persist_solution<br/>שמירת תוצאות ב-DB]
-    HandleInfeasible --> Persist
     Persist --> End([החזרת run + solution])
 
     style Start fill:#e1f5ff
@@ -532,6 +538,48 @@ flowchart TD
   4. בדיקת סטטוס פתרון (INFEASIBLE → `_handle_infeasible_solution()`)
   5. `_validate_solution()` - בדיקת תקינות נגד אילוצים קשים
   6. `_persist_solution()` - שמירת תוצאות ב-DB
+
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L180-L215)
+
+```python
+def _execute_run(
+    self,
+    run: SchedulingRunModel,
+    apply_assignments: bool = True
+) -> Tuple[SchedulingRunModel, SchedulingSolution]:
+    """
+    Shared executor for optimization runs.
+
+    Args:
+        run: SchedulingRunModel record
+        apply_assignments: If True, create ShiftAssignmentModel records.
+                          If False, only store solutions.
+
+    Returns:
+        Tuple of (updated run, solution)
+    """
+    # Update status to RUNNING with race condition protection
+    run = self._start_run(run)
+
+    # Load configuration
+    config = self._load_optimization_config(run)
+
+    # Build and solve
+    solution = self._build_and_solve(run, config)
+
+    # Check if optimization was infeasible or failed
+    if solution.status in ['INFEASIBLE', 'NO_SOLUTION_FOUND']:
+        return self._handle_infeasible_solution(run, solution)
+
+    # Validate solution against HARD constraints BEFORE persisting
+    if solution.status in ['OPTIMAL', 'FEASIBLE']:
+        self._validate_solution(run, solution)
+
+    # Persist solution and optionally apply assignments
+    run = self._persist_solution(run, solution, apply_assignments)
+
+    return run, solution
+```
 
 #### 3. **`_build_and_solve()`**
 
@@ -672,29 +720,32 @@ availability[i, j] = 0  אחרת
 ### 🔄 זרימת עבודה - בניית ופתרון מודל MIP
 
 ```mermaid
-flowchart TD
-    Start([solve<br/>נקודת כניסה מ-SchedulingService]) --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
+flowchart LR
+    Start([solve]) --> CreateModel[יצירת מודל MIP]
+    CreateModel --> ValidateMatrices[בדיקת מטריצות]
+    ValidateMatrices --> BuildVars[_build_decision_variables]
 
-    CreateModel --> ValidateMatrices[בדיקת ממדי מטריצות<br/>availability_matrix, preference_scores]
-    ValidateMatrices --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
+    subgraph Constraints["אילוצים קשים"]
+        BuildVars --> AddCoverage[_add_coverage_constraints]
+        AddCoverage --> AddSingleRole[_add_single_role_constraints]
+        AddSingleRole --> AddOverlap[_add_overlap_constraints]
+        AddOverlap --> AddHard[_add_hard_constraints]
+    end
 
-    BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
-    AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
-    AddSingleRole --> AddOverlap[_add_overlap_constraints<br/>אילוץ אין חפיפות]
-    AddOverlap --> AddHard[_add_hard_constraints<br/>אילוצים קשים מהמערכת]
+    subgraph Soft["אילוצים רכים והוגנות"]
+        AddHard --> AddFairness[_add_fairness_terms]
+        AddFairness --> AddSoft[_add_soft_penalties]
+        AddSoft --> BuildObj[_build_objective]
+    end
 
-    AddHard --> AddFairness[_add_fairness_terms<br/>משתני הוגנות]
-    AddFairness --> AddSoft[_add_soft_penalties<br/>אילוצים רכים עם penalties]
-    AddSoft --> BuildObj[_build_objective<br/>בניית פונקציית מטרה]
-
-    BuildObj --> Optimize[model.optimize<br/>פתרון המודל - CBC Solver]
-    Optimize --> CheckStatus{בדיקת סטטוס<br/>פתרון}
-
-    CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
-    CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת SchedulingSolution<br/>עם סטטוס שגיאה])
-
-    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
-    Metrics --> End
+    subgraph Solve["פתרון וחילוץ"]
+        BuildObj --> Optimize[model.optimize]
+        Optimize --> CheckStatus{סטטוס}
+        CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments]
+        CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת פתרון])
+        Extract --> Metrics[calculate_metrics]
+        Metrics --> End
+    end
 
     style Start fill:#e1f5ff
     style BuildVars fill:#fff4e1
