@@ -320,7 +320,7 @@ erDiagram
 #### 1. **SchedulingService**
 
 - **תפקיד**: Orchestrator ראשי של תהליך האופטימיזציה
-- **זרימה**: `optimize_schedule()` → `_execute_run()` → `_build_and_solve()`
+- **זרימה**: `_execute_optimization_for_run()` → `_execute_run()` → `_build_and_solve()` → `_validate_solution()`
 - **אחריות**: ניהול SchedulingRun records, טיפול בשגיאות, validation
 
 #### 2. **OptimizationDataBuilder**
@@ -425,10 +425,6 @@ graph TB
   3. מריץ את `SchedulingService._execute_optimization_for_run()`
   4. מעדכן את `SchedulingRun` עם תוצאות
   5. מחזיר תוצאה ל-Redis
-- **הגדרות**:
-  - `task_time_limit=3600` (שעה מקסימלית)
-  - `task_soft_time_limit=3300` (55 דקות soft limit)
-  - `worker_max_tasks_per_child=50` (מניעת memory leaks)
 
 #### **Flower** - ניטור ומעקב
 
@@ -497,6 +493,8 @@ GET /api/scheduling/runs/{run_id}
 
 ##### 📋 מטריצת הזמינות - תנאים לחישוב
 
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L525-L605)
+
 **מטריצת הזמינות** (`availability_matrix[i, j]`) קובעת אם עובד `i` זמין למשמרת `j`.
 
 **אלגוריתם החישוב:**
@@ -506,8 +504,6 @@ GET /api/scheduling/runs/{run_id}
    ```python
    availability = np.ones((n_employees, n_shifts), dtype=int)
    ```
-
-   [📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L525-L605)
 
 2. **תנאי 1: Time Off מאושר** → `availability[i, j] = 0`
 
@@ -566,6 +562,77 @@ availability[i, j] = 0  אחרת
 ---
 
 ## 6️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+
+### 🔨 תפקיד MipSchedulingSolver
+
+המודול `MipSchedulingSolver` אחראי על בניית ופתרון מודל **Mixed Integer Programming (MIP)** לאופטימיזציה של הקצאות משמרות. המודל מקבל את הנתונים המוכנים מ-`OptimizationDataBuilder` ובונה מודל מתמטי הכולל:
+
+- **משתני החלטה בינאריים** `x(i,j,r)` - מייצגים הקצאה של עובד `i` למשמרת `j` בתפקיד `r`
+- **אילוצים קשים** - חובה לספק (כיסוי, חפיפות, מנוחה מינימלית, וכו')
+- **אילוצים רכים** - רצוי לספק עם עונשים (שעות מינימום/מקסימום, משמרות, וכו')
+- **פונקציית מטרה** - משלבת העדפות עובדים, הוגנות, כיסוי ועונשים
+
+הפותר משתמש ב-**CBC Solver** (bundled עם Python-MIP) כדי למצוא פתרון אופטימלי או קרוב לאופטימלי.
+
+### 🔄 זרימת עבודה - בניית ופתרון מודל MIP
+
+```mermaid
+flowchart TD
+    Start([_execute_optimization_for_run<br/>נקודת כניסה מ-Celery Task]) --> ExecuteRun[_execute_run<br/>Executor משותף]
+
+    ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING]
+    StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
+    LoadConfig --> BuildSolve[_build_and_solve<br/>בניית נתונים ופתרון]
+
+    BuildSolve --> DataBuilder[OptimizationDataBuilder.build<br/>איסוף והכנת נתונים]
+    DataBuilder --> Solver[MipSchedulingSolver.solve<br/>בניית ופתרון מודל MIP]
+
+    Solver --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
+    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x(i,j,r)]
+
+    BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
+    AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
+    AddSingleRole --> AddOverlap[_add_overlap_constraints<br/>אילוץ אין חפיפות]
+    AddOverlap --> AddHard[_add_hard_constraints<br/>אילוצים קשים מהמערכת]
+
+    AddHard --> AddFairness[_add_fairness_terms<br/>משתני הוגנות]
+    AddFairness --> AddSoft[_add_soft_penalties<br/>אילוצים רכים עם penalties]
+    AddSoft --> BuildObj[_build_objective<br/>בניית פונקציית מטרה]
+
+    BuildObj --> Optimize[model.optimize<br/>פתרון המודל - CBC Solver]
+    Optimize --> Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
+    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
+
+    Metrics --> Validate[_validate_solution<br/>בדיקת תקינות נגד אילוצים קשים]
+    Validate --> Persist[_persist_solution<br/>שמירת תוצאות ב-DB]
+    Persist --> End([החזרת run + solution])
+
+    style Start fill:#e1f5ff
+    style Solver fill:#fff4e1
+    style Optimize fill:#ffe1f5
+    style End fill:#e1ffe1
+```
+
+**הסבר קצר על הזרימה:**
+
+1. **`_execute_optimization_for_run()`** - נקודת הכניסה מ-Celery Task, קוראת ל-`_execute_run()`
+2. **`_execute_run()`** - Executor משותף שמנהל את כל התהליך:
+   - מעדכן סטטוס ל-`RUNNING`
+   - טוען הגדרות אופטימיזציה
+   - קורא ל-`_build_and_solve()` לבנייה ופתרון
+   - בודק תקינות עם `_validate_solution()`
+   - שומר תוצאות עם `_persist_solution()`
+3. **`_build_and_solve()`** - בונה נתונים ופותר:
+   - קורא ל-`OptimizationDataBuilder.build()` - איסוף נתונים מ-DB
+   - קורא ל-`MipSchedulingSolver.solve()` - פתרון המודל
+4. **`MipSchedulingSolver.solve()`** - הליבה של בניית המודל:
+   - יוצר מודל MIP עם CBC Solver
+   - בונה משתני החלטה (`_build_decision_variables`)
+   - מוסיף אילוצים קשים (Coverage, Single Role, Overlap, System Constraints)
+   - מוסיף אילוצים רכים והוגנות (`_add_fairness_terms`, `_add_soft_penalties`)
+   - בונה פונקציית מטרה (`_build_objective`)
+   - פותר את המודל (`model.optimize()`)
+   - מחלץ תוצאות (`_extract_assignments`) ומחשב מטריקות
 
 ### 6.1 משתני החלטה
 
