@@ -497,6 +497,8 @@ GET /api/scheduling/runs/{run_id}
 - **הערה**: לא מיישם הקצאות ישירות, רק שומר פתרונות מוצעים ב-`SchedulingSolution` records
 - **פלט**: `(SchedulingRunModel, SchedulingSolution)`
 
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L119-L178)
+
 #### 2. **`_execute_run()`**
 
 - **תפקיד**: Executor משותף שמנהל את כל התהליך
@@ -558,12 +560,16 @@ def _execute_run(
   2. קורא ל-`MipSchedulingSolver.solve()` - פתרון מודל MIP
 - **פלט**: `SchedulingSolution`
 
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L282-L306)
+
 #### 4. **`_validate_solution()`**
 
 - **תפקיד**: בדיקת תקינות הפתרון נגד אילוצים קשים
 - **תהליך**: קורא ל-`ConstraintService.validate_weekly_schedule()`
 - **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
 - **הערה**: אם יש הפרות → מעלה `ValueError`
+
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L338-L397)
 
 #### 5. **`_persist_solution()`**
 
@@ -573,6 +579,8 @@ def _execute_run(
   - עדכון `SchedulingRun` עם תוצאות
   - יצירת `SchedulingSolution` records
   - אופציונלי: יצירת `ShiftAssignment` records (אם `apply_assignments=True`)
+
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L399-L468)
 
 ## 🔗 אינטגרציה עם רכיבים אחרים
 
