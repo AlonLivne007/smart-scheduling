@@ -10,12 +10,13 @@
 - [2. טכנולוגיות מרכזיות](#2-טכנולוגיות-מרכזיות)
 - [3. ארכיטקטורת המערכת](#3-ארכיטקטורת-המערכת)
 - [4. עיבוד רקע: Celery, Redis ו-Flower](#4-עיבוד-רקע-celery-redis-ו-flower)
-- [5. בניית מודל האופטימיזציה](#5-בניית-מודל-האופטימיזציה)
-- [6. מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה](#6-מודל-mip-משתני-החלטה-אילוצים-ופונקציית-מטרה)
-  - [6.1 משתני החלטה](#61-משתני-החלטה)
-  - [6.2 אילוצים קשים](#62-אילוצים-קשים)
-  - [6.3 אילוצים רכים](#63-אילוצים-רכים)
-  - [6.4 פונקציית מטרה](#64-פונקציית-מטרה)
+- [5. SchedulingService - Orchestrator ראשי](#5-schedulingservice---orchestrator-ראשי)
+- [6. בניית מודל האופטימיזציה - OptimizationDataBuilder](#6-בניית-מודל-האופטימיזציה---optimizationdatabuilder)
+- [7. מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה](#7-מודל-mip-משתני-החלטה-אילוצים-ופונקציית-מטרה)
+  - [7.1 משתני החלטה](#71-משתני-החלטה)
+  - [7.2 אילוצים קשים](#72-אילוצים-קשים)
+  - [7.3 אילוצים רכים](#73-אילוצים-רכים)
+  - [7.4 פונקציית מטרה](#74-פונקציית-מטרה)
 - [סיכום](#סיכום)
 
 ---
@@ -475,7 +476,115 @@ GET /api/scheduling/runs/{run_id}
 
 ---
 
-## 5️⃣ בניית מודל האופטימיזציה
+## 5️⃣ SchedulingService - Orchestrator ראשי
+
+### 🔨 תפקיד SchedulingService
+
+המודול `SchedulingService` הוא ה-**Orchestrator הראשי** של תהליך האופטימיזציה. הוא מנהל את כל התהליך מקצה לקצה, כולל אינטגרציה עם DB, validation ו-persistence.
+
+**אחריות מרכזית:**
+
+- **ניהול SchedulingRun records** - יצירה, עדכון סטטוס, טיפול בשגיאות
+- **אורכיסטרציה של תהליך האופטימיזציה** - קישור בין כל הרכיבים
+- **טיפול בשגיאות** - עדכון סטטוס ל-FAILED עם הודעות שגיאה
+- **Validation** - בדיקת תקינות הפתרון נגד אילוצים קשים לפני שמירה
+- **Persistence** - שמירת תוצאות ב-DB (SchedulingSolution records)
+
+### 🔄 זרימת עבודה - SchedulingService
+
+```mermaid
+flowchart TD
+    Start([optimize_schedule<br/>נקודת כניסה מ-API]) --> CreateRun[יצירת SchedulingRun<br/>status = PENDING]
+    CreateRun --> CeleryTask[שליחת משימה ל-Celery<br/>run_optimization_task.delay]
+    CeleryTask --> ExecuteRun[_execute_optimization_for_run<br/>נקודת כניסה מ-Celery]
+
+    ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING<br/>SELECT FOR UPDATE]
+    StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
+    LoadConfig --> BuildSolve[_build_and_solve<br/>בניית נתונים ופתרון]
+
+    BuildSolve --> DataBuilder[OptimizationDataBuilder.build<br/>איסוף נתונים מ-DB]
+    DataBuilder --> Solver[MipSchedulingSolver.solve<br/>פתרון מודל MIP]
+    Solver --> CheckStatus{בדיקת סטטוס<br/>פתרון}
+
+    CheckStatus -->|INFEASIBLE| HandleInfeasible[_handle_infeasible_solution<br/>עדכון סטטוס]
+    CheckStatus -->|OPTIMAL/FEASIBLE| Validate[_validate_solution<br/>בדיקת תקינות נגד<br/>אילוצים קשים]
+
+    Validate --> Persist[_persist_solution<br/>שמירת תוצאות ב-DB]
+    HandleInfeasible --> Persist
+    Persist --> End([החזרת run + solution])
+
+    style Start fill:#e1f5ff
+    style ExecuteRun fill:#fff4e1
+    style BuildSolve fill:#ffe1f5
+    style End fill:#e1ffe1
+```
+
+### 📋 פונקציות מרכזיות
+
+#### 1. **`optimize_schedule()`**
+
+- **תפקיד**: נקודת הכניסה הראשית מ-API Controller
+- **תהליך**:
+  1. יוצר `SchedulingRun` record עם סטטוס `PENDING`
+  2. שולח משימת Celery ל-Redis (`run_optimization_task.delay`)
+  3. מחזיר `run_id` ו-`task_id` מיד (לא מחכה לסיום)
+- **פלט**: `(SchedulingRunModel, SchedulingSolution)`
+
+#### 2. **`_execute_optimization_for_run()`**
+
+- **תפקיד**: נקודת הכניסה מ-Celery Task (async)
+- **תהליך**: קורא ל-`_execute_run()` עם `apply_assignments=False`
+- **הערה**: לא מיישם הקצאות ישירות, רק שומר פתרונות מוצעים
+
+#### 3. **`_execute_run()`**
+
+- **תפקיד**: Executor משותף שמנהל את כל התהליך
+- **תהליך**:
+  1. `_start_run()` - עדכון סטטוס ל-`RUNNING` עם race condition protection
+  2. `_load_optimization_config()` - טעינת הגדרות אופטימיזציה
+  3. `_build_and_solve()` - בניית נתונים ופתרון מודל MIP
+  4. בדיקת סטטוס פתרון (INFEASIBLE → `_handle_infeasible_solution()`)
+  5. `_validate_solution()` - בדיקת תקינות נגד אילוצים קשים
+  6. `_persist_solution()` - שמירת תוצאות ב-DB
+
+#### 4. **`_build_and_solve()`**
+
+- **תפקיד**: קישור בין OptimizationDataBuilder ל-MipSchedulingSolver
+- **תהליך**:
+  1. קורא ל-`OptimizationDataBuilder.build()` - איסוף נתונים מ-DB
+  2. קורא ל-`MipSchedulingSolver.solve()` - פתרון מודל MIP
+- **פלט**: `SchedulingSolution`
+
+#### 5. **`_validate_solution()`**
+
+- **תפקיד**: בדיקת תקינות הפתרון נגד אילוצים קשים
+- **תהליך**: קורא ל-`ConstraintService.validate_weekly_schedule()`
+- **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
+- **הערה**: אם יש הפרות → מעלה `ValueError`
+
+#### 6. **`_persist_solution()`**
+
+- **תפקיד**: שמירת תוצאות ב-DB
+- **תהליך**: קורא ל-`SchedulingPersistence.save_solution()`
+- **שמירה**:
+  - עדכון `SchedulingRun` עם תוצאות
+  - יצירת `SchedulingSolution` records
+  - אופציונלי: יצירת `ShiftAssignment` records (אם `apply_assignments=True`)
+
+### 🔗 אינטגרציה עם רכיבים אחרים
+
+`SchedulingService` משתמש ב-4 רכיבים עיקריים:
+
+1. **`OptimizationDataBuilder`** - איסוף והכנת נתונים
+2. **`MipSchedulingSolver`** - פתרון מודל MIP
+3. **`ConstraintService`** - בדיקת תקינות
+4. **`SchedulingPersistence`** - שמירה ב-DB
+
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py)
+
+---
+
+## 6️⃣ בניית מודל האופטימיזציה - OptimizationDataBuilder
 
 ### 🔨 תפקיד OptimizationDataBuilder
 
@@ -561,7 +670,7 @@ availability[i, j] = 0  אחרת
 
 ---
 
-## 6️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+## 7️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
 
 ### 🔨 תפקיד MipSchedulingSolver
 
@@ -578,17 +687,10 @@ availability[i, j] = 0  אחרת
 
 ```mermaid
 flowchart TD
-    Start([_execute_optimization_for_run<br/>נקודת כניסה מ-Celery Task]) --> ExecuteRun[_execute_run<br/>Executor משותף]
+    Start([solve<br/>נקודת כניסה מ-SchedulingService]) --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
 
-    ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING]
-    StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
-    LoadConfig --> BuildSolve[_build_and_solve<br/>בניית נתונים ופתרון]
-
-    BuildSolve --> DataBuilder[OptimizationDataBuilder.build<br/>איסוף והכנת נתונים]
-    DataBuilder --> Solver[MipSchedulingSolver.solve<br/>בניית ופתרון מודל MIP]
-
-    Solver --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
-    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
+    CreateModel --> ValidateMatrices[בדיקת ממדי מטריצות<br/>availability_matrix, preference_scores]
+    ValidateMatrices --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
 
     BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
     AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
@@ -600,41 +702,60 @@ flowchart TD
     AddSoft --> BuildObj[_build_objective<br/>בניית פונקציית מטרה]
 
     BuildObj --> Optimize[model.optimize<br/>פתרון המודל - CBC Solver]
-    Optimize --> Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
-    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
+    Optimize --> CheckStatus{בדיקת סטטוס<br/>פתרון}
 
-    Metrics --> Validate[_validate_solution<br/>בדיקת תקינות נגד אילוצים קשים]
-    Validate --> Persist[_persist_solution<br/>שמירת תוצאות ב-DB]
-    Persist --> End([החזרת run + solution])
+    CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
+    CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת SchedulingSolution<br/>עם סטטוס שגיאה])
+
+    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
+    Metrics --> End
 
     style Start fill:#e1f5ff
-    style Solver fill:#fff4e1
+    style BuildVars fill:#fff4e1
     style Optimize fill:#ffe1f5
     style End fill:#e1ffe1
 ```
 
 **הסבר קצר על הזרימה:**
 
-1. **`_execute_optimization_for_run()`** - נקודת הכניסה מ-Celery Task, קוראת ל-`_execute_run()`
-2. **`_execute_run()`** - Executor משותף שמנהל את כל התהליך:
-   - מעדכן סטטוס ל-`RUNNING`
-   - טוען הגדרות אופטימיזציה
-   - קורא ל-`_build_and_solve()` לבנייה ופתרון
-   - בודק תקינות עם `_validate_solution()`
-   - שומר תוצאות עם `_persist_solution()`
-3. **`_build_and_solve()`** - בונה נתונים ופותר:
-   - קורא ל-`OptimizationDataBuilder.build()` - איסוף נתונים מ-DB
-   - קורא ל-`MipSchedulingSolver.solve()` - פתרון המודל
-4. **`MipSchedulingSolver.solve()`** - הליבה של בניית המודל:
-   - יוצר מודל MIP עם CBC Solver
-   - בונה משתני החלטה (`_build_decision_variables`)
-   - מוסיף אילוצים קשים (Coverage, Single Role, Overlap, System Constraints)
-   - מוסיף אילוצים רכים והוגנות (`_add_fairness_terms`, `_add_soft_penalties`)
-   - בונה פונקציית מטרה (`_build_objective`)
-   - פותר את המודל (`model.optimize()`)
-   - מחלץ תוצאות (`_extract_assignments`) ומחשב מטריקות
+1. **`solve()`** - נקודת הכניסה מ-`SchedulingService._build_and_solve()`:
 
-### 6.1 משתני החלטה
+   - מקבל `OptimizationData` (נתונים מוכנים) ו-`OptimizationConfig` (הגדרות)
+   - יוצר מודל MIP עם CBC Solver
+   - בודק ממדי מטריצות (validation)
+
+2. **בניית משתני החלטה** (`_build_decision_variables`):
+
+   - יוצר משתנים בינאריים `x(i,j,r)` לכל צירוף תקף
+   - בונה אינדקסים לביצועים (`vars_by_emp_shift`, `vars_by_employee`)
+
+3. **הוספת אילוצים קשים**:
+
+   - `_add_coverage_constraints` - כיסוי תפקידים
+   - `_add_single_role_constraints` - תפקיד אחד למשמרת
+   - `_add_overlap_constraints` - אין חפיפות
+   - `_add_hard_constraints` - אילוצי מערכת קשים
+
+4. **הוספת אילוצים רכים והוגנות**:
+
+   - `_add_fairness_terms` - משתני הוגנות (deviation_pos, deviation_neg)
+   - `_add_soft_penalties` - אילוצים רכים עם penalties
+
+5. **בניית פונקציית מטרה** (`_build_objective`):
+
+   - משלבת העדפות, הוגנות, כיסוי ועונשים
+   - מגדיר `model.objective`
+
+6. **פתרון המודל** (`model.optimize()`):
+
+   - CBC Solver מחפש פתרון אופטימלי
+   - מחזיר סטטוס: OPTIMAL, FEASIBLE, INFEASIBLE, או NO_SOLUTION_FOUND
+
+7. **חילוץ תוצאות**:
+   - `_extract_assignments` - המרת משתנים לקצאות בפועל
+   - `calculate_metrics` - חישוב מטריקות (כיסוי, הוגנות, וכו')
+
+### 7.1 משתני החלטה
 
 #### 📐 הגדרה מתמטית
 
@@ -848,9 +969,9 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 ---
 
-### 6.2 אילוצים קשים
+### 7.2 אילוצים קשים
 
-#### 6.2.1 אילוצים קשים שלא חלק מ-`system_constraints`
+#### 7.2.1 אילוצים קשים שלא חלק מ-`system_constraints`
 
 אלה אילוצים **תמיד קשים** שמובנים במערכת ולא ניתן לשנות אותם דרך ה-UI.
 
@@ -1018,7 +1139,7 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
 
 **אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
 
-**איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 5 - מטריצת הזמינות](#5-בניית-מודל-האופטימיזציה))
+**איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 6 - מטריצת הזמינות](#6-בניית-מודל-האופטימיזציה---optimizationdatabuilder))
 
 - אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
 - ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
@@ -1030,7 +1151,7 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
 > - ✅ אין צורך להוסיף אילוצים נוספים למודל
 > - ✅ הגישה מבטיחה 100% שלא ניתן להקצות עובד ב-time off (כי אין משתנה)
 
-#### 6.2.2 אילוצים שהם חלק מ-`system_constraints` (קשים)
+#### 7.2.2 אילוצים שהם חלק מ-`system_constraints` (קשים)
 
 אלה אילוצים שניתן להגדיר דרך ה-UI כ**קשים** (hard) או **רכים** (soft), בהתאם ל-`is_hard_constraint`. כאן מוצגים כאשר הם מוגדרים כקשים.
 
@@ -1321,7 +1442,7 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
 
 ---
 
-### 6.3 אילוצים רכים (חלק מ-`system_constraints`)
+### 7.3 אילוצים רכים (חלק מ-`system_constraints`)
 
 #### מושג אילוצים רכים
 
@@ -1686,7 +1807,7 @@ for emp_idx, emp_total in enumerate(assignments_per_employee):
 
 ---
 
-### 6.4 פונקציית מטרה
+### 7.4 פונקציית מטרה
 
 #### 📊 פירוק למרכיבים
 
