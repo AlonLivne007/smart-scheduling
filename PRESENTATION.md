@@ -803,90 +803,6 @@ flowchart TD
 
 [📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L28-L101)
 
-```python
-def solve(
-    self,
-    data: OptimizationData,
-    config: OptimizationConfigModel
-) -> SchedulingSolution:
-    """
-    Build and solve the MIP model.
-
-    Args:
-        data: OptimizationData with employees, shifts, and matrices
-        config: OptimizationConfig with weights and solver parameters
-
-    Returns:
-        SchedulingSolution with results
-    """
-    solution = SchedulingSolution()
-    start_time = datetime.now()
-
-    # Create MIP model
-    model = mip.Model(sense=mip.MAXIMIZE, solver_name=mip.CBC)
-
-    # Set solver parameters
-    model.max_seconds = config.max_runtime_seconds
-    model.max_mip_gap = config.mip_gap
-
-    n_employees = len(data.employees)
-    n_shifts = len(data.shifts)
-
-    # Validate matrix dimensions
-    if data.preference_scores.shape != (n_employees, n_shifts):
-        raise ValueError(
-            f"Preference scores matrix shape mismatch: expected ({n_employees}, {n_shifts}), "
-            f"got {data.preference_scores.shape}"
-        )
-    if data.availability_matrix.shape != (n_employees, n_shifts):
-        raise ValueError(
-            f"Availability matrix shape mismatch: expected ({n_employees}, {n_shifts}), "
-            f"got {data.availability_matrix.shape}"
-        )
-
-    # Build decision variables and indexes
-    x, vars_by_emp_shift, vars_by_employee = self._build_decision_variables(
-        model, data, n_employees, n_shifts
-    )
-
-    # Add constraints
-    self._add_coverage_constraints(model, data, x, n_employees, n_shifts)
-    self._add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shifts)
-    self._add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees)
-    self._add_hard_constraints(model, data, x, vars_by_emp_shift, vars_by_employee, n_employees)
-
-    # Build objective function
-    assignments_per_employee, avg_assignments = self._add_fairness_terms(
-        model, data, x, vars_by_employee, n_employees
-    )
-    soft_penalty_component = self._add_soft_penalties(
-        model, data, x, vars_by_emp_shift, vars_by_employee, n_employees
-    )
-    objective = self._build_objective(
-        model, data, x, config, assignments_per_employee,
-        soft_penalty_component, avg_assignments
-    )
-    model.objective = objective
-
-    # Solve the model
-    status = model.optimize()
-
-    # Record results
-    end_time = datetime.now()
-    solution.runtime_seconds = (end_time - start_time).total_seconds()
-    solution.status = map_solver_status(status)
-
-    if status in [mip.OptimizationStatus.OPTIMAL, mip.OptimizationStatus.FEASIBLE]:
-        solution.objective_value = model.objective_value
-        solution.mip_gap = model.gap
-
-        # Extract assignments
-        solution.assignments = self._extract_assignments(x, data)
-        solution.metrics = calculate_metrics(data, solution.assignments)
-
-    return solution
-```
-
 ---
 
 ## 7.1 משתני החלטה
@@ -957,21 +873,6 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 
 [📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
 
-## 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
-
-הפותר `MipSchedulingSolver` מבצע את השלבים הבאים:
-
-1. **יצירת מודל MIP** (`mip.Model`) עם CBC Solver
-2. **בניית משתני החלטה** `x(i,j,r)` - לכל צירוף תקף של (עובד, משמרת, תפקיד)
-3. **הוספת אילוצים קשים** - Coverage, Single Role, No Overlap, System Constraints
-4. **הוספת אילוצים רכים** - עם משתני slack ו-penalties
-5. **בניית פונקציית מטרה** - משלבת העדפות, הוגנות, כיסוי ועונשים
-6. **פתרון המודל** - CBC Solver מחפש פתרון אופטימלי
-7. **חילוץ תוצאות** - המרת משתנים לקצאות בפועל
-
-פרטים על כל שלב מופיעים בסעיפים הבאים.
-
----
 
 ---
 
