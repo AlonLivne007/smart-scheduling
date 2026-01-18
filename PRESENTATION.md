@@ -732,29 +732,74 @@ def build(self, weekly_schedule_id: int) -> OptimizationData:
 - **אילוצים רכים** - רצוי לספק עם עונשים (שעות מינימום/מקסימום, משמרות, וכו')
 - **פונקציית מטרה** - משלבת העדפות עובדים, הוגנות, כיסוי ועונשים
 
-**אחריות מרכזית:**
+## 🔄 זרימת עבודה - בניית ופתרון מודל MIP
 
-- **בניית משתני החלטה** - יצירת משתנים בינאריים `x(i,j,r)` לכל צירוף תקף
-- **הוספת אילוצים קשים** - כיסוי תפקידים, תפקיד אחד למשמרת, אין חפיפות, אילוצי מערכת קשים
-- **הוספת אילוצים רכים** - עם משתני slack ו-penalties
-- **בניית פונקציית מטרה** - שילוב העדפות, הוגנות, כיסוי ועונשים
-- **פתרון המודל** - שימוש ב-CBC Solver למציאת פתרון אופטימלי
-- **חילוץ תוצאות** - המרת משתנים לקצאות בפועל וחישוב מטריקות
+```mermaid
+flowchart TD
+    Start([solve<br/>נקודת כניסה מ-SchedulingService]) --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
 
-## 📋 פונקציות מרכזיות
+    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
 
-#### 1. **`solve()`**
+    BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
+    AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
+    AddSingleRole --> AddOverlap[_add_overlap_constraints<br/>אילוץ אין חפיפות]
+    AddOverlap --> AddHard[_add_hard_constraints<br/>אילוצים קשים מהמערכת]
 
-- **תפקיד**: Orchestrator ראשי - בונה ופותר את מודל MIP
-- **תהליך**:
-  1. יצירת מודל MIP עם CBC Solver
-  2. בניית משתני החלטה (`_build_decision_variables`)
-  3. הוספת אילוצים קשים (Coverage, Single Role, Overlap, System Constraints)
-  4. הוספת אילוצים רכים והוגנות (`_add_fairness_terms`, `_add_soft_penalties`)
-  5. בניית פונקציית מטרה (`_build_objective`)
-  6. פתרון המודל (`model.optimize()`)
-  7. חילוץ תוצאות (`_extract_assignments`) וחישוב מטריקות
-- **פלט**: `SchedulingSolution` - פתרון עם הקצאות, מטריקות וסטטוס
+    AddHard --> AddFairness[_add_fairness_terms<br/>משתני הוגנות]
+    AddFairness --> AddSoft[_add_soft_penalties<br/>אילוצים רכים עם penalties]
+    AddSoft --> BuildObj[_build_objective<br/>בניית פונקציית מטרה]
+
+    BuildObj --> Optimize[model.optimize<br/>פתרון המודל - CBC Solver]
+    Optimize --> CheckStatus{בדיקת סטטוס<br/>פתרון}
+
+    CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
+    CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת SchedulingSolution<br/>עם סטטוס שגיאה])
+
+    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
+    Metrics --> End
+
+    style Start fill:#e1f5ff
+    style BuildVars fill:#fff4e1
+    style Optimize fill:#ffe1f5
+    style End fill:#e1ffe1
+```
+
+**הסבר קצר על הזרימה:**
+
+1. **`solve()`** - נקודת הכניסה מ-`SchedulingService._build_and_solve()`:
+
+   - מקבל `OptimizationData` (נתונים מוכנים) ו-`OptimizationConfig` (הגדרות)
+   - יוצר מודל MIP עם CBC Solver
+
+2. **בניית משתני החלטה** (`_build_decision_variables`):
+
+   - יוצר משתנים בינאריים `x(i,j,r)` לכל צירוף תקף
+
+3. **הוספת אילוצים קשים**:
+
+   - `_add_coverage_constraints` - כיסוי תפקידים
+   - `_add_single_role_constraints` - תפקיד אחד למשמרת
+   - `_add_overlap_constraints` - אין חפיפות
+   - `_add_hard_constraints` - אילוצי מערכת קשים
+
+4. **הוספת אילוצים רכים והוגנות**:
+
+   - `_add_fairness_terms` - משתני הוגנות (deviation_pos, deviation_neg)
+   - `_add_soft_penalties` - אילוצים רכים עם penalties
+
+5. **בניית פונקציית מטרה** (`_build_objective`):
+
+   - משלבת העדפות, הוגנות, כיסוי ועונשים
+   - מגדיר `model.objective`
+
+6. **פתרון המודל** (`model.optimize()`):
+
+   - CBC Solver מחפש פתרון אופטימלי
+   - מחזיר סטטוס: OPTIMAL, FEASIBLE, INFEASIBLE, או NO_SOLUTION_FOUND
+
+7. **חילוץ תוצאות**:
+   - `_extract_assignments` - המרת משתנים לקצאות בפועל
+   - `calculate_metrics` - חישוב מטריקות (כיסוי, הוגנות, וכו')
 
 [📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L28-L101)
 
@@ -842,86 +887,6 @@ def solve(
     return solution
 ```
 
-#### 2. **`_build_decision_variables()`**
-
-- **תפקיד**: בונה משתני החלטה בינאריים `x(i,j,r)` לכל צירוף תקף
-- **תהליך**: עובר על כל עובד ומשמרת, בודק זמינות ותפקידים, ויוצר משתנים רק עבור צירופים תקפים
-- **תוצר**:
-  - **`x`**: `{(emp_idx, shift_idx, role_id): var}` - מיפוי משתנים
-  - **`vars_by_emp_shift`**: `{(emp_idx, shift_idx): [var1, var2, ...]}` - אינדקס לביצועים
-  - **`vars_by_employee`**: `{emp_idx: [var1, var2, ...]}` - אינדקס לגישה מהירה
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
-
-#### 3. **`_add_coverage_constraints()`**
-
-- **תפקיד**: מוסיף אילוץ כיסוי - כל משמרת חייבת לקבל בדיוק את מספר העובדים הנדרש לכל תפקיד
-- **נוסחה**: `Σ_i x(i,j,r) = required_count[j,r]` לכל משמרת `j` ותפקיד `r`
-- **תוצר**: אילוצי כיסוי במודל MIP
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L261-L290)
-
-#### 4. **`_add_single_role_constraints()`**
-
-- **תפקיד**: מוסיף אילוץ שכל עובד יכול לקבל לכל היותר תפקיד אחד למשמרת
-- **נוסחה**: `Σ_r x(i,j,r) <= 1` לכל עובד `i` ומשמרת `j`
-- **תוצר**: אילוצי תפקיד יחיד במודל MIP
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L292-L315)
-
-#### 5. **`_add_overlap_constraints()`**
-
-- **תפקיד**: מוסיף אילוץ שאין חפיפות - עובד לא יכול להיות מוקצה למשמרות חופפות
-- **נוסחה**: `x(i,j1,r1) + x(i,j2,r2) <= 1` לכל עובד `i` ומשמרות חופפות `j1, j2`
-- **תוצר**: אילוצי אין חפיפות במודל MIP
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L317-L350)
-
-#### 6. **`_add_hard_constraints()`**
-
-- **תפקיד**: מוסיף אילוצים קשים מהמערכת (MAX_HOURS, MIN_REST, MAX_SHIFTS, וכו')
-- **תהליך**: בודק אילו אילוצים מוגדרים כ-hard ב-`system_constraints` ומוסיף אותם למודל
-- **תוצר**: אילוצים קשים במודל MIP
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L352-L498)
-
-#### 7. **`_add_fairness_terms()`**
-
-- **תפקיד**: מוסיף משתני הוגנות - מחשב ממוצע הקצאות ומכין משתנים לסטיות
-- **תוצר**:
-  - **`assignments_per_employee`**: רשימת ביטויים של סך הקצאות לכל עובד
-  - **`avg_assignments`**: ממוצע הקצאות לכל עובד
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L500-L530)
-
-#### 8. **`_add_soft_penalties()`**
-
-- **תפקיד**: מוסיף אילוצים רכים עם penalties - משתני slack ו-penalties
-- **תהליך**: בודק אילו אילוצים מוגדרים כ-soft ב-`system_constraints` ומוסיף משתני slack
-- **תוצר**: ביטוי ליניארי של soft penalty component
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L532-L653)
-
-#### 9. **`_build_objective()`**
-
-- **תפקיד**: בונה פונקציית מטרה המשלבת העדפות, הוגנות, כיסוי ועונשים
-- **מרכיבים**:
-  - העדפות עובדים (preference scores)
-  - הוגנות (מינימום סטייה מהממוצע)
-  - כיסוי (עידוד כיסוי מלא)
-  - עונשים (soft constraint violations)
-- **תוצר**: ביטוי ליניארי של פונקציית המטרה
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L655-L724)
-
-#### 10. **`_extract_assignments()`**
-
-- **תפקיד**: מחלץ הקצאות מהפתרון - המרת משתנים לקצאות בפועל
-- **תהליך**: עובר על כל משתנה `x(i,j,r)` ששווה ל-1 בפתרון ויוצר רשימת הקצאות
-- **תוצר**: רשימת הקצאות `[{user_id, planned_shift_id, role_id, ...}]`
-
-[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L726-L748)
-
 ---
 
 ## 7.1 משתני החלטה
@@ -991,6 +956,22 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 ```
 
 [📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
+
+## 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
+
+הפותר `MipSchedulingSolver` מבצע את השלבים הבאים:
+
+1. **יצירת מודל MIP** (`mip.Model`) עם CBC Solver
+2. **בניית משתני החלטה** `x(i,j,r)` - לכל צירוף תקף של (עובד, משמרת, תפקיד)
+3. **הוספת אילוצים קשים** - Coverage, Single Role, No Overlap, System Constraints
+4. **הוספת אילוצים רכים** - עם משתני slack ו-penalties
+5. **בניית פונקציית מטרה** - משלבת העדפות, הוגנות, כיסוי ועונשים
+6. **פתרון המודל** - CBC Solver מחפש פתרון אופטימלי
+7. **חילוץ תוצאות** - המרת משתנים לקצאות בפועל
+
+פרטים על כל שלב מופיעים בסעיפים הבאים.
+
+---
 
 ---
 
