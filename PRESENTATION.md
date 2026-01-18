@@ -385,7 +385,7 @@ sequenceDiagram
 graph TB
     Frontend["Frontend"]
     Backend["FastAPI Backend<br/>Port: 8000"]
-    Redis["Redis<br/>Port: 6379<br/>Message Broker<br/>Task Queue"]
+    Redis["Redis<br/>Port: 6379<br/>Message Broker<br/>Task Queue<br/>Result Backend"]
     CeleryWorker["Celery Worker<br/>(Background)<br/>Runs optimization"]
     PostgreSQL["PostgreSQL<br/>Store Results"]
     Flower["Flower<br/>Port: 5555<br/>Monitoring Dashboard<br/>Real-time Task Status"]
@@ -394,75 +394,55 @@ graph TB
     Backend -->|Dispatch Task| Redis
     Redis -->|Task Distribution| CeleryWorker
     CeleryWorker -->|Update Status| PostgreSQL
-    CeleryWorker -->|Monitoring| Flower
+    CeleryWorker -->|Return Results| Redis
+    Redis -->|Task Status & Results| Flower
 ```
 
 **הסבר על זרימת העבודה:**
 
 1. **Frontend → Backend**: המשתמש שולח בקשה HTTP
 2. **Backend → Redis**:
-   - יוצר `SchedulingRun` עם סטטוס `PENDING`
-   - שולח משימת Celery ל-Redis
+   - יוצר `SchedulingRun` עם סטטוס `PENDING` ב-PostgreSQL
+   - שולח משימת Celery ל-Redis (Message Broker)
    - מחזיר `task_id` מיד למשתמש (לא מחכה לסיום)
 3. **Redis → Celery Worker**: Celery Worker קורא את המשימה מהתור
-4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות
-5. **Celery Worker → Flower**: Flower מציג את הסטטוס בזמן אמת
+4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות (דרך `SchedulingService`)
+5. **Celery Worker → Redis**: מחזיר תוצאות ל-Redis (Result Backend) - התוצאות נשמרות ב-Redis לזמן מוגבל
+6. **Redis → Flower**: Flower קורא מ-Redis את הסטטוס והתוצאות בזמן אמת ומציג אותם ב-Dashboard
 
 ## 🔧 רכיבים
 
-#### **Redis** - Message Broker
+#### **Redis** - Message Broker & Result Backend
 
-- **תפקיד**: תור הודעות (Message Queue) בין FastAPI ל-Celery Worker
+- **תפקיד**:
+  - **Message Broker**: תור הודעות (Message Queue) בין FastAPI ל-Celery Worker
+  - **Result Backend**: אחסון תוצאות משימות (לזמן מוגבל - 24 שעות)
 - **שימוש**:
-  - FastAPI שולח משימות ל-Redis
+  - FastAPI שולח משימות ל-Redis (Message Broker)
   - Celery Worker קורא משימות מ-Redis
-  - Redis שומר תוצאות זמניות
+  - Celery Worker מחזיר תוצאות ל-Redis (Result Backend)
+  - Flower קורא מ-Redis את הסטטוס והתוצאות לניטור
 - **פורט**: `6379`
 
 #### **Celery Worker** - עיבוד רקע
 
 - **תפקיד**: ביצוע משימות אופטימיזציה ברקע
 - **תהליך**:
-  1. קורא משימות מ-Redis
+  1. קורא משימות מ-Redis (Message Broker)
   2. קורא ל-`SchedulingService._execute_optimization_for_run()` (ראה [פרק 5](#5-schedulingservice---orchestrator-ראשי))
-  3. מחזיר תוצאה ל-Redis
+  3. מעדכן את `SchedulingRun` ב-PostgreSQL עם התוצאות
+  4. מחזיר תוצאות ל-Redis (Result Backend) - לניטור ב-Flower
 
 #### **Flower** - ניטור ומעקב
 
 - **תפקיד**: Dashboard לניטור משימות Celery בזמן אמת
+- **איך זה עובד**: Flower קורא מ-Redis את הסטטוס והתוצאות של המשימות (לא ישירות מ-Celery Worker)
 - **יכולות**:
   - 📊 צפייה במשימות פעילות, ממתינות, מושלמות
   - ⏱️ זמני ביצוע וסטטיסטיקות
   - 🔍 מעקב אחר שגיאות
   - 📈 גרפים ומטריקות
 - **גישה**: `http://localhost:5555`
-
-### 🔄 זרימת עבודה
-
-```python
-# 1. Frontend שולח בקשה
-POST /api/scheduling/optimize?weekly_schedule_id=123
-
-# 2. Backend יוצר רשומה ומשלח משימה
-run = SchedulingRunModel(status=PENDING)
-db.add(run)
-db.commit()
-
-task = run_optimization_task.delay(run.run_id)
-return {"run_id": run.run_id, "task_id": task.id}
-
-# 3. Celery Worker מבצע ברקע
-@celery_app.task
-def run_optimization_task(run_id):
-    scheduling_service._execute_optimization_for_run(run)
-    return results
-
-# 4. Frontend בודק סטטוס (Polling)
-GET /api/scheduling/runs/{run_id}
-→ {"status": "COMPLETED", "objective_value": 123.45, ...}
-```
-
-[📄 קובץ מקור: `optimization_tasks.py`](backend/app/tasks/optimization_tasks.py#L17-L30)
 
 ## ✅ יתרונות
 
@@ -872,7 +852,6 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
 ```
 
 [📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
-
 
 ---
 
