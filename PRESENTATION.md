@@ -422,10 +422,8 @@ graph TB
 - **תפקיד**: ביצוע משימות אופטימיזציה ברקע
 - **תהליך**:
   1. קורא משימות מ-Redis
-  2. מעדכן סטטוס ל-`RUNNING`
-  3. מריץ את `SchedulingService._execute_optimization_for_run()`
-  4. מעדכן את `SchedulingRun` עם תוצאות
-  5. מחזיר תוצאה ל-Redis
+  2. קורא ל-`SchedulingService._execute_optimization_for_run()` (ראה [פרק 5](#5-schedulingservice---orchestrator-ראשי))
+  3. מחזיר תוצאה ל-Redis
 
 #### **Flower** - ניטור ומעקב
 
@@ -454,9 +452,7 @@ return {"run_id": run.run_id, "task_id": task.id}
 # 3. Celery Worker מבצע ברקע
 @celery_app.task
 def run_optimization_task(run_id):
-    run.status = RUNNING
     scheduling_service._execute_optimization_for_run(run)
-    run.status = COMPLETED
     return results
 
 # 4. Frontend בודק סטטוס (Polling)
@@ -494,9 +490,7 @@ GET /api/scheduling/runs/{run_id}
 
 ```mermaid
 flowchart TD
-    Start([optimize_schedule<br/>נקודת כניסה מ-API]) --> CreateRun[יצירת SchedulingRun<br/>status = PENDING]
-    CreateRun --> CeleryTask[שליחת משימה ל-Celery<br/>run_optimization_task.delay]
-    CeleryTask --> ExecuteRun[_execute_optimization_for_run<br/>נקודת כניסה מ-Celery]
+    Start([_execute_optimization_for_run<br/>נקודת כניסה]) --> ExecuteRun[_execute_run<br/>Executor משותף]
 
     ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING<br/>SELECT FOR UPDATE]
     StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
@@ -521,22 +515,14 @@ flowchart TD
 
 ### 📋 פונקציות מרכזיות
 
-#### 1. **`optimize_schedule()`**
+#### 1. **`_execute_optimization_for_run()`**
 
-- **תפקיד**: נקודת הכניסה הראשית מ-API Controller
-- **תהליך**:
-  1. יוצר `SchedulingRun` record עם סטטוס `PENDING`
-  2. שולח משימת Celery ל-Redis (`run_optimization_task.delay`)
-  3. מחזיר `run_id` ו-`task_id` מיד (לא מחכה לסיום)
+- **תפקיד**: נקודת הכניסה הראשית - מקבלת `SchedulingRun` record קיים
+- **תהליך**: קורא ל-`_execute_run()` עם `apply_assignments=False`
+- **הערה**: לא מיישם הקצאות ישירות, רק שומר פתרונות מוצעים ב-`SchedulingSolution` records
 - **פלט**: `(SchedulingRunModel, SchedulingSolution)`
 
-#### 2. **`_execute_optimization_for_run()`**
-
-- **תפקיד**: נקודת הכניסה מ-Celery Task (async)
-- **תהליך**: קורא ל-`_execute_run()` עם `apply_assignments=False`
-- **הערה**: לא מיישם הקצאות ישירות, רק שומר פתרונות מוצעים
-
-#### 3. **`_execute_run()`**
+#### 2. **`_execute_run()`**
 
 - **תפקיד**: Executor משותף שמנהל את כל התהליך
 - **תהליך**:
@@ -547,7 +533,7 @@ flowchart TD
   5. `_validate_solution()` - בדיקת תקינות נגד אילוצים קשים
   6. `_persist_solution()` - שמירת תוצאות ב-DB
 
-#### 4. **`_build_and_solve()`**
+#### 3. **`_build_and_solve()`**
 
 - **תפקיד**: קישור בין OptimizationDataBuilder ל-MipSchedulingSolver
 - **תהליך**:
@@ -555,14 +541,14 @@ flowchart TD
   2. קורא ל-`MipSchedulingSolver.solve()` - פתרון מודל MIP
 - **פלט**: `SchedulingSolution`
 
-#### 5. **`_validate_solution()`**
+#### 4. **`_validate_solution()`**
 
 - **תפקיד**: בדיקת תקינות הפתרון נגד אילוצים קשים
 - **תהליך**: קורא ל-`ConstraintService.validate_weekly_schedule()`
 - **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
 - **הערה**: אם יש הפרות → מעלה `ValueError`
 
-#### 6. **`_persist_solution()`**
+#### 5. **`_persist_solution()`**
 
 - **תפקיד**: שמירת תוצאות ב-DB
 - **תהליך**: קורא ל-`SchedulingPersistence.save_solution()`
