@@ -488,33 +488,6 @@ GET /api/scheduling/runs/{run_id}
 - **Validation** - בדיקת תקינות הפתרון נגד אילוצים קשים לפני שמירה
 - **Persistence** - שמירת תוצאות ב-DB (SchedulingSolution records)
 
-## 🔄 זרימת עבודה - SchedulingService
-
-```mermaid
-flowchart TD
-    Start([_execute_optimization_for_run<br/>נקודת כניסה]) --> ExecuteRun[_execute_run<br/>Executor משותף]
-
-    ExecuteRun --> StartRun[_start_run<br/>עדכון סטטוס ל-RUNNING<br/>SELECT FOR UPDATE]
-    StartRun --> LoadConfig[_load_optimization_config<br/>טעינת הגדרות אופטימיזציה]
-    LoadConfig --> BuildSolve[_build_and_solve<br/>בניית נתונים ופתרון]
-
-    BuildSolve --> DataBuilder[OptimizationDataBuilder.build<br/>איסוף נתונים מ-DB]
-    DataBuilder --> Solver[MipSchedulingSolver.solve<br/>פתרון מודל MIP]
-    Solver --> CheckStatus{בדיקת סטטוס<br/>פתרון}
-
-    CheckStatus -->|INFEASIBLE| HandleInfeasible[_handle_infeasible_solution<br/>עדכון סטטוס]
-    CheckStatus -->|OPTIMAL/FEASIBLE| Validate[_validate_solution<br/>בדיקת תקינות נגד<br/>אילוצים קשים]
-
-    Validate --> Persist[_persist_solution<br/>שמירת תוצאות ב-DB]
-    HandleInfeasible --> Persist
-    Persist --> End([החזרת run + solution])
-
-    style Start fill:#e1f5ff
-    style ExecuteRun fill:#fff4e1
-    style BuildSolve fill:#ffe1f5
-    style End fill:#e1ffe1
-```
-
 ## 📋 פונקציות מרכזיות
 
 #### 1. **`_execute_optimization_for_run()`**
@@ -618,85 +591,120 @@ def _execute_run(
 
 ## 🔨 תפקיד OptimizationDataBuilder
 
-המודול `OptimizationDataBuilder` אחראי על איסוף והכנת כל הנתונים הנדרשים לבניית מודל MIP.
+המודול `OptimizationDataBuilder` אחראי על איסוף והכנת כל הנתונים הנדרשים לבניית מודל MIP. הוא מתחבר ל-DB, אוסף נתונים, ומכין אותם בפורמט המתאים למודל MIP.
 
-#### 1. **🗺️ מיפוי תפקידים**
+**אחריות מרכזית:**
 
-- **`role_requirements`**: `{shift_id: [role_id, ...]}` - אילו תפקידים נדרשים לכל משמרת
-- **`employee_roles`**: `{user_id: [role_id, ...]}` - אילו תפקידים יש לכל עובד
+- **איסוף נתונים מ-DB** - עובדים, משמרות, תפקידים, הקצאות קיימות, חופשות מאושרות
+- **בניית מטריצות** - מטריצת זמינות ומטריצת העדפות (NumPy arrays)
+- **מיפוי תפקידים** - קישור בין עובדים לתפקידים ובין משמרות לדרישות תפקידים
+- **זיהוי קונפליקטים** - חפיפות משמרות, חופשות, שעות מנוחה
+- **אילוצי מערכת** - איסוף והכנת אילוצים קשים ורכים
+- **בניית אינדקסים** - מיפוי בין IDs לאינדקסים במטריצות
 
-#### 2. **📊 בניית מטריצות** (`_build_matrices()`)
+## 📋 פונקציות מרכזיות
 
-- **`availability_matrix`**: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
-- **`preference_scores`**: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
+#### 1. **`build()`**
 
-##### 📋 מטריצת הזמינות - תנאים לחישוב
+- **תפקיד**: Orchestrator ראשי - מכין את כל הנתונים הנדרשים למודל MIP
+- **תהליך**:
+  1. אימות קיום WeeklySchedule
+  2. איסוף נתונים בסיסיים מ-DB (עובדים, משמרות, תפקידים)
+  3. בניית אינדקסים (employee_index, shift_index)
+  4. מיפוי תפקידים (role_requirements, employee_roles)
+  5. בניית הקצאות קיימות
+  6. בניית מטריצות (availability_matrix, preference_scores)
+  7. בניית אילוצים וקונפליקטים
+- **פלט**: `OptimizationData` - אובייקט עם כל הנתונים המוכנים
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L52-L96)
+
+```python
+def build(self, weekly_schedule_id: int) -> OptimizationData:
+    """
+    Main orchestrator method to prepare all optimization data.
+
+    This method coordinates all data extraction and transformation steps
+    to build a complete OptimizationData object.
+
+    Args:
+        weekly_schedule_id: ID of the weekly schedule to optimize
+
+    Returns:
+        OptimizationData object with all required data structures
+    """
+    data = OptimizationData()
+
+    # Verify weekly schedule exists
+    self._verify_weekly_schedule(weekly_schedule_id)
+
+    # Extract base data from database
+    data.employees, data.shifts, data.roles = self._extract_base_data(weekly_schedule_id)
+
+    # Build index mappings
+    data.employee_index, data.shift_index = self._build_indices(data.employees, data.shifts)
+
+    # Build role mappings
+    data.role_requirements = self.build_role_requirements(data.shifts)
+    data.employee_roles = self.build_employee_roles(data.employees)
+
+    # Build existing assignments (for preserving preferred assignments)
+    data.existing_assignments = self.build_existing_assignments(weekly_schedule_id)
+
+    # Build matrices and constraints
+    time_off_map = self._build_time_off_map_for_schedule(data.shifts)
+    data.availability_matrix, data.preference_scores = self._build_matrices(
+        data.employees, data.shifts, data.employee_index, data.shift_index,
+        data.existing_assignments, time_off_map
+    )
+
+    # Build constraints and conflicts
+    data.shift_overlaps, data.shift_durations, data.system_constraints, \
+    data.time_off_conflicts, data.shift_rest_conflicts = self._build_constraints_and_conflicts(
+        data.employees, data.shifts, data.shift_index, time_off_map
+    )
+
+    return data
+```
+
+#### 2. **`_build_matrices()` - בניית מטריצות**
+
+- **תפקיד**: בונה את מטריצת הזמינות ומטריצת העדפות
+- **תוצר**:
+  - **`availability_matrix`**: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
+  - **`preference_scores`**: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
+
+**מטריצת הזמינות** (`availability_matrix[i, j]`) קובעת אם עובד `i` זמין למשמרת `j`:
+
+- **אתחול**: כל הערכים מתחילים כ-`1` (זמין)
+- **Time Off מאושר** → `availability[i, j] = 0` (אם לעובד יש time off מאושר בתאריך המשמרת)
+- **הקצאה קיימת** → `availability[i, j] = 0` (אם העובד כבר משובץ למשמרת זו)
+- **חפיפה עם משמרת אחרת** → `availability[i, j] = 0` (אם העובד כבר משובץ למשמרת חופפת)
+- **אין תפקיד מתאים** → `availability[i, j] = 0` (אם לעובד אין אף תפקיד שמתאים לדרישות המשמרת)
 
 [📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L525-L605)
 
-**מטריצת הזמינות** (`availability_matrix[i, j]`) קובעת אם עובד `i` זמין למשמרת `j`.
+#### 3. **`build_role_requirements()` ו-`build_employee_roles()` - מיפוי תפקידים**
 
-**אלגוריתם החישוב:**
+- **תפקיד**: בונה מיפוי בין משמרות לתפקידים נדרשים ובין עובדים לתפקידים שלהם
+- **תוצר**:
+  - **`role_requirements`**: `{shift_id: [role_id, ...]}` - אילו תפקידים נדרשים לכל משמרת
+  - **`employee_roles`**: `{user_id: [role_id, ...]}` - אילו תפקידים יש לכל עובד
 
-1. **אתחול**: כל הערכים מתחילים כ-`1` (זמין)
+#### 4. **`_build_constraints_and_conflicts()` - זיהוי קונפליקטים**
 
-   ```python
-   availability = np.ones((n_employees, n_shifts), dtype=int)
-   ```
+- **תפקיד**: מזהה קונפליקטים ואילוצים בין משמרות ועובדים
+- **תוצר**:
+  - **`shift_overlaps`**: `{shift_id: [overlapping_shift_ids]}` - משמרות חופפות
+  - **`time_off_conflicts`**: `{emp_id: [conflicting_shift_ids]}` - עובדים עם חופשות מאושרות
+  - **`shift_rest_conflicts`**: `{shift_id: {conflicting_shift_ids}}` - משמרות שלא מספקות שעות מנוחה מינימליות
+  - **`system_constraints`**: `{SystemConstraintType: (value, is_hard)}` - אילוצי מערכת
+  - **`shift_durations`**: `{shift_id: duration_hours}` - משך משמרות
 
-2. **תנאי 1: Time Off מאושר** → `availability[i, j] = 0`
+#### 5. **`build_existing_assignments()` - הקצאות קיימות**
 
-   - **תנאי**: אם לעובד יש time off מאושר בתאריך המשמרת
-   - **חישוב**: `start_date <= shift_date <= end_date`
-   - **דוגמה**: עובד עם חופשה מ-2024-01-15 עד 2024-01-20, משמרת בתאריך 2024-01-18 → `availability[i, j] = 0`
-
-3. **תנאי 2: הקצאה קיימת** → `availability[i, j] = 0`
-
-   - **תנאי**: אם העובד כבר משובץ למשמרת זו
-   - **חישוב**: `(user_id, shift_id) in existing_assignments`
-   - **דוגמה**: עובד כבר משובץ למשמרת 123 → `availability[i, j] = 0`
-
-4. **תנאי 3: חפיפה עם משמרת אחרת** → `availability[i, j] = 0`
-
-   - **תנאי**: אם העובד כבר משובץ למשמרת חופפת בזמן
-   - **חישוב**: בדיקת חפיפה בין משמרות (start/end time overlap)
-   - **דוגמה**: עובד משובץ למשמרת 10:00-14:00, משמרת חדשה 13:00-17:00 → `availability[i, j] = 0`
-
-5. **תנאי 4: אין תפקיד מתאים** → `availability[i, j] = 0`
-   - **תנאי**: אם לעובד אין אף תפקיד שמתאים לדרישות המשמרת
-   - **חישוב**: `not any(role_id in emp_roles for role_id in shift_required_roles)`
-   - **דוגמה**: משמרת דורשת `Chef`, לעובד יש רק `Waiter` → `availability[i, j] = 0`
-
-**סיכום:**
-
-```
-availability[i, j] = 1  אם:
-  ✅ אין time off מאושר בתאריך המשמרת
-  ✅ העובד לא משובץ למשמרת זו
-  ✅ אין חפיפה עם משמרות אחרות
-  ✅ יש לעובד תפקיד מתאים
-
-availability[i, j] = 0  אחרת
-```
-
-#### 3. **⚠️ זיהוי קונפליקטים** (`_build_constraints_and_conflicts()`)
-
-- **`shift_overlaps`**: `{shift_id: [overlapping_shift_ids]}` - משמרות חופפות (לא ניתן להקצות אותו עובד)
-- **`time_off_conflicts`**: `{emp_id: [conflicting_shift_ids]}` - עובדים עם חופשות מאושרות
-- **`shift_rest_conflicts`**: `{shift_id: {conflicting_shift_ids}}` - משמרות שלא מספקות שעות מנוחה מינימליות
-
-#### 4. **⚙️ אילוצי מערכת** (`build_system_constraints()`)
-
-- **`system_constraints`**: `{SystemConstraintType: (value, is_hard)}`
-- **דוגמאות**: `MAX_HOURS_PER_WEEK`, `MIN_REST_HOURS`, `MAX_SHIFTS_PER_WEEK`
-
-#### 5. **📋 הקצאות קיימות** (`build_existing_assignments()`)
-
-- **`existing_assignments`**: `{(employee_id, shift_id, role_id)}` - הקצאות שנשמרו
-
-#### 6. **⏱️ משך משמרות** (`build_shift_durations()`)
-
-- **`shift_durations`**: `{shift_id: duration_hours}` - לחישוב שעות שבועיות
+- **תפקיד**: אוסף הקצאות קיימות מהמסד נתונים
+- **תוצר**: **`existing_assignments`**: `{(employee_id, shift_id, role_id)}` - הקצאות שנשמרו
 
 ---
 
@@ -710,8 +718,6 @@ availability[i, j] = 0  אחרת
 - **אילוצים קשים** - חובה לספק (כיסוי, חפיפות, מנוחה מינימלית, וכו')
 - **אילוצים רכים** - רצוי לספק עם עונשים (שעות מינימום/מקסימום, משמרות, וכו')
 - **פונקציית מטרה** - משלבת העדפות עובדים, הוגנות, כיסוי ועונשים
-
-הפותר משתמש ב-**CBC Solver** (bundled עם Python-MIP) כדי למצוא פתרון אופטימלי או קרוב לאופטימלי.
 
 ## 🔄 זרימת עבודה - בניית ופתרון מודל MIP
 
