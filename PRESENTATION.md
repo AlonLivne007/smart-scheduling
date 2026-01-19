@@ -10,31 +10,32 @@
 - [2. טכנולוגיות מרכזיות](#2-טכנולוגיות-מרכזיות)
 - [3. ארכיטקטורת המערכת](#3-ארכיטקטורת-המערכת)
 - [4. עיבוד רקע: Celery, Redis ו-Flower](#4-עיבוד-רקע-celery-redis-ו-flower)
-- [5. בניית מודל האופטימיזציה](#5-בניית-מודל-האופטימיזציה)
-- [6. מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה](#6-מודל-mip-משתני-החלטה-אילוצים-ופונקציית-מטרה)
-  - [6.1 משתני החלטה](#61-משתני-החלטה)
-  - [6.2 אילוצים קשים](#62-אילוצים-קשים)
-  - [6.3 אילוצים רכים](#63-אילוצים-רכים)
-  - [6.4 פונקציית מטרה](#64-פונקציית-מטרה)
+- [5. SchedulingService - Orchestrator ראשי](#5-schedulingservice---orchestrator-ראשי)
+- [6. בניית מודל האופטימיזציה - OptimizationDataBuilder](#6-בניית-מודל-האופטימיזציה---optimizationdatabuilder)
+- [7. מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה](#7-מודל-mip-משתני-החלטה-אילוצים-ופונקציית-מטרה)
+  - [7.1 משתני החלטה](#71-משתני-החלטה)
+  - [7.2 אילוצים קשים](#72-אילוצים-קשים)
+  - [7.3 אילוצים רכים](#73-אילוצים-רכים)
+  - [7.4 פונקציית מטרה](#74-פונקציית-מטרה)
 - [סיכום](#סיכום)
 
 ---
 
-## 1️⃣ מטרות הפרויקט
+# 1️⃣ מטרות הפרויקט
 
-### 🎯 הבעיה שהמערכת פותרת
+## 🎯 הבעיה שהמערכת פותרת
 
 - **📋 ניהול ידני מורכב**: יצירת לוח זמנים שבועי עם עשרות עובדים, משמרות ותפקידים דורש שעות עבודה
 - **⚖️ קונפליקטים ואי-הוגנות**: קושי לאזן בין העדפות עובדים, זמינות, כיסוי תפקידים והוגנות בעומס עבודה
 - **🔒 אילוצים מורכבים**: שעות מנוחה מינימליות, מקסימום שעות שבועי, חפיפות משמרות, חופשות מאושרות
 
-### 👥 למי מיועדת המערכת
+## 👥 למי מיועדת המערכת
 
-- **👔 מנהלי משמרות** (Restaurant Managers, Shift Supervisors)
+- **👔 מנהלי משמרות** (Shift Supervisors)
 - **🏢 מחלקות משאבי אנוש** המנהלות לוחות זמנים שבועיים
 - **👤 עובדים** המבקשים לראות את המשמרות שלהם ולעדכן העדפות
 
-### ✅ מדדי הצלחה
+## ✅ מדדי הצלחה
 
 - **⚖️ הוגנות**: חלוקה מאוזנת של משמרות בין עובדים (מינימום סטייה מהממוצע)
 - **✅ כיסוי מלא**: כל משמרת מקבלת את כל התפקידים הנדרשים (Coverage = 100%)
@@ -44,9 +45,9 @@
 
 ---
 
-## 2️⃣ טכנולוגיות מרכזיות
+# 2️⃣ טכנולוגיות מרכזיות
 
-### 🔧 Backend
+## 🔧 Backend
 
 | טכנולוגיה         | תיאור                                            |
 | ----------------- | ------------------------------------------------ |
@@ -56,20 +57,20 @@
 | **Celery 5.3+**   | עיבוד רקע אסינכרוני                              |
 | **Redis 7**       | Message broker עבור Celery                       |
 
-### 🎨 Frontend
+## 🎨 Frontend
 
 | טכנולוגיה    | תיאור               |
 | ------------ | ------------------- |
 | **React 19** | UI framework מודרני |
 
-### ⚙️ Optimization Engine
+## ⚙️ Optimization Engine
 
 | טכנולוגיה                | תיאור                                         |
 | ------------------------ | --------------------------------------------- |
 | **Python-MIP >= 1.15.0** | ספריית MIP                                    |
 | **CBC Solver**           | פתרון MIP open-source (bundled עם Python-MIP) |
 
-### 🐳 Deployment
+## 🐳 Deployment
 
 | טכנולוגיה          | תיאור                      |
 | ------------------ | -------------------------- |
@@ -87,9 +88,9 @@
 
 ---
 
-## 3️⃣ ארכיטקטורת המערכת
+# 3️⃣ ארכיטקטורת המערכת
 
-### 🏗️ High-Level Architecture Diagram
+## 🏗️ High-Level Architecture Diagram
 
 ```mermaid
 graph TB
@@ -129,14 +130,15 @@ graph TB
 
     Frontend -->|HTTP/REST API| Backend
     Backend --> PostgreSQL
-    Backend --> Redis
-    Backend --> CeleryWorker
+    Backend -->|Dispatch Tasks| Redis
+    Redis -->|Task Queue| CeleryWorker
+    CeleryWorker -->|Return Results| Redis
     CeleryWorker --> OPT
     OPT --> PostgreSQL
-    CeleryWorker --> Flower
+    Redis -->|Monitor Tasks| Flower
 ```
 
-### 🗄️ Infrastructure Components
+## 🗄️ Infrastructure Components
 
 | רכיב                    | טכנולוגיה        | פורט | תפקיד                    |
 | ----------------------- | ---------------- | ---- | ------------------------ |
@@ -148,84 +150,7 @@ graph TB
 | **Monitoring**          | Flower           | 5555 | ניטור משימות Celery      |
 | **Optimization Solver** | Python-MIP + CBC | -    | פתרון MIP                |
 
-### 🏗️ רכיבים מרכזיים (Detailed View)
-
-```mermaid
-graph TD
-    Frontend["Frontend<br/>React 19 + Vite + TailwindCSS<br/>Port: 5173<br/>API calls via Axios"]
-
-    Backend["Backend API<br/>FastAPI<br/>Port: 8000<br/>Controllers → Services → Models"]
-
-    DB["PostgreSQL<br/>Port: 5432"]
-    CeleryWorker["Celery Worker<br/>(Redis)"]
-    DataBuilder["Optimization<br/>DataBuilder"]
-    ConstraintService["Constraint<br/>Service"]
-
-    MIPSolver["MipSolver<br/>(Python-MIP)<br/>+ CBC"]
-
-    Solution["Scheduling<br/>Solution<br/>(Assignments)"]
-
-    Frontend -->|HTTP/REST| Backend
-    Backend --> DB
-    Backend --> CeleryWorker
-    Backend --> DataBuilder
-    Backend --> ConstraintService
-
-    DataBuilder --> MIPSolver
-    MIPSolver --> Solution
-    Solution --> ConstraintService
-```
-
-### 📦 מודולים מרכזיים
-
-#### 1. **SchedulingService**
-
-- **תפקיד**: Orchestrator ראשי של תהליך האופטימיזציה
-- **זרימה**: `optimize_schedule()` → `_execute_run()` → `_build_and_solve()`
-- **אחריות**: ניהול SchedulingRun records, טיפול בשגיאות, validation
-
-#### 2. **OptimizationDataBuilder**
-
-- **תפקיד**: הכנת נתונים למודל MIP
-- **פונקציה עיקרית**: `build()` - איסוף נתונים מ-DB והכנה למודל MIP
-- **תוצר**: בניית מטריצות זמינות והעדפות, mapping של אינדקסים
-
-#### 3. **MipSchedulingSolver** (`app/services/scheduling/mip_solver.py`)
-
-- **תפקיד**: בניית ופתרון מודל MIP
-- **פונקציה עיקרית**: `solve()` - בניית מודל MIP ופתרון
-- **תוצר**: משתני החלטה, אילוצים, פונקציית מטרה
-
-#### 4. **ConstraintService** (`app/services/constraintService.py`)
-
-- **תפקיד**: בדיקת תקינות הפתרון
-- **פונקציה עיקרית**: `validate_weekly_schedule()` - בדיקת הפתרון נגד אילוצים קשים
-- **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
-
-### 🔄 זרימת נתונים (End-to-End)
-
-```mermaid
-sequenceDiagram
-    participant User as User Request<br/>(Frontend)
-    participant Controller as API Controller<br/>(schedulingRunController.py)
-    participant Service as SchedulingService<br/>optimize_schedule()
-    participant Builder as OptimizationDataBuilder<br/>build()
-    participant Solver as MipSchedulingSolver<br/>solve()
-    participant Validator as ConstraintService<br/>validate_weekly_schedule()
-
-    User->>Controller: HTTP Request
-    Controller->>Service: optimize_schedule()
-    Service->>Builder: build()
-    Builder-->>Service: OptimizationData
-    Service->>Solver: solve()
-    Solver-->>Service: SchedulingSolution
-    Service->>Validator: validate_weekly_schedule()
-    Validator-->>Service: Validation Result
-    Service-->>Controller: Schedule solution ready
-    Controller-->>User: HTTP Response
-```
-
-### 📊 דיאגרמת יישויות (Entity Relationship Diagram)
+## 📊 דיאגרמת יישויות (Entity Relationship Diagram)
 
 #### ישויות מורכבות - אופטימיזציה
 
@@ -391,9 +316,60 @@ erDiagram
 
 ---
 
-## 4️⃣ עיבוד רקע: Celery, Redis ו-Flower
+## 📦 מודולים מרכזיים
 
-### 🎯 למה עיבוד רקע?
+#### 1. **SchedulingService**
+
+- **תפקיד**: Orchestrator ראשי של תהליך האופטימיזציה
+- **זרימה**: `_execute_optimization_for_run()` → `_execute_run()` → `_build_and_solve()` → `_validate_solution()`
+- **אחריות**: ניהול SchedulingRun records, טיפול בשגיאות, validation
+
+#### 2. **OptimizationDataBuilder**
+
+- **תפקיד**: הכנת נתונים למודל MIP
+- **פונקציה עיקרית**: `build()` - איסוף נתונים מ-DB והכנה למודל MIP
+- **תוצר**: בניית מטריצות זמינות והעדפות, mapping של אינדקסים
+
+#### 3. **MipSchedulingSolver** (`app/services/scheduling/mip_solver.py`)
+
+- **תפקיד**: בניית ופתרון מודל MIP
+- **פונקציה עיקרית**: `solve()` - בניית מודל MIP ופתרון
+- **תוצר**: משתני החלטה, אילוצים, פונקציית מטרה
+
+#### 4. **ConstraintService** (`app/services/constraintService.py`)
+
+- **תפקיד**: בדיקת תקינות הפתרון
+- **פונקציה עיקרית**: `validate_weekly_schedule()` - בדיקת הפתרון נגד אילוצים קשים
+- **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
+
+## 🔄 זרימת נתונים (End-to-End)
+
+```mermaid
+sequenceDiagram
+    participant User as User Request<br/>(Frontend)
+    participant Controller as API Controller<br/>(schedulingRunController.py)
+    participant Service as SchedulingService<br/>optimize_schedule()
+    participant Builder as OptimizationDataBuilder<br/>build()
+    participant Solver as MipSchedulingSolver<br/>solve()
+    participant Validator as ConstraintService<br/>validate_weekly_schedule()
+
+    User->>Controller: HTTP Request
+    Controller->>Service: optimize_schedule()
+    Service->>Builder: build()
+    Builder-->>Service: OptimizationData
+    Service->>Solver: solve()
+    Solver-->>Service: SchedulingSolution
+    Service->>Validator: validate_weekly_schedule()
+    Validator-->>Service: Validation Result
+    Service-->>Controller: Schedule solution ready
+    Controller-->>User: HTTP Response
+```
+
+---
+
+# 4️⃣ עיבוד רקע: Celery, Redis ו-Flower
+
+## 🎯 למה עיבוד רקע?
 
 תהליך האופטימיזציה של לוח זמנים שבועי יכול לקחת **דקות** (תלוי בגודל הבעיה). ביצוע התהליך באופן סינכרוני יגרום ל:
 
@@ -403,13 +379,13 @@ erDiagram
 
 **הפתרון**: עיבוד אסינכרוני עם **Celery** ו-**Redis**.
 
-### 🏗️ ארכיטקטורה
+## 🏗️ ארכיטקטורה
 
 ```mermaid
 graph TB
     Frontend["Frontend"]
     Backend["FastAPI Backend<br/>Port: 8000"]
-    Redis["Redis<br/>Port: 6379<br/>Message Broker<br/>Task Queue"]
+    Redis["Redis<br/>Port: 6379<br/>Message Broker<br/>Task Queue<br/>Result Backend"]
     CeleryWorker["Celery Worker<br/>(Background)<br/>Runs optimization"]
     PostgreSQL["PostgreSQL<br/>Store Results"]
     Flower["Flower<br/>Port: 5555<br/>Monitoring Dashboard<br/>Real-time Task Status"]
@@ -418,48 +394,49 @@ graph TB
     Backend -->|Dispatch Task| Redis
     Redis -->|Task Distribution| CeleryWorker
     CeleryWorker -->|Update Status| PostgreSQL
-    CeleryWorker -->|Monitoring| Flower
+    CeleryWorker -->|Return Results| Redis
+    Redis -->|Task Status & Results| Flower
 ```
 
 **הסבר על זרימת העבודה:**
 
 1. **Frontend → Backend**: המשתמש שולח בקשה HTTP
 2. **Backend → Redis**:
-   - יוצר `SchedulingRun` עם סטטוס `PENDING`
-   - שולח משימת Celery ל-Redis
+   - יוצר `SchedulingRun` עם סטטוס `PENDING` ב-PostgreSQL
+   - שולח משימת Celery ל-Redis (Message Broker)
    - מחזיר `task_id` מיד למשתמש (לא מחכה לסיום)
 3. **Redis → Celery Worker**: Celery Worker קורא את המשימה מהתור
-4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות
-5. **Celery Worker → Flower**: Flower מציג את הסטטוס בזמן אמת
+4. **Celery Worker → PostgreSQL**: מעדכן את הסטטוס ל-`RUNNING`, ואז ל-`COMPLETED` עם התוצאות (דרך `SchedulingService`)
+5. **Celery Worker → Redis**: מחזיר תוצאות ל-Redis (Result Backend) - התוצאות נשמרות ב-Redis לזמן מוגבל
+6. **Redis → Flower**: Flower קורא מ-Redis את הסטטוס והתוצאות בזמן אמת ומציג אותם ב-Dashboard
 
-### 🔧 רכיבים
+## 🔧 רכיבים
 
-#### **Redis** - Message Broker
+#### **Redis** - Message Broker & Result Backend
 
-- **תפקיד**: תור הודעות (Message Queue) בין FastAPI ל-Celery Worker
+- **תפקיד**:
+  - **Message Broker**: תור הודעות (Message Queue) בין FastAPI ל-Celery Worker
+  - **Result Backend**: אחסון תוצאות משימות (לזמן מוגבל - 24 שעות)
 - **שימוש**:
-  - FastAPI שולח משימות ל-Redis
+  - FastAPI שולח משימות ל-Redis (Message Broker)
   - Celery Worker קורא משימות מ-Redis
-  - Redis שומר תוצאות זמניות
+  - Celery Worker מחזיר תוצאות ל-Redis (Result Backend)
+  - Flower קורא מ-Redis את הסטטוס והתוצאות לניטור
 - **פורט**: `6379`
 
 #### **Celery Worker** - עיבוד רקע
 
 - **תפקיד**: ביצוע משימות אופטימיזציה ברקע
 - **תהליך**:
-  1. קורא משימות מ-Redis
-  2. מעדכן סטטוס ל-`RUNNING`
-  3. מריץ את `SchedulingService._execute_optimization_for_run()`
-  4. מעדכן את `SchedulingRun` עם תוצאות
-  5. מחזיר תוצאה ל-Redis
-- **הגדרות**:
-  - `task_time_limit=3600` (שעה מקסימלית)
-  - `task_soft_time_limit=3300` (55 דקות soft limit)
-  - `worker_max_tasks_per_child=50` (מניעת memory leaks)
+  1. קורא משימות מ-Redis (Message Broker)
+  2. קורא ל-`SchedulingService._execute_optimization_for_run()` (ראה [פרק 5](#5-schedulingservice---orchestrator-ראשי))
+  3. מעדכן את `SchedulingRun` ב-PostgreSQL עם התוצאות
+  4. מחזיר תוצאות ל-Redis (Result Backend) - לניטור ב-Flower
 
 #### **Flower** - ניטור ומעקב
 
 - **תפקיד**: Dashboard לניטור משימות Celery בזמן אמת
+- **איך זה עובד**: Flower קורא מ-Redis את הסטטוס והתוצאות של המשימות (לא ישירות מ-Celery Worker)
 - **יכולות**:
   - 📊 צפייה במשימות פעילות, ממתינות, מושלמות
   - ⏱️ זמני ביצוע וסטטיסטיקות
@@ -467,34 +444,7 @@ graph TB
   - 📈 גרפים ומטריקות
 - **גישה**: `http://localhost:5555`
 
-### 🔄 זרימת עבודה
-
-```python
-# 1. Frontend שולח בקשה
-POST /api/scheduling/optimize?weekly_schedule_id=123
-
-# 2. Backend יוצר רשומה ומשלח משימה
-run = SchedulingRunModel(status=PENDING)
-db.add(run)
-db.commit()
-
-task = run_optimization_task.delay(run.run_id)
-return {"run_id": run.run_id, "task_id": task.id}
-
-# 3. Celery Worker מבצע ברקע
-@celery_app.task
-def run_optimization_task(run_id):
-    run.status = RUNNING
-    scheduling_service._execute_optimization_for_run(run)
-    run.status = COMPLETED
-    return results
-
-# 4. Frontend בודק סטטוס (Polling)
-GET /api/scheduling/runs/{run_id}
-→ {"status": "COMPLETED", "objective_value": 123.45, ...}
-```
-
-### ✅ יתרונות
+## ✅ יתרונות
 
 - ⚡ **תגובה מהירה**: API מחזיר מיד (לא מחכה לסיום האופטימיזציה)
 - 🔄 **Scalability**: ניתן להוסיף מספר Celery Workers
@@ -504,93 +454,338 @@ GET /api/scheduling/runs/{run_id}
 
 ---
 
-## 5️⃣ בניית מודל האופטימיזציה
+# 5️⃣ SchedulingService - Orchestrator ראשי
 
-### 🔨 תפקיד OptimizationDataBuilder
+## 🔨 תפקיד SchedulingService
 
-המודול `OptimizationDataBuilder` אחראי על איסוף והכנת כל הנתונים הנדרשים לבניית מודל MIP.
+המודול `SchedulingService` הוא ה-**Orchestrator הראשי** של תהליך האופטימיזציה. הוא מנהל את כל התהליך מקצה לקצה, כולל אינטגרציה עם DB, validation ו-persistence.
 
-#### 1. **🗺️ מיפוי תפקידים**
+**אחריות מרכזית:**
 
-- **`role_requirements`**: `{shift_id: [role_id, ...]}` - אילו תפקידים נדרשים לכל משמרת
-- **`employee_roles`**: `{user_id: [role_id, ...]}` - אילו תפקידים יש לכל עובד
+- **ניהול SchedulingRun records** - יצירה, עדכון סטטוס, טיפול בשגיאות
+- **אורכיסטרציה של תהליך האופטימיזציה** - קישור בין כל הרכיבים
+- **טיפול בשגיאות** - עדכון סטטוס ל-FAILED עם הודעות שגיאה
+- **Validation** - בדיקת תקינות הפתרון נגד אילוצים קשים לפני שמירה
+- **Persistence** - שמירת תוצאות ב-DB (SchedulingSolution records)
 
-#### 2. **📊 בניית מטריצות** (`_build_matrices()`)
+## 📋 פונקציות מרכזיות
 
-- **`availability_matrix`**: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
-- **`preference_scores`**: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
+#### 1. **`_execute_optimization_for_run()`**
 
-##### 📋 מטריצת הזמינות - תנאים לחישוב
+- **תפקיד**: נקודת הכניסה הראשית - מקבלת `SchedulingRun` record קיים
+- **תהליך**: קורא ל-`_execute_run()` עם `apply_assignments=False`
+- **הערה**: לא מיישם הקצאות ישירות, רק שומר פתרונות מוצעים ב-`SchedulingSolution` records
+- **פלט**: `(SchedulingRunModel, SchedulingSolution)`
 
-**מטריצת הזמינות** (`availability_matrix[i, j]`) קובעת אם עובד `i` זמין למשמרת `j`.
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L119-L178)
 
-**אלגוריתם החישוב:**
+#### 2. **`_execute_run()`**
 
-1. **אתחול**: כל הערכים מתחילים כ-`1` (זמין)
+- **תפקיד**: Executor משותף שמנהל את כל התהליך
+- **תהליך**:
+  1. `_start_run()` - עדכון סטטוס ל-`RUNNING` עם race condition protection
+  2. `_load_optimization_config()` - טעינת הגדרות אופטימיזציה
+  3. `_build_and_solve()` - בניית נתונים ופתרון מודל MIP
+  4. בדיקת סטטוס פתרון (INFEASIBLE → `_handle_infeasible_solution()`)
+  5. `_validate_solution()` - בדיקת תקינות נגד אילוצים קשים
+  6. `_persist_solution()` - שמירת תוצאות ב-DB
 
-   ```python
-   availability = np.ones((n_employees, n_shifts), dtype=int)
-   ```
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L180-L215)
 
-2. **תנאי 1: Time Off מאושר** → `availability[i, j] = 0`
+```python
+def _execute_run(
+    self,
+    run: SchedulingRunModel,
+    apply_assignments: bool = True
+) -> Tuple[SchedulingRunModel, SchedulingSolution]:
+    """
+    Shared executor for optimization runs.
 
-   - **תנאי**: אם לעובד יש time off מאושר בתאריך המשמרת
-   - **חישוב**: `start_date <= shift_date <= end_date`
-   - **דוגמה**: עובד עם חופשה מ-2024-01-15 עד 2024-01-20, משמרת בתאריך 2024-01-18 → `availability[i, j] = 0`
+    Args:
+        run: SchedulingRunModel record
+        apply_assignments: If True, create ShiftAssignmentModel records.
+                          If False, only store solutions.
 
-3. **תנאי 2: הקצאה קיימת** → `availability[i, j] = 0`
+    Returns:
+        Tuple of (updated run, solution)
+    """
+    # Update status to RUNNING with race condition protection
+    run = self._start_run(run)
 
-   - **תנאי**: אם העובד כבר משובץ למשמרת זו
-   - **חישוב**: `(user_id, shift_id) in existing_assignments`
-   - **דוגמה**: עובד כבר משובץ למשמרת 123 → `availability[i, j] = 0`
+    # Load configuration
+    config = self._load_optimization_config(run)
 
-4. **תנאי 3: חפיפה עם משמרת אחרת** → `availability[i, j] = 0`
+    # Build and solve
+    solution = self._build_and_solve(run, config)
 
-   - **תנאי**: אם העובד כבר משובץ למשמרת חופפת בזמן
-   - **חישוב**: בדיקת חפיפה בין משמרות (start/end time overlap)
-   - **דוגמה**: עובד משובץ למשמרת 10:00-14:00, משמרת חדשה 13:00-17:00 → `availability[i, j] = 0`
+    # Check if optimization was infeasible or failed
+    if solution.status in ['INFEASIBLE', 'NO_SOLUTION_FOUND']:
+        return self._handle_infeasible_solution(run, solution)
 
-5. **תנאי 4: אין תפקיד מתאים** → `availability[i, j] = 0`
-   - **תנאי**: אם לעובד אין אף תפקיד שמתאים לדרישות המשמרת
-   - **חישוב**: `not any(role_id in emp_roles for role_id in shift_required_roles)`
-   - **דוגמה**: משמרת דורשת `Chef`, לעובד יש רק `Waiter` → `availability[i, j] = 0`
+    # Validate solution against HARD constraints BEFORE persisting
+    if solution.status in ['OPTIMAL', 'FEASIBLE']:
+        self._validate_solution(run, solution)
 
-**סיכום:**
+    # Persist solution and optionally apply assignments
+    run = self._persist_solution(run, solution, apply_assignments)
 
+    return run, solution
 ```
-availability[i, j] = 1  אם:
-  ✅ אין time off מאושר בתאריך המשמרת
-  ✅ העובד לא משובץ למשמרת זו
-  ✅ אין חפיפה עם משמרות אחרות
-  ✅ יש לעובד תפקיד מתאים
 
-availability[i, j] = 0  אחרת
-```
+#### 3. **`_build_and_solve()`**
 
-#### 3. **⚠️ זיהוי קונפליקטים** (`_build_constraints_and_conflicts()`)
+- **תפקיד**: קישור בין OptimizationDataBuilder ל-MipSchedulingSolver
+- **תהליך**:
+  1. קורא ל-`OptimizationDataBuilder.build()` - איסוף נתונים מ-DB
+  2. קורא ל-`MipSchedulingSolver.solve()` - פתרון מודל MIP
+- **פלט**: `SchedulingSolution`
 
-- **`shift_overlaps`**: משמרות חופפות (לא ניתן להקצות אותו עובד)
-- **`time_off_conflicts`**: עובדים עם חופשות מאושרות
-- **`shift_rest_conflicts`**: משמרות שלא מספקות שעות מנוחה מינימליות
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L282-L306)
 
-#### 4. **⚙️ אילוצי מערכת** (`build_system_constraints()`)
+#### 4. **`_validate_solution()`**
 
-- **`system_constraints`**: `{SystemConstraintType: (value, is_hard)}`
-- **דוגמאות**: `MAX_HOURS_PER_WEEK`, `MIN_REST_HOURS`, `MAX_SHIFTS_PER_WEEK`
+- **תפקיד**: בדיקת תקינות הפתרון נגד אילוצים קשים
+- **תהליך**: קורא ל-`ConstraintService.validate_weekly_schedule()`
+- **בדיקות**: חפיפות, חופשות, שעות מנוחה, מקסימום שעות
+- **הערה**: אם יש הפרות → מעלה `ValueError`
 
-#### 5. **📋 הקצאות קיימות** (`build_existing_assignments()`)
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L338-L397)
 
-- **`existing_assignments`**: `{(employee_id, shift_id, role_id)}` - הקצאות שנשמרו
+#### 5. **`_persist_solution()`**
 
-#### 6. **⏱️ משך משמרות** (`build_shift_durations()`)
+- **תפקיד**: שמירת תוצאות ב-DB
+- **תהליך**: קורא ל-`SchedulingPersistence.save_solution()`
+- **שמירה**:
+  - עדכון `SchedulingRun` עם תוצאות
+  - יצירת `SchedulingSolution` records
+  - אופציונלי: יצירת `ShiftAssignment` records (אם `apply_assignments=True`)
 
-- **`shift_durations`**: `{shift_id: duration_hours}` - לחישוב שעות שבועיות
+[📄 קובץ מקור: `scheduling_service.py`](backend/app/services/scheduling/scheduling_service.py#L399-L468)
+
+## 🔗 אינטגרציה עם רכיבים אחרים
+
+`SchedulingService` משתמש ב-4 רכיבים עיקריים:
+
+1. **`OptimizationDataBuilder`** - איסוף והכנת נתונים
+2. **`MipSchedulingSolver`** - פתרון מודל MIP
+3. **`ConstraintService`** - בדיקת תקינות
+4. **`SchedulingPersistence`** - שמירה ב-DB
 
 ---
 
-## 6️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+# 6️⃣ בניית מודל האופטימיזציה - OptimizationDataBuilder
 
-### 6.1 משתני החלטה
+## 🔨 תפקיד OptimizationDataBuilder
+
+המודול `OptimizationDataBuilder` אחראי על איסוף והכנת כל הנתונים הנדרשים לבניית מודל MIP. הוא מתחבר ל-DB, אוסף נתונים, ומכין אותם בפורמט המתאים למודל MIP.
+
+**אחריות מרכזית:**
+
+- **איסוף נתונים מ-DB** - עובדים, משמרות, תפקידים, הקצאות קיימות, חופשות מאושרות
+- **בניית מטריצות** - מטריצת זמינות ומטריצת העדפות (NumPy arrays)
+- **מיפוי תפקידים** - קישור בין עובדים לתפקידים ובין משמרות לדרישות תפקידים
+- **זיהוי קונפליקטים** - חפיפות משמרות, חופשות, שעות מנוחה
+- **אילוצי מערכת** - איסוף והכנת אילוצים קשים ורכים
+- **בניית אינדקסים** - מיפוי בין IDs לאינדקסים במטריצות
+
+## 📋 פונקציות מרכזיות
+
+#### 1. **`build()`**
+
+- **תפקיד**: Orchestrator ראשי - מכין את כל הנתונים הנדרשים למודל MIP
+- **תהליך**:
+  1. אימות קיום WeeklySchedule
+  2. איסוף נתונים בסיסיים מ-DB (עובדים, משמרות, תפקידים)
+  3. בניית אינדקסים (employee_index, shift_index)
+  4. מיפוי תפקידים (role_requirements, employee_roles)
+  5. בניית הקצאות קיימות
+  6. בניית מטריצות (availability_matrix, preference_scores)
+  7. בניית אילוצים וקונפליקטים
+- **פלט**: `OptimizationData` - אובייקט עם כל הנתונים המוכנים
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L52-L96)
+
+```python
+def build(self, weekly_schedule_id: int) -> OptimizationData:
+    """
+    Main orchestrator method to prepare all optimization data.
+
+    This method coordinates all data extraction and transformation steps
+    to build a complete OptimizationData object.
+
+    Args:
+        weekly_schedule_id: ID of the weekly schedule to optimize
+
+    Returns:
+        OptimizationData object with all required data structures
+    """
+    data = OptimizationData()
+
+    # Verify weekly schedule exists
+    self._verify_weekly_schedule(weekly_schedule_id)
+
+    # Extract base data from database
+    data.employees, data.shifts, data.roles = self._extract_base_data(weekly_schedule_id)
+
+    # Build index mappings
+    data.employee_index, data.shift_index = self._build_indices(data.employees, data.shifts)
+
+    # Build role mappings
+    data.role_requirements = self.build_role_requirements(data.shifts)
+    data.employee_roles = self.build_employee_roles(data.employees)
+
+    # Build existing assignments (for preserving preferred assignments)
+    data.existing_assignments = self.build_existing_assignments(weekly_schedule_id)
+
+    # Build matrices and constraints
+    time_off_map = self._build_time_off_map_for_schedule(data.shifts)
+    data.availability_matrix, data.preference_scores = self._build_matrices(
+        data.employees, data.shifts, data.employee_index, data.shift_index,
+        data.existing_assignments, time_off_map
+    )
+
+    # Build constraints and conflicts
+    data.shift_overlaps, data.shift_durations, data.system_constraints, \
+    data.time_off_conflicts, data.shift_rest_conflicts = self._build_constraints_and_conflicts(
+        data.employees, data.shifts, data.shift_index, time_off_map
+    )
+
+    return data
+```
+
+#### 2. **`build_role_requirements()` ו-`build_employee_roles()` - מיפוי תפקידים**
+
+- **תפקיד**: בונה מיפוי בין משמרות לתפקידים נדרשים ובין עובדים לתפקידים שלהם
+- **תוצר**:
+- **`role_requirements`**: `{shift_id: [role_id, ...]}` - אילו תפקידים נדרשים לכל משמרת
+- **`employee_roles`**: `{user_id: [role_id, ...]}` - אילו תפקידים יש לכל עובד
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L388-L422)
+
+#### 3. **`build_existing_assignments()` - הקצאות קיימות**
+
+- **תפקיד**: אוסף הקצאות קיימות מהמסד נתונים
+- **תוצר**: **`existing_assignments`**: `{(employee_id, shift_id, role_id)}` - הקצאות שנשמרו
+- **שימוש**: משמש לבניית מטריצת הזמינות (הקצאות קיימות לא זמינות להקצאה מחדש)
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L423-L461)
+
+#### 4. **`_build_matrices()` - בניית מטריצות**
+
+- **תפקיד**: בונה את מטריצת הזמינות ומטריצת העדפות
+- **תוצר**:
+- **`availability_matrix`**: `np.ndarray(employees × shifts)` - 1=זמין, 0=לא זמין
+- **`preference_scores`**: `np.ndarray(employees × shifts)` - ציון העדפה 0.0-1.0
+
+**מטריצת הזמינות** (`availability_matrix[i, j]`) קובעת אם עובד `i` זמין למשמרת `j`:
+
+- **אתחול**: כל הערכים מתחילים כ-`1` (זמין)
+- **Time Off מאושר** → `availability[i, j] = 0` (אם לעובד יש time off מאושר בתאריך המשמרת)
+- **הקצאה קיימת** → `availability[i, j] = 0` (אם העובד כבר משובץ למשמרת זו)
+- **חפיפה עם משמרת אחרת** → `availability[i, j] = 0` (אם העובד כבר משובץ למשמרת חופפת)
+- **אין תפקיד מתאים** → `availability[i, j] = 0` (אם לעובד אין אף תפקיד שמתאים לדרישות המשמרת)
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L162-L194)
+
+#### 5. **`_build_constraints_and_conflicts()` - זיהוי קונפליקטים**
+
+- **תפקיד**: מזהה קונפליקטים ואילוצים בין משמרות ועובדים
+- **תוצר**:
+  - **`shift_overlaps`**: `{shift_id: [overlapping_shift_ids]}` - משמרות חופפות
+  - **`time_off_conflicts`**: `{emp_id: [conflicting_shift_ids]}` - עובדים עם חופשות מאושרות
+  - **`shift_rest_conflicts`**: `{shift_id: {conflicting_shift_ids}}` - משמרות שלא מספקות שעות מנוחה מינימליות
+  - **`system_constraints`**: `{SystemConstraintType: (value, is_hard)}` - אילוצי מערכת
+  - **`shift_durations`**: `{shift_id: duration_hours}` - משך משמרות
+
+[📄 קובץ מקור: `optimization_data_builder.py`](backend/app/services/optimization_data_services/optimization_data_builder.py#L215-L258)
+
+---
+
+# 7️⃣ מודל MIP: משתני החלטה, אילוצים ופונקציית מטרה
+
+## 🔨 תפקיד MipSchedulingSolver
+
+המודול `MipSchedulingSolver` אחראי על בניית ופתרון מודל **Mixed Integer Programming (MIP)** לאופטימיזציה של הקצאות משמרות. המודל מקבל את הנתונים המוכנים מ-`OptimizationDataBuilder` ובונה מודל מתמטי הכולל:
+
+- **משתני החלטה בינאריים** `x(i,j,r)` - מייצגים הקצאה של עובד `i` למשמרת `j` בתפקיד `r`
+- **אילוצים קשים** - חובה לספק (כיסוי, חפיפות, מנוחה מינימלית, וכו')
+- **אילוצים רכים** - רצוי לספק עם עונשים (שעות מינימום/מקסימום, משמרות, וכו')
+- **פונקציית מטרה** - משלבת העדפות עובדים, הוגנות, כיסוי ועונשים
+
+## 🔄 זרימת עבודה - בניית ופתרון מודל MIP
+
+```mermaid
+flowchart TD
+    Start([solve<br/>נקודת כניסה מ-SchedulingService]) --> CreateModel[יצירת מודל MIP<br/>mip.Model + CBC Solver]
+
+    CreateModel --> BuildVars[_build_decision_variables<br/>יצירת משתני החלטה x]
+
+    BuildVars --> AddCoverage[_add_coverage_constraints<br/>אילוץ כיסוי תפקידים]
+    AddCoverage --> AddSingleRole[_add_single_role_constraints<br/>אילוץ תפקיד אחד למשמרת]
+    AddSingleRole --> AddOverlap[_add_overlap_constraints<br/>אילוץ אין חפיפות]
+    AddOverlap --> AddHard[_add_hard_constraints<br/>אילוצים קשים מהמערכת]
+
+    AddHard --> AddFairness[_add_fairness_terms<br/>משתני הוגנות]
+    AddFairness --> AddSoft[_add_soft_penalties<br/>אילוצים רכים עם penalties]
+    AddSoft --> BuildObj[_build_objective<br/>בניית פונקציית מטרה]
+
+    BuildObj --> Optimize[model.optimize<br/>פתרון המודל - CBC Solver]
+    Optimize --> CheckStatus{בדיקת סטטוס<br/>פתרון}
+
+    CheckStatus -->|OPTIMAL/FEASIBLE| Extract[_extract_assignments<br/>חילוץ הקצאות מהפתרון]
+    CheckStatus -->|INFEASIBLE/NO_SOLUTION| End([החזרת SchedulingSolution<br/>עם סטטוס שגיאה])
+
+    Extract --> Metrics[calculate_metrics<br/>חישוב מטריקות]
+    Metrics --> End
+
+    style Start fill:#e1f5ff
+    style BuildVars fill:#fff4e1
+    style Optimize fill:#ffe1f5
+    style End fill:#e1ffe1
+```
+
+**הסבר קצר על הזרימה:**
+
+1. **`solve()`** - נקודת הכניסה מ-`SchedulingService._build_and_solve()`:
+
+   - מקבל `OptimizationData` (נתונים מוכנים) ו-`OptimizationConfig` (הגדרות)
+   - יוצר מודל MIP עם CBC Solver
+
+2. **בניית משתני החלטה** (`_build_decision_variables`):
+
+   - יוצר משתנים בינאריים `x(i,j,r)` לכל צירוף תקף
+
+3. **הוספת אילוצים קשים**:
+
+   - `_add_coverage_constraints` - כיסוי תפקידים
+   - `_add_single_role_constraints` - תפקיד אחד למשמרת
+   - `_add_overlap_constraints` - אין חפיפות
+   - `_add_hard_constraints` - אילוצי מערכת קשים
+
+4. **הוספת אילוצים רכים והוגנות**:
+
+   - `_add_fairness_terms` - משתני הוגנות (deviation_pos, deviation_neg)
+   - `_add_soft_penalties` - אילוצים רכים עם penalties
+
+5. **בניית פונקציית מטרה** (`_build_objective`):
+
+   - משלבת העדפות, הוגנות, כיסוי ועונשים
+   - מגדיר `model.objective`
+
+6. **פתרון המודל** (`model.optimize()`):
+
+   - CBC Solver מחפש פתרון אופטימלי
+   - מחזיר סטטוס: OPTIMAL, FEASIBLE, INFEASIBLE, או NO_SOLUTION_FOUND
+
+7. **חילוץ תוצאות**:
+   - `_extract_assignments` - המרת משתנים לקצאות בפועל
+   - `calculate_metrics` - חישוב מטריקות (כיסוי, הוגנות, וכו')
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L28-L101)
+
+---
+
+## 7.1 משתני החלטה
 
 #### 📐 הגדרה מתמטית
 
@@ -656,151 +851,13 @@ def _build_decision_variables(model, data, n_employees, n_shifts):
     return x, vars_by_emp_shift, vars_by_employee
 ```
 
----
-
-### 📥 דוגמה לקלט ופלט של הפותר
-
-#### קלט (Input) - `OptimizationData`
-
-```python
-{
-    # רשימת עובדים
-    'employees': [
-        {'user_id': 1, 'user_full_name': 'John Doe', 'roles': [1, 2]},  # Waiter, Bartender
-        {'user_id': 2, 'user_full_name': 'Jane Smith', 'roles': [3]},   # Chef
-        {'user_id': 3, 'user_full_name': 'Bob Johnson', 'roles': [1]}   # Waiter
-    ],
-
-    # רשימת משמרות
-    'shifts': [
-        {
-            'planned_shift_id': 101,
-            'date': date(2024, 1, 15),
-            'start_time': time(9, 0),
-            'end_time': time(17, 0),
-            'required_roles': [
-                {'role_id': 1, 'required_count': 2},  # 2 Waiters
-                {'role_id': 3, 'required_count': 1}   # 1 Chef
-            ]
-        },
-        {
-            'planned_shift_id': 102,
-            'date': date(2024, 1, 15),
-            'start_time': time(17, 0),
-            'end_time': time(22, 0),
-            'required_roles': [
-                {'role_id': 1, 'required_count': 3},  # 3 Waiters
-                {'role_id': 2, 'required_count': 1}   # 1 Bartender
-            ]
-        }
-    ],
-
-    # מטריצת זמינות (3 עובדים × 2 משמרות)
-    'availability_matrix': np.array([
-        [1, 1],  # John: זמין לשתי המשמרות
-        [1, 0],  # Jane: זמינה רק למשמרת הראשונה
-        [1, 1]   # Bob: זמין לשתי המשמרות
-    ]),
-
-    # מטריצת העדפות (3 עובדים × 2 משמרות)
-    'preference_scores': np.array([
-        [0.8, 0.9],  # John: מעדיף משמרת ערב (0.9)
-        [0.7, 0.0],  # Jane: לא זמינה למשמרת ערב
-        [0.6, 0.7]   # Bob: מעדיף משמרת ערב (0.7)
-    ]),
-
-    # אילוצי מערכת
-    'system_constraints': {
-        SystemConstraintType.MAX_HOURS_PER_WEEK: (40.0, True),   # Hard: מקסימום 40 שעות
-        SystemConstraintType.MIN_REST_HOURS: (11.0, True),        # Hard: מינימום 11 שעות מנוחה
-        SystemConstraintType.MAX_SHIFTS_PER_WEEK: (5, False)      # Soft: רצוי מקסימום 5 משמרות
-    },
-
-    # מיפוי אינדקסים
-    'employee_index': {1: 0, 2: 1, 3: 2},
-    'shift_index': {101: 0, 102: 1},
-
-    # משך משמרות (שעות)
-    'shift_durations': {101: 8.0, 102: 5.0}
-}
-```
-
-#### פלט (Output) - `SchedulingSolution`
-
-```python
-{
-    'status': 'OPTIMAL',              # סטטוס הפותר
-    'objective_value': 12.45,          # ערך פונקציית המטרה
-    'runtime_seconds': 3.2,           # זמן ריצה (שניות)
-    'mip_gap': 0.001,                 # פער אופטימליות (0.1%)
-
-    # רשימת הקצאות
-    'assignments': [
-        {
-            'user_id': 1,              # John
-            'planned_shift_id': 101,    # משמרת בוקר
-            'role_id': 1,               # Waiter
-            'preference_score': 0.8
-        },
-        {
-            'user_id': 3,              # Bob
-            'planned_shift_id': 101,    # משמרת בוקר
-            'role_id': 1,               # Waiter
-            'preference_score': 0.6
-        },
-        {
-            'user_id': 2,              # Jane
-            'planned_shift_id': 101,    # משמרת בוקר
-            'role_id': 3,               # Chef
-            'preference_score': 0.7
-        },
-        {
-            'user_id': 1,              # John
-            'planned_shift_id': 102,    # משמרת ערב
-            'role_id': 2,               # Bartender
-            'preference_score': 0.9
-        },
-        {
-            'user_id': 3,              # Bob
-            'planned_shift_id': 102,    # משמרת ערב
-            'role_id': 1,               # Waiter
-            'preference_score': 0.7
-        }
-        # הערה: משמרת 102 דורשת 3 Waiters, אבל יש רק 2 זמינים
-        # הפותר ימצא פתרון חלופי או יודיע על infeasibility
-    ],
-
-    # מטריקות
-    'metrics': {
-        'total_assignments': 5,
-        'coverage_percentage': 100.0,   # כיסוי מלא
-        'avg_preference_score': 0.74,
-        'fairness_score': 0.85          # הוגנות גבוהה
-    }
-}
-```
-
-### 🔧 סקירה כללית: תהליך בניית ופתרון מודל MIP
-
-הפותר `MipSchedulingSolver` מבצע את השלבים הבאים:
-
-1. **יצירת מודל MIP** (`mip.Model`) עם CBC Solver
-2. **בניית משתני החלטה** `x(i,j,r)` - לכל צירוף תקף של (עובד, משמרת, תפקיד)
-3. **הוספת אילוצים קשים** - Coverage, Single Role, No Overlap, System Constraints
-4. **הוספת אילוצים רכים** - עם משתני slack ו-penalties
-5. **בניית פונקציית מטרה** - משלבת העדפות, הוגנות, כיסוי ועונשים
-6. **פתרון המודל** - CBC Solver מחפש פתרון אופטימלי
-7. **חילוץ תוצאות** - המרת משתנים לקצאות בפועל
-
-פרטים על כל שלב מופיעים בסעיפים הבאים.
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L103-L151)
 
 ---
 
----
+## 7.2 אילוצים קשים
 
-### 6.2 אילוצים קשים
-
-#### 6.2.1 אילוצים קשים שלא חלק מ-`system_constraints`
+#### 7.2.1 אילוצים קשים שלא חלק מ-`system_constraints`
 
 אלה אילוצים **תמיד קשים** שמובנים במערכת ולא ניתן לשנות אותם דרך ה-UI.
 
@@ -863,6 +920,8 @@ def _add_coverage_constraints(model, data, x, n_employees, n_shifts):
             model += mip.xsum(eligible_vars) == required_count
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L261-L290)
+
 ---
 
 #### 🔒 Single Role Per Shift (תפקיד אחד למשמרת)
@@ -903,6 +962,8 @@ def _add_single_role_constraints(model, x, vars_by_emp_shift, n_employees, n_shi
                 if len(role_vars) > 1:
                     model += mip.xsum(role_vars) <= 1
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L292-L315)
 
 ---
 
@@ -956,13 +1017,15 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
                     model += mip.xsum(vars_shift) + mip.xsum(vars_overlap) <= 1
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L317-L350)
+
 ---
 
 #### 🏖️ Time Off מאושר (Approved Time Off)
 
 **אינטואיציה**: עובד עם time off מאושר לא יכול להיות משובץ למשמרות בתאריכי החופשה שלו
 
-**איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 5 - מטריצת הזמינות](#5-בניית-מודל-האופטימיזציה))
+**איך זה מטופל**: **לא דרך אילוץ מפורש**, אלא דרך **מטריצת הזמינות** (ראה [פרק 6 - מטריצת הזמינות](#6-בניית-מודל-האופטימיזציה---optimizationdatabuilder))
 
 - אם לעובד יש time off מאושר בתאריך המשמרת, `availability_matrix[i, j] = 0`
 - ב-`_build_decision_variables()`, אם `availability_matrix[i, j] != 1`, לא נוצר משתנה `x[i, j, role_id]`
@@ -974,7 +1037,7 @@ def _add_overlap_constraints(model, data, x, vars_by_emp_shift, n_employees):
 > - ✅ אין צורך להוסיף אילוצים נוספים למודל
 > - ✅ הגישה מבטיחה 100% שלא ניתן להקצות עובד ב-time off (כי אין משתנה)
 
-#### 6.2.2 אילוצים שהם חלק מ-`system_constraints` (קשים)
+#### 7.2.2 אילוצים שהם חלק מ-`system_constraints` (קשים)
 
 אלה אילוצים שניתן להגדיר דרך ה-UI כ**קשים** (hard) או **רכים** (soft), בהתאם ל-`is_hard_constraint`. כאן מוצגים כאשר הם מוגדרים כקשים.
 
@@ -1028,6 +1091,8 @@ if min_rest_constraint and min_rest_constraint[1]:  # is_hard
                     model += mip.xsum(vars_shift) + mip.xsum(vars_conflict) <= 1
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L389-L407)
+
 ---
 
 #### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK)
@@ -1068,6 +1133,8 @@ if max_shifts_constraint and max_shifts_constraint[1]:  # is_hard
         if emp_vars:
             model += mip.xsum(emp_vars) <= max_shifts
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L369-L377)
 
 ---
 
@@ -1113,6 +1180,8 @@ if max_hours_constraint and max_hours_constraint[1]:  # is_hard
         if emp_hours_vars:
             model += mip.xsum(emp_hours_vars) <= max_hours
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L379-L387)
 
 ---
 
@@ -1166,6 +1235,8 @@ if max_consecutive_constraint and max_consecutive_constraint[1]:  # is_hard
             model += mip.xsum(day_vars) <= max_consecutive
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L409-L498)
+
 ---
 
 #### ⏱️ Min Hours Per Week (MIN_HOURS_PER_WEEK)
@@ -1210,6 +1281,8 @@ if min_hours_constraint and min_hours_constraint[1]:  # is_hard
             model += mip.xsum(emp_hours_vars) >= min_hours
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L417-L425)
+
 ---
 
 #### 📊 Min Shifts Per Week (MIN_SHIFTS_PER_WEEK)
@@ -1251,9 +1324,11 @@ if min_shifts_constraint and min_shifts_constraint[1]:  # is_hard
             model += mip.xsum(emp_vars) >= min_shifts
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L427-L435)
+
 ---
 
-### 6.3 אילוצים רכים (חלק מ-`system_constraints`)
+## 7.3 אילוצים רכים (חלק מ-`system_constraints`)
 
 #### מושג אילוצים רכים
 
@@ -1306,6 +1381,8 @@ if min_hours_constraint and not min_hours_constraint[1]:  # is_soft
             soft_penalty_component += deficit
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L549-L559)
+
 ---
 
 #### 📊 Minimum Shifts Per Week (MIN_SHIFTS_PER_WEEK - Soft)
@@ -1348,6 +1425,8 @@ if min_shifts_constraint and not min_shifts_constraint[1]:  # is_soft
             model += deficit >= min_shifts - total_shifts
             soft_penalty_component += deficit
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L561-L571)
 
 ---
 
@@ -1393,6 +1472,8 @@ if max_hours_constraint and not max_hours_constraint[1]:  # is_soft
             soft_penalty_component += excess
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L573-L583)
+
 ---
 
 #### 📊 Max Shifts Per Week (MAX_SHIFTS_PER_WEEK - Soft)
@@ -1435,6 +1516,8 @@ if max_shifts_constraint and not max_shifts_constraint[1]:  # is_soft
             model += excess >= total_shifts - max_shifts
             soft_penalty_component += excess
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L585-L595)
 
 ---
 
@@ -1488,6 +1571,8 @@ if min_rest_constraint and not min_rest_constraint[1]:  # is_soft
                     soft_penalty_component += violation
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L597-L618)
+
 ---
 
 #### 📅 Max Consecutive Days (MAX_CONSECUTIVE_DAYS - Soft)
@@ -1537,6 +1622,8 @@ if max_consecutive_constraint and not max_consecutive_constraint[1]:  # is_soft
                 model += excess_days >= total_days - max_consecutive
                 soft_penalty_component += excess_days
 ```
+
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L620-L653)
 
 ---
 
@@ -1595,6 +1682,8 @@ for emp_idx, emp_total in enumerate(assignments_per_employee):
     fairness_vars.append(deviation_pos + deviation_neg)  # Absolute deviation
 ```
 
+[📄 קובץ מקור: `mip_solver.py`](backend/app/services/scheduling/mip_solver.py#L500-L530)
+
 **איך זה גורם להתקרבות לממוצע?**
 
 - בפונקציית המטרה, אנו **ממזערים** את `-weight_fairness * Σ_i (deviation_pos_i + deviation_neg_i)`
@@ -1604,7 +1693,7 @@ for emp_idx, emp_total in enumerate(assignments_per_employee):
 
 ---
 
-### 6.4 פונקציית מטרה
+## 7.4 פונקציית מטרה
 
 #### 📊 פירוק למרכיבים
 
@@ -1645,11 +1734,11 @@ maximize:
 
 ---
 
-## 📊 סיכום
+# 📊 סיכום
 
 מערכת **Smart Scheduling** מציגה פתרון מלא לאופטימיזציה של משמרות עובדים באמצעות **Mixed Integer Programming (MIP)**. המערכת משלבת:
 
-### 🎯 יכולות מרכזיות
+## 🎯 יכולות מרכזיות
 
 - **📐 מודל MIP מדויק** עם משתנים `x(i,j,r)` ותמיכה בתפקידים מרובים
 - **🔒 אילוצים קשים ורכים** עם penalties ו-fairness
@@ -1657,7 +1746,7 @@ maximize:
 - **⚡ Background processing** עם Celery, Redis ו-Flower
 - **✅ Validation מלא** לפני החזרת הפתרון
 
-### 🚀 טכנולוגיות
+## 🚀 טכנולוגיות
 
 | שכבה                 | טכנולוגיות                      |
 | -------------------- | ------------------------------- |
@@ -1667,7 +1756,7 @@ maximize:
 | **Background Tasks** | Celery, Redis, Flower           |
 | **Deployment**       | Docker, Docker Compose          |
 
-### 📈 תוצאות
+## 📈 תוצאות
 
 - ⚡ **מהירות**: מ-4-6 שעות עבודה ידנית → דקות ספורות
 - ⚖️ **הוגנות**: חלוקה מאוזנת של משמרות (מינימום סטייה מהממוצע)
