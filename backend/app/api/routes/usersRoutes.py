@@ -4,26 +4,31 @@ User routes module.
 
 This module defines the REST API endpoints for user management operations
 including CRUD operations for user records.
+Routes use repository dependency injection - no direct DB access.
 """
 
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.userController import (
-    create_user, get_all_users, get_user, update_user, delete_user,
+from app.api.controllers import user_controller
+from app.api.controllers.user_controller import (
+    create_user, get_user, update_user, delete_user,
     authenticate_user
 )
-from app.db.session import get_db
-from app.schemas.userSchema import (
+from app.api.dependencies.repositories import get_user_repository, get_role_repository
+from app.data.session import get_db
+from app.schemas.user_schema import (
     UserCreate, UserRead, UserUpdate, UserLogin, LoginResponse
 )
 
 # AuthN/Authorization
-from app.api.controllers.authController import get_current_user
+from app.api.controllers.auth_controller import get_current_user
 from app.api.dependencies.auth import require_auth, require_manager
-from app.db.models.userModel import UserModel
+from app.data.models.user_model import UserModel
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.role_repository import RoleRepository
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -34,14 +39,17 @@ router = APIRouter(prefix="/users", tags=["Users"])
     status_code=status.HTTP_200_OK,
     summary="Authenticate user",
 )
-async def login_user(payload: UserLogin, db: Session = Depends(get_db)):
+async def login_user(
+    payload: UserLogin,
+    user_repository: UserRepository = Depends(get_user_repository)
+):
     """
     Authenticate a user by email and password.
 
     Returns:
         JWT access token and user data (includes is_manager).
     """
-    return await authenticate_user(db, payload)
+    return await authenticate_user(payload, user_repository)
 
 
 @router.get(
@@ -64,8 +72,13 @@ async def get_me(current_user: UserModel = Depends(get_current_user)):
     summary="Create a new user",
     dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
-async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
-    return await create_user(db, payload)
+async def add_user(
+    payload: UserCreate,
+    user_repository: UserRepository = Depends(get_user_repository),
+    role_repository: RoleRepository = Depends(get_role_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await create_user(payload, user_repository, role_repository, db)
 
 
 @router.get(
@@ -75,8 +88,10 @@ async def add_user(payload: UserCreate, db: Session = Depends(get_db)):
     summary="Get all users",
     dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
-async def list_users(db: Session = Depends(get_db)):
-    return await get_all_users(db)
+async def list_users(
+    user_repository: UserRepository = Depends(get_user_repository)
+):
+    return await user_controller.list_users(user_repository)
 
 
 # ---------------------- Resource routes ---------------------
@@ -88,8 +103,11 @@ async def list_users(db: Session = Depends(get_db)):
     summary="Get a user by ID",
     dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
-async def get_single_user(user_id: int, db: Session = Depends(get_db)):
-    return await get_user(db, user_id)
+async def get_single_user(
+    user_id: int,
+    user_repository: UserRepository = Depends(get_user_repository)
+):
+    return await get_user(user_id, user_repository)
 
 
 @router.put(
@@ -99,8 +117,14 @@ async def get_single_user(user_id: int, db: Session = Depends(get_db)):
     summary="Update a user",
     dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
-async def edit_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
-    return await update_user(db, user_id, payload)
+async def edit_user(
+    user_id: int,
+    payload: UserUpdate,
+    user_repository: UserRepository = Depends(get_user_repository),
+    role_repository: RoleRepository = Depends(get_role_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await update_user(user_id, payload, user_repository, role_repository, db)
 
 
 @router.delete(
@@ -109,5 +133,9 @@ async def edit_user(user_id: int, payload: UserUpdate, db: Session = Depends(get
     summary="Delete a user",
     dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
-async def remove_user(user_id: int, db: Session = Depends(get_db)):
-    return await delete_user(db, user_id)
+async def remove_user(
+    user_id: int,
+    user_repository: UserRepository = Depends(get_user_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await delete_user(user_id, user_repository, db)

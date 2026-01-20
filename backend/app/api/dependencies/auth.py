@@ -6,8 +6,8 @@ including authentication and role-based access control.
 """
 
 from fastapi import Depends, HTTPException, status
-from app.api.controllers.authController import get_current_user
-from app.db.models.userModel import UserModel
+from app.api.controllers.auth_controller import get_current_user
+from app.data.models.user_model import UserModel
 
 
 async def require_auth(

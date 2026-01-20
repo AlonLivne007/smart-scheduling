@@ -40,7 +40,7 @@ export default function MySchedulePage() {
     try {
       setLoading(true);
       // Fetch all assignments for this user
-      const { data: assignments } = await api.get(`/shift-assignments/by-user/${user.user_id}`);
+      const { data: assignments } = await api.get(`/shift-assignments/user/${user.user_id}`);
       
       // Fetch planned shift details and schedule status for each assignment
       const shiftsWithDetails = await Promise.all(

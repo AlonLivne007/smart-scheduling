@@ -282,28 +282,118 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
 
           {(() => {
             const uniqueEmployees = new Set(solutions.map(s => s.user_id)).size;
+            const avgPreferenceScore = solutions.length > 0 
+              ? (solutions.reduce((sum, s) => sum + (s.assignment_score || 0), 0) / solutions.length).toFixed(2)
+              : '0.00';
+            
+            // Extract metrics from run if available
+            const metrics = selectedRun.metrics || {};
+            const coveragePct = metrics.shifts_total > 0 
+              ? ((metrics.shifts_filled || 0) / metrics.shifts_total * 100).toFixed(1)
+              : '0.0';
+            const employeeUtilization = metrics.employees_total > 0
+              ? ((metrics.employees_assigned || 0) / metrics.employees_total * 100).toFixed(1)
+              : '0.0';
+            
             return (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="text-sm text-blue-600 font-medium">Total Assignments</div>
-                  <div className="text-2xl font-bold text-blue-900">{solutions.length}</div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="text-sm text-green-600 font-medium">Employees Assigned</div>
-                  <div className="text-2xl font-bold text-green-900">
-                    {uniqueEmployees}
+              <div className="space-y-4">
+                {/* Primary Metrics Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="text-sm text-blue-600 font-medium">Total Assignments</div>
+                    <div className="text-2xl font-bold text-blue-900">{solutions.length}</div>
+                    {selectedRun.total_assignments && selectedRun.total_assignments !== solutions.length && (
+                      <div className="text-xs text-blue-700 mt-1">DB: {selectedRun.total_assignments}</div>
+                    )}
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="text-sm text-green-600 font-medium">Employees Assigned</div>
+                    <div className="text-2xl font-bold text-green-900">{uniqueEmployees}</div>
+                    {metrics.employees_total && (
+                      <div className="text-xs text-green-700 mt-1">
+                        {employeeUtilization}% of {metrics.employees_total} total
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4">
+                    <div className="text-sm text-purple-600 font-medium">Avg Preference Score</div>
+                    <div className="text-2xl font-bold text-purple-900">{avgPreferenceScore}</div>
+                    {metrics.avg_preference_score && (
+                      <div className="text-xs text-purple-700 mt-1">
+                        From metrics: {metrics.avg_preference_score.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-4">
+                    <div className="text-sm text-orange-600 font-medium">Solver Status</div>
+                    <div className="text-2xl font-bold text-orange-900">
+                      {selectedRun.solver_status || 'N/A'}
+                    </div>
                   </div>
                 </div>
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="text-sm text-purple-600 font-medium">Runtime</div>
-                  <div className="text-2xl font-bold text-purple-900">
-                    {selectedRun.runtime_seconds?.toFixed(2) || '0'}s
+
+                {/* Coverage & Fairness Metrics */}
+                {(metrics.shifts_total || metrics.min_assignments !== undefined) && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {metrics.shifts_total && (
+                      <>
+                        <div className="bg-emerald-50 rounded-lg p-4">
+                          <div className="text-sm text-emerald-600 font-medium">Coverage</div>
+                          <div className="text-xl font-bold text-emerald-900">
+                            {coveragePct}%
+                          </div>
+                          <div className="text-xs text-emerald-700 mt-1">
+                            {metrics.shifts_filled || 0} / {metrics.shifts_total} shifts
+                          </div>
+                        </div>
+                        <div className="bg-rose-50 rounded-lg p-4">
+                          <div className="text-sm text-rose-600 font-medium">Fairness (Min)</div>
+                          <div className="text-xl font-bold text-rose-900">
+                            {metrics.min_assignments || 0}
+                          </div>
+                          <div className="text-xs text-rose-700 mt-1">assignments per employee</div>
+                        </div>
+                        <div className="bg-amber-50 rounded-lg p-4">
+                          <div className="text-sm text-amber-600 font-medium">Fairness (Max)</div>
+                          <div className="text-xl font-bold text-amber-900">
+                            {metrics.max_assignments || 0}
+                          </div>
+                          <div className="text-xs text-amber-700 mt-1">assignments per employee</div>
+                        </div>
+                        <div className="bg-violet-50 rounded-lg p-4">
+                          <div className="text-sm text-violet-600 font-medium">Fairness (Avg)</div>
+                          <div className="text-xl font-bold text-violet-900">
+                            {metrics.avg_assignments ? metrics.avg_assignments.toFixed(1) : '0.0'}
+                          </div>
+                          <div className="text-xs text-violet-700 mt-1">assignments per employee</div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-4">
-                  <div className="text-sm text-orange-600 font-medium">Status</div>
-                  <div className="text-2xl font-bold text-orange-900">
-                    {selectedRun.solver_status || 'N/A'}
+                )}
+
+                {/* Secondary Metrics Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 font-medium">Runtime</div>
+                    <div className="text-xl font-bold text-gray-900">
+                      {selectedRun.runtime_seconds?.toFixed(2) || '0'}s
+                    </div>
+                  </div>
+                  {selectedRun.mip_gap !== null && selectedRun.mip_gap !== undefined && (
+                    <div className="bg-teal-50 rounded-lg p-4">
+                      <div className="text-sm text-teal-600 font-medium">MIP Gap</div>
+                      <div className="text-xl font-bold text-teal-900">
+                        {(selectedRun.mip_gap * 100).toFixed(2)}%
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-cyan-50 rounded-lg p-4">
+                    <div className="text-sm text-cyan-600 font-medium">Solution Quality</div>
+                    <div className="text-xl font-bold text-cyan-900">
+                      {selectedRun.solver_status === 'OPTIMAL' ? 'Optimal' : 
+                       selectedRun.solver_status === 'FEASIBLE' ? 'Feasible' : 'N/A'}
+                    </div>
                   </div>
                 </div>
               </div>

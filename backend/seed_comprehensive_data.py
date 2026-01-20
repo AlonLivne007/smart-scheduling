@@ -19,21 +19,21 @@ from sqlalchemy import select, func as sa_func, delete, insert
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from app.db.session import SessionLocal
-from app.db.models.userModel import UserModel
-from app.db.models.roleModel import RoleModel
-from app.db.models.userRoleModel import UserRoleModel
-from app.db.models.shiftTemplateModel import ShiftTemplateModel
-from app.db.models.employeePreferencesModel import EmployeePreferencesModel, DayOfWeek
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel, ScheduleStatus
-from app.db.models.plannedShiftModel import PlannedShiftModel, PlannedShiftStatus
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel  # noqa: F401 - ensure mapper registration
-from app.db.models.systemConstraintsModel import SystemConstraintsModel, SystemConstraintType
-from app.db.models.timeOffRequestModel import TimeOffRequestModel, TimeOffRequestStatus, TimeOffRequestType
-from app.db.models.optimizationConfigModel import OptimizationConfigModel
-from app.db.models.schedulingRunModel import SchedulingRunModel  # noqa: F401 - ensure mapper registration
-from app.db.models.schedulingSolutionModel import SchedulingSolutionModel  # noqa: F401 - ensure mapper registration
-from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
+from app.data.session import SessionLocal
+from app.data.models.user_model import UserModel
+from app.data.models.role_model import RoleModel
+from app.data.models.user_role_model import UserRoleModel
+from app.data.models.shift_template_model import ShiftTemplateModel
+from app.data.models.employee_preferences_model import EmployeePreferencesModel, DayOfWeek
+from app.data.models.weekly_schedule_model import WeeklyScheduleModel, ScheduleStatus
+from app.data.models.planned_shift_model import PlannedShiftModel, PlannedShiftStatus
+from app.data.models.shift_assignment_model import ShiftAssignmentModel  # noqa: F401 - ensure mapper registration
+from app.data.models.system_constraints_model import SystemConstraintsModel, SystemConstraintType
+from app.data.models.time_off_request_model import TimeOffRequestModel, TimeOffRequestStatus, TimeOffRequestType
+from app.data.models.optimization_config_model import OptimizationConfigModel
+from app.data.models.scheduling_run_model import SchedulingRunModel  # noqa: F401 - ensure mapper registration
+from app.data.models.scheduling_solution_model import SchedulingSolutionModel  # noqa: F401 - ensure mapper registration
+from app.data.models.shift_role_requirements_table import shift_role_requirements
 
 
 RANDOM_SEED = 42
@@ -211,7 +211,6 @@ def create_employees(db, roles):
             user_full_name=emp_data["name"],
             user_email=emp_data["email"],
             hashed_password=generate_password_hash(password),
-            user_status="ACTIVE",
             is_manager=is_manager
         )
         db.add(user)
@@ -273,7 +272,6 @@ def create_employees_big(db, roles):
                 user_full_name=name,
                 user_email=email,
                 hashed_password=generate_password_hash("password123"),
-                user_status="ACTIVE",
                 is_manager=is_manager,
             )
             db.add(user)
@@ -314,7 +312,6 @@ def create_employees_big(db, roles):
                 user_full_name=sm["name"],
                 user_email=sm["email"],
                 hashed_password=generate_password_hash(sm["password"]),
-                user_status="ACTIVE",
                 is_manager=True,
             )
             db.add(user)

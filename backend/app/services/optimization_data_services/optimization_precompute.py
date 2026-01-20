@@ -5,14 +5,14 @@ This module contains all derived/computed logic that works on already-loaded dat
 No DB queries in this module.
 """
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Any
 from datetime import date, datetime, time, timedelta
 
 from app.services.utils.datetime_utils import normalize_shift_datetimes
 from app.services.utils.overlap_utils import shifts_overlap, build_shift_overlaps
 
 
-def build_shift_durations(shifts: List[Dict]) -> Dict[int, float]:
+def build_shift_durations(shifts: List[Dict[str, Any]]) -> Dict[int, float]:
     """
     Build shift durations mapping: {shift_id: duration_hours}.
     
@@ -41,8 +41,8 @@ def build_shift_durations(shifts: List[Dict]) -> Dict[int, float]:
 
 
 def build_time_off_conflicts(
-    employees: List[Dict],
-    shifts: List[Dict],
+    employees: List[Dict[str, Any]],
+    shifts: List[Dict[str, Any]],
     time_off_map: Dict[int, List[Tuple[date, date]]]
 ) -> Dict[int, List[int]]:
     """
@@ -93,7 +93,7 @@ def build_time_off_conflicts(
 
 
 def build_rest_conflicts(
-    shifts: List[Dict],
+    shifts: List[Dict[str, Any]],
     min_rest_hours: float
 ) -> Dict[int, Set[int]]:
     """

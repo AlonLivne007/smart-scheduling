@@ -121,7 +121,6 @@ function InfoTab({ employee }) {
           value={employee.roles?.map((r) => r.role_name).join(", ") || "No roles assigned"}
         />
         <InfoField label="Manager" value={employee.is_manager ? "Yes" : "No"} />
-        <InfoField label="Status" value={employee.user_status || "ACTIVE"} />
         <InfoField
           label="Joined"
           value={
@@ -166,7 +165,7 @@ function ScheduleTab({ employeeId }) {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get(`/shift-assignments/by-user/${employeeId}`);
+        const { data } = await api.get(`/shift-assignments/user/${employeeId}`);
 
         // Axios will normally give an array here, but be defensive.
         const baseAssignments = Array.isArray(data) ? data : (data?.value || []);
@@ -288,7 +287,7 @@ function TimeOffTab({ employeeId }) {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get("/time-off/requests/", {
+        const { data } = await api.get("/time-off-requests/", {
           params: { user_id: employeeId },
         });
         if (!canceled) setRequests(data || []);
@@ -413,7 +412,7 @@ function PreferencesTab({ employeeId }) {
       setLoading(true);
       try {
         const [prefsRes, templatesRes] = await Promise.all([
-          api.get(`/employees/${employeeId}/preferences`),
+          api.get(`/employee-preferences/users/${employeeId}`),
           api.get("/shift-templates/"),
         ]);
         if (!canceled) {
@@ -437,7 +436,7 @@ function PreferencesTab({ employeeId }) {
   const handleDelete = async (preferenceId) => {
     if (!confirm("Delete this preference?")) return;
     try {
-      await api.delete(`/employees/${employeeId}/preferences/${preferenceId}`);
+      await api.delete(`/employee-preferences/users/${employeeId}/preferences/${preferenceId}`);
       setPreferences(preferences.filter((p) => p.preference_id !== preferenceId));
       toast.success("Preference deleted");
     } catch (e) {
@@ -448,7 +447,7 @@ function PreferencesTab({ employeeId }) {
 
   const refreshPreferences = async () => {
     try {
-      const { data } = await api.get(`/employees/${employeeId}/preferences`);
+      const { data } = await api.get(`/employee-preferences/users/${employeeId}`);
       setPreferences(data);
     } catch (e) {
       const msg = e?.response?.data?.detail || "Failed to refresh preferences";
@@ -690,13 +689,13 @@ function PreferenceForm({ employeeId, shiftTemplates, initialData, onSuccess, on
       if (initialData) {
         // Update existing
         await api.put(
-          `/employees/${employeeId}/preferences/${initialData.preference_id}`,
+          `/employee-preferences/users/${employeeId}/preferences/${initialData.preference_id}`,
           payload
         );
         toast.success("Preference updated");
       } else {
         // Create new
-        await api.post(`/employees/${employeeId}/preferences`, payload);
+        await api.post(`/employee-preferences/users/${employeeId}`, payload);
         toast.success("Preference created");
       }
 

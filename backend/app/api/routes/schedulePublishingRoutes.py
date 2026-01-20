@@ -8,10 +8,21 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
-from app.db.session import get_db
+from app.data.session import get_db
 from app.api.dependencies.auth import require_manager, get_current_user
-from app.db.models.userModel import UserModel
-from app.api.controllers.schedulePublishingController import (
+from app.api.dependencies.repositories import (
+    get_weekly_schedule_repository,
+    get_shift_repository,
+    get_shift_assignment_repository,
+    get_user_repository,
+    get_activity_log_repository
+)
+from app.data.models.user_model import UserModel
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.activity_log_repository import ActivityLogRepository
+from app.api.controllers.schedule_publishing_controller import (
     publish_schedule,
     unpublish_schedule
 )
@@ -28,6 +39,11 @@ async def publish_schedule_endpoint(
     schedule_id: int,
     notify_employees: bool = Query(True, description="Send notifications to employees"),
     current_user: UserModel = Depends(get_current_user),
+    schedule_repository: WeeklyScheduleRepository = Depends(get_weekly_schedule_repository),
+    shift_repository: ShiftRepository = Depends(get_shift_repository),
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository),
+    user_repository: UserRepository = Depends(get_user_repository),
+    activity_log_repository: ActivityLogRepository = Depends(get_activity_log_repository),
     db: Session = Depends(get_db)
 ):
     """
@@ -51,10 +67,15 @@ async def publish_schedule_endpoint(
         Publication details including notification status
     """
     return await publish_schedule(
-        db=db,
         schedule_id=schedule_id,
         published_by_id=current_user.user_id,
-        notify_employees=notify_employees
+        schedule_repository=schedule_repository,
+        shift_repository=shift_repository,
+        assignment_repository=assignment_repository,
+        user_repository=user_repository,
+        activity_log_repository=activity_log_repository,
+        notify_employees=notify_employees,
+        db=db
     )
 
 
@@ -66,6 +87,8 @@ async def publish_schedule_endpoint(
 async def unpublish_schedule_endpoint(
     schedule_id: int,
     current_user: UserModel = Depends(get_current_user),
+    schedule_repository: WeeklyScheduleRepository = Depends(get_weekly_schedule_repository),
+    activity_log_repository: ActivityLogRepository = Depends(get_activity_log_repository),
     db: Session = Depends(get_db)
 ):
     """
@@ -82,4 +105,10 @@ async def unpublish_schedule_endpoint(
     Returns:
         Status update
     """
-    return await unpublish_schedule(db=db, schedule_id=schedule_id, user_id=current_user.user_id)
+    return await unpublish_schedule(
+        schedule_id=schedule_id,
+        user_id=current_user.user_id,
+        schedule_repository=schedule_repository,
+        activity_log_repository=activity_log_repository,
+        db=db
+    )

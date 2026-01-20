@@ -1,37 +1,45 @@
 """
 Time-off request routes module.
 
-This module defines the REST API endpoints for time-off request management operations
-including CRUD operations and approval/rejection of time-off requests.
+This module defines the REST API endpoints for time-off request management operations.
+Routes use repository dependency injection - no direct DB access.
 """
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
-from app.api.controllers.timeOffRequestController import (
+from app.api.controllers import time_off_request_controller
+from app.api.controllers.time_off_request_controller import (
     create_time_off_request,
-    get_all_time_off_requests,
     get_time_off_request,
     update_time_off_request,
     delete_time_off_request,
-    process_time_off_request,
+    approve_time_off_request,
+    reject_time_off_request
 )
-from app.db.session import get_db
-from app.schemas.timeOffRequestSchema import (
+from app.api.controllers.auth_controller import get_current_user
+from app.api.dependencies.repositories import (
+    get_time_off_request_repository,
+    get_user_repository
+)
+from app.data.session import get_db
+from app.schemas.time_off_request_schema import (
     TimeOffRequestCreate,
-    TimeOffRequestRead,
     TimeOffRequestUpdate,
+    TimeOffRequestRead,
     TimeOffRequestAction,
-    TimeOffRequestStatus,
 )
-from app.api.controllers.authController import get_current_user
-from app.api.dependencies.auth import require_auth, require_manager
-from app.db.models.userModel import UserModel
-from app.db.models.timeOffRequestModel import TimeOffRequestStatus as TimeOffRequestStatusEnum
+from app.data.models.time_off_request_model import TimeOffRequestStatus
+from app.data.models.user_model import UserModel
 
-router = APIRouter(prefix="/time-off/requests", tags=["Time-Off Requests"])
+# AuthN/Authorization
+from app.api.dependencies.auth import require_auth, require_manager
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.user_repository import UserRepository
+
+router = APIRouter(prefix="/time-off-requests", tags=["Time Off Requests"])
 
 
 # ---------------------- Collection routes -------------------
@@ -41,19 +49,22 @@ router = APIRouter(prefix="/time-off/requests", tags=["Time-Off Requests"])
     response_model=TimeOffRequestRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new time-off request",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def create_request(
-    payload: TimeOffRequestCreate,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    request_data: TimeOffRequestCreate,
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository),
+    user_repository: UserRepository = Depends(get_user_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Create a new time-off request.
-    
-    The request is created for the authenticated user automatically.
-    """
-    return await create_time_off_request(db, payload, current_user.user_id)
+    return await create_time_off_request(
+        request_data,
+        current_user.user_id,
+        time_off_repository,
+        user_repository,
+        db
+    )
 
 
 @router.get(
@@ -61,36 +72,20 @@ async def create_request(
     response_model=List[TimeOffRequestRead],
     status_code=status.HTTP_200_OK,
     summary="Get all time-off requests",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def list_requests(
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
-    status_filter: Optional[str] = Query(None, description="Filter by status (PENDING, APPROVED, REJECTED)"),
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository),
+    user_id: Optional[int] = Query(None, description="Filter by user ID (managers only)"),
+    status_filter: Optional[TimeOffRequestStatus] = Query(None, description="Filter by status")
 ):
-    """
-    Get all time-off requests.
-    
-    - Employees can only see their own requests
-    - Managers can see all requests and filter by user_id and status
-    """
-    # Employees can only see their own requests
-    if not current_user.is_manager:
-        user_id = current_user.user_id
-    
-    # Parse status filter
-    status_enum = None
-    if status_filter:
-        try:
-            status_enum = TimeOffRequestStatusEnum[status_filter.upper()]
-        except KeyError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status. Must be one of: PENDING, APPROVED, REJECTED"
-            )
-    
-    return await get_all_time_off_requests(db, user_id=user_id, status_filter=status_enum)
+    return await time_off_request_controller.list_time_off_requests(
+        current_user,
+        time_off_repository,
+        user_id,
+        status_filter
+    )
 
 
 # ---------------------- Resource routes ---------------------
@@ -100,29 +95,14 @@ async def list_requests(
     response_model=TimeOffRequestRead,
     status_code=status.HTTP_200_OK,
     summary="Get a time-off request by ID",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
-async def get_single_request(
+async def get_request(
     request_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository)
 ):
-    """
-    Get a single time-off request by ID.
-    
-    - Employees can only view their own requests
-    - Managers can view any request
-    """
-    request = await get_time_off_request(db, request_id)
-    
-    # Employees can only view their own requests
-    if not current_user.is_manager and request.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own time-off requests"
-        )
-    
-    return request
+    return await get_time_off_request(request_id, current_user, time_off_repository)
 
 
 @router.put(
@@ -130,86 +110,87 @@ async def get_single_request(
     response_model=TimeOffRequestRead,
     status_code=status.HTTP_200_OK,
     summary="Update a time-off request",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def update_request(
     request_id: int,
-    payload: TimeOffRequestUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    request_data: TimeOffRequestUpdate,
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Update a time-off request.
-    
-    Only pending requests can be updated, and only by the user who created them.
-    """
-    return await update_time_off_request(db, request_id, payload, current_user.user_id)
+    return await update_time_off_request(
+        request_id,
+        request_data,
+        current_user.user_id,
+        time_off_repository,
+        db
+    )
 
 
 @router.delete(
     "/{request_id}",
     status_code=status.HTTP_200_OK,
     summary="Delete a time-off request",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def delete_request(
     request_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Delete a time-off request.
-    
-    Only pending requests can be deleted, and only by the user who created them.
-    """
-    await delete_time_off_request(db, request_id, current_user.user_id)
-    return {"message": "Time-off request deleted successfully"}
+    return await delete_time_off_request(
+        request_id,
+        current_user.user_id,
+        time_off_repository,
+        db
+    )
 
 
-# ---------------------- Approval/Rejection routes ---------------------
+# ---------------------- Approval routes ---------------------
 
-@router.put(
+@router.post(
     "/{request_id}/approve",
     response_model=TimeOffRequestRead,
     status_code=status.HTTP_200_OK,
     summary="Approve a time-off request",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # MANAGER ONLY
 )
 async def approve_request(
     request_id: int,
-    payload: Optional[TimeOffRequestAction] = None,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository),
+    user_repository: UserRepository = Depends(get_user_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Approve a time-off request.
-    
-    Only managers can approve requests. Only pending requests can be approved.
-    """
-    return await process_time_off_request(
-        db, request_id, current_user.user_id, TimeOffRequestStatusEnum.APPROVED, payload
+    return await approve_time_off_request(
+        request_id,
+        current_user.user_id,
+        time_off_repository,
+        user_repository,
+        db
     )
 
 
-@router.put(
+@router.post(
     "/{request_id}/reject",
     response_model=TimeOffRequestRead,
     status_code=status.HTTP_200_OK,
     summary="Reject a time-off request",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # MANAGER ONLY
 )
 async def reject_request(
     request_id: int,
-    payload: Optional[TimeOffRequestAction] = None,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    time_off_repository: TimeOffRequestRepository = Depends(get_time_off_request_repository),
+    user_repository: UserRepository = Depends(get_user_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Reject a time-off request.
-    
-    Only managers can reject requests. Only pending requests can be rejected.
-    """
-    return await process_time_off_request(
-        db, request_id, current_user.user_id, TimeOffRequestStatusEnum.REJECTED, payload
+    return await reject_time_off_request(
+        request_id,
+        current_user.user_id,
+        time_off_repository,
+        user_repository,
+        db
     )
-

@@ -114,7 +114,9 @@ export default function ScheduleListPage() {
     setOptimizationResult(null);
     
     try {
-      const { data } = await api.post(`/scheduling/optimize/${scheduleId}`);
+      const { data } = await api.post(`/scheduling/optimize`, null, {
+        params: { weekly_schedule_id: scheduleId }
+      });
       
       toast.success(`Schedule optimized successfully! ${data.total_assignments} assignments created.`);
       setOptimizationResult(data);
@@ -396,10 +398,6 @@ export default function ScheduleListPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Runtime:</span>
                       <span className="font-medium text-gray-900">{optimizationResult.runtime_seconds?.toFixed(2) || 0}s</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Objective Value:</span>
-                      <span className="font-medium text-gray-900">{optimizationResult.objective_value?.toFixed(2) || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Run ID:</span>

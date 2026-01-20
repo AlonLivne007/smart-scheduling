@@ -2,7 +2,7 @@
 Shared types for scheduling service.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Any
 
 
 class SchedulingSolution:
@@ -13,10 +13,11 @@ class SchedulingSolution:
         self.objective_value: float = 0.0
         self.runtime_seconds: float = 0.0
         self.mip_gap: float = 0.0
-        self.assignments: List[Dict] = []  # List of {user_id, planned_shift_id, role_id}
-        self.metrics: Dict = {}
+        self.assignments: List[Dict[str, Any]] = []  # List of {user_id, planned_shift_id, role_id}
+        self.metrics: Dict[str, Any] = {}
+        self.original_error: Exception = None  # Store original exception for better error messages
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
             'status': self.status,

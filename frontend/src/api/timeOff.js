@@ -15,7 +15,7 @@ export async function fetchTimeOffRequests(filters = {}) {
   // Backend expects `status_filter`.
   if (filters.status) params.append('status_filter', filters.status);
   
-  const response = await apiClient.get(`/time-off/requests/?${params.toString()}`);
+  const response = await apiClient.get(`/time-off-requests/?${params.toString()}`);
   return response.data;
 }
 
@@ -25,7 +25,7 @@ export async function fetchTimeOffRequests(filters = {}) {
  * @returns {Promise<Object>} Time-off request details
  */
 export async function fetchTimeOffRequestById(requestId) {
-  const response = await apiClient.get(`/time-off/requests/${requestId}`);
+  const response = await apiClient.get(`/time-off-requests/${requestId}`);
   return response.data;
 }
 
@@ -38,7 +38,7 @@ export async function fetchTimeOffRequestById(requestId) {
  * @returns {Promise<Object>} Created request
  */
 export async function createTimeOffRequest(requestData) {
-  const response = await apiClient.post('/time-off/requests/', requestData);
+  const response = await apiClient.post('/time-off-requests/', requestData);
   return response.data;
 }
 
@@ -48,7 +48,7 @@ export async function createTimeOffRequest(requestData) {
  * @returns {Promise<Object>} Updated request
  */
 export async function approveTimeOffRequest(requestId) {
-  const response = await apiClient.put(`/time-off/requests/${requestId}/approve`);
+  const response = await apiClient.post(`/time-off-requests/${requestId}/approve`);
   return response.data;
 }
 
@@ -59,7 +59,7 @@ export async function approveTimeOffRequest(requestId) {
  * @returns {Promise<Object>} Updated request
  */
 export async function rejectTimeOffRequest(requestId, reason = '') {
-  const response = await apiClient.put(`/time-off/requests/${requestId}/reject`, { reason });
+  const response = await apiClient.post(`/time-off-requests/${requestId}/reject`, { reason });
   return response.data;
 }
 
@@ -69,7 +69,7 @@ export async function rejectTimeOffRequest(requestId, reason = '') {
  * @returns {Promise<void>}
  */
 export async function deleteTimeOffRequest(requestId) {
-  await apiClient.delete(`/time-off/requests/${requestId}`);
+  await apiClient.delete(`/time-off-requests/${requestId}`);
 }
 
 /**
@@ -87,7 +87,7 @@ export async function fetchMyTimeOffRequests() {
     userId = null;
   }
 
-  const url = userId ? `/time-off/requests/?user_id=${encodeURIComponent(String(userId))}` : '/time-off/requests/';
+  const url = userId ? `/time-off-requests/?user_id=${encodeURIComponent(String(userId))}` : '/time-off-requests/';
   const response = await apiClient.get(url);
   return response.data;
 }

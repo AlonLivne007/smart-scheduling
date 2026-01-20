@@ -3,6 +3,7 @@ Role routes module.
 
 This module defines the REST API endpoints for role management operations
 including CRUD operations for role records.
+Routes use repository dependency injection - no direct DB access.
 """
 
 from typing import List
@@ -10,89 +11,92 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.roleController import (
-    create_role,
-    get_all_roles,
-    get_role,
-    delete_role,
-    update_role,
+from app.api.controllers.role_controller import (
+    create_role, list_roles, get_role, update_role, delete_role
 )
-from app.db.session import get_db
-from app.schemas.roleSchema import RoleRead, RoleCreate, RoleUpdate
+from app.api.dependencies.repositories import get_role_repository
+from app.data.session import get_db
+from app.schemas.role_schema import RoleCreate, RoleRead, RoleUpdate
+
+# AuthN/Authorization
+from app.api.dependencies.auth import require_auth, require_manager
+from app.data.repositories.role_repository import RoleRepository
+from app.data.models.role_model import RoleModel
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
 
-@router.post("/", response_model=RoleRead, status_code=status.HTTP_201_CREATED,
-             summary="Create a new role")
-async def add_role(role_data: RoleCreate, db: Session = Depends(get_db)):
-    """
-    Create a new role.
-    
-    Args:
-        role_data: Role creation data
-        db: Database session dependency
-        
-    Returns:
-        Created role data
-    """
-    role = await create_role(db, role_data)
-    return role
+# ---------------------- Collection routes -------------------
+
+@router.post(
+    "/",
+    response_model=RoleRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new role",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
+async def add_role(
+    role_data: RoleCreate,
+    role_repository: RoleRepository = Depends(get_role_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await create_role(role_data, role_repository, db)
 
 
-@router.get("/", response_model=List[RoleRead], status_code=status.HTTP_200_OK,
-            summary="List all roles")
-async def list_roles(db: Session = Depends(get_db)):
-    """
-    Retrieve all roles from the system.
-    
-    Args:
-        db: Database session dependency
-        
-    Returns:
-        List of all roles
-    """
-    roles = await get_all_roles(db)
-    return roles
+@router.get(
+    "/",
+    response_model=List[RoleRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all roles",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def list_all_roles(
+    role_repository: RoleRepository = Depends(get_role_repository)
+):
+    return await list_roles(role_repository)
 
 
-@router.get("/{role_id}", response_model=RoleRead,
-            status_code=status.HTTP_200_OK, summary="Get a single role by ID")
-async def get_single_role(role_id: int, db: Session = Depends(get_db)):
-    """
-    Retrieve a specific role by its ID.
-    
-    Args:
-        role_id: Role identifier
-        db: Database session dependency
-        
-    Returns:
-        Role data
-    """
-    role = await get_role(db, role_id)
-    return role
+# ---------------------- Resource routes ---------------------
+
+@router.get(
+    "/{role_id}",
+    response_model=RoleRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get a role by ID",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def get_single_role(
+    role_id: int,
+    role_repository: RoleRepository = Depends(get_role_repository)
+):
+    return await get_role(role_id, role_repository)
 
 
-@router.put("/{role_id}", response_model=RoleRead, status_code=status.HTTP_200_OK,
-            summary="Update a role")
-async def update_single_role(role_id: int, payload: RoleUpdate, db: Session = Depends(get_db)):
-    """Update an existing role's name."""
-    role = await update_role(db, role_id, payload)
-    return role
+@router.put(
+    "/{role_id}",
+    response_model=RoleRead,
+    status_code=status.HTTP_200_OK,
+    summary="Update a role",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
+async def update_single_role(
+    role_id: int,
+    payload: RoleUpdate,
+    role_repository: RoleRepository = Depends(get_role_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await update_role(role_id, payload, role_repository, db)
 
 
-@router.delete("/{role_id}", status_code=status.HTTP_200_OK,
-               summary="Delete a role")
-async def remove_role(role_id: int, db: Session = Depends(get_db)):
-    """
-    Delete a role from the system.
-    
-    Args:
-        role_id: Role identifier
-        db: Database session dependency
-        
-    Returns:
-        Deletion confirmation message
-    """
-    result = await delete_role(db, role_id)
-    return result
+@router.delete(
+    "/{role_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a role",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
+async def remove_role(
+    role_id: int,
+    role_repository: RoleRepository = Depends(get_role_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await delete_role(role_id, role_repository, db)

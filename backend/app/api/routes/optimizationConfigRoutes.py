@@ -1,8 +1,8 @@
 """
 Optimization configuration routes module.
 
-This module defines the REST API endpoints for optimization configuration
-management operations.
+This module defines the REST API endpoints for optimization configuration management operations.
+Routes use repository dependency injection - no direct DB access.
 """
 
 from typing import List
@@ -10,62 +10,57 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.optimizationConfigController import (
+from app.api.controllers.optimization_config_controller import (
     create_optimization_config,
-    get_all_optimization_configs,
+    list_optimization_configs,
     get_optimization_config,
     get_default_optimization_config,
     update_optimization_config,
-    delete_optimization_config,
+    delete_optimization_config
 )
-from app.db.session import get_db
-from app.schemas.optimizationConfigSchema import (
+from app.api.dependencies.repositories import get_optimization_config_repository
+from app.data.session import get_db
+from app.schemas.optimization_config_schema import (
     OptimizationConfigCreate,
-    OptimizationConfigRead,
     OptimizationConfigUpdate,
+    OptimizationConfigRead
 )
-from app.api.dependencies.auth import require_auth, require_manager
 
-router = APIRouter(prefix="/optimization-configs", tags=["Optimization Configuration"])
+# AuthN/Authorization
+from app.api.dependencies.auth import require_auth, require_manager
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+
+router = APIRouter(prefix="/optimization-configs", tags=["Optimization Configs"])
 
 
 # ---------------------- Collection routes -------------------
-
-@router.get(
-    "/",
-    response_model=List[OptimizationConfigRead],
-    status_code=status.HTTP_200_OK,
-    summary="Get all optimization configurations",
-    dependencies=[Depends(require_auth)],
-)
-async def list_configs(db: Session = Depends(get_db)):
-    """
-    Retrieve all optimization configurations.
-    
-    Returns configurations ordered by default status (default first),
-    then alphabetically by name.
-    """
-    return await get_all_optimization_configs(db)
-
 
 @router.post(
     "/",
     response_model=OptimizationConfigRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new optimization configuration",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
 async def create_config(
-    payload: OptimizationConfigCreate,
-    db: Session = Depends(get_db),
+    config_data: OptimizationConfigCreate,
+    config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Create a new optimization configuration (manager only).
-    
-    If is_default is set to true, all other configurations will
-    automatically be unmarked as default.
-    """
-    return await create_optimization_config(db, payload)
+    return await create_optimization_config(config_data, config_repository, db)
+
+
+@router.get(
+    "/",
+    response_model=List[OptimizationConfigRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all optimization configurations",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def list_configs(
+    config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository)
+):
+    return await list_optimization_configs(config_repository)
 
 
 @router.get(
@@ -73,16 +68,12 @@ async def create_config(
     response_model=OptimizationConfigRead,
     status_code=status.HTTP_200_OK,
     summary="Get the default optimization configuration",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
-async def get_default_config(db: Session = Depends(get_db)):
-    """
-    Retrieve the default optimization configuration.
-    
-    This is the configuration that will be used when triggering
-    optimization without specifying a config_id.
-    """
-    return await get_default_optimization_config(db)
+async def get_default_config(
+    config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository)
+):
+    return await get_default_optimization_config(config_repository)
 
 
 # ---------------------- Resource routes ---------------------
@@ -92,14 +83,13 @@ async def get_default_config(db: Session = Depends(get_db)):
     response_model=OptimizationConfigRead,
     status_code=status.HTTP_200_OK,
     summary="Get an optimization configuration by ID",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def get_config(
     config_id: int,
-    db: Session = Depends(get_db),
+    config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository)
 ):
-    """Retrieve a single optimization configuration by ID."""
-    return await get_optimization_config(db, config_id)
+    return await get_optimization_config(config_id, config_repository)
 
 
 @router.put(
@@ -107,41 +97,26 @@ async def get_config(
     response_model=OptimizationConfigRead,
     status_code=status.HTTP_200_OK,
     summary="Update an optimization configuration",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
 async def update_config(
     config_id: int,
-    payload: OptimizationConfigUpdate,
-    db: Session = Depends(get_db),
+    config_data: OptimizationConfigUpdate,
+    config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Update an optimization configuration (manager only).
-    
-    All fields are optional for partial updates.
-    If is_default is set to true, all other configurations will
-    automatically be unmarked as default.
-    """
-    return await update_optimization_config(db, config_id, payload)
+    return await update_optimization_config(config_id, config_data, config_repository, db)
 
 
 @router.delete(
     "/{config_id}",
     status_code=status.HTTP_200_OK,
     summary="Delete an optimization configuration",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
 async def delete_config(
     config_id: int,
-    db: Session = Depends(get_db),
+    config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Delete an optimization configuration (manager only).
-    
-    Cannot delete the default configuration. Set another config
-    as default first, then delete this one.
-    
-    Cannot delete if the configuration is referenced by any
-    optimization runs.
-    """
-    await delete_optimization_config(db, config_id)
-    return {"message": "Optimization configuration deleted successfully"}
+    return await delete_optimization_config(config_id, config_repository, db)

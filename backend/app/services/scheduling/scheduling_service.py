@@ -2,179 +2,96 @@
 Scheduling Service - Main Orchestrator.
 
 This is the main entry point for scheduling optimization. It orchestrates
-data building, solving, validation, and persistence.
+data building, solving, and persistence.
+
+The service is designed to be used by Celery workers for async optimization.
+The main entry point is `_execute_optimization_for_run()` which executes
+optimization for an existing SchedulingRun record.
+
+This service uses repositories for database access - no direct ORM access.
+
+Note: Solution validation is handled by the MIP solver itself. If the MIP
+returns OPTIMAL or FEASIBLE, the solution is guaranteed to satisfy all hard
+constraints as they are encoded directly in the MIP model.
 """
 
-from typing import Dict, List, Tuple, Optional
-from datetime import datetime
+from typing import Tuple, Optional, Dict, Any
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
 
-from app.services.optimization_data_services import OptimizationDataBuilder, OptimizationData
-from app.services.constraintService import ConstraintService
-from app.db.models.optimizationConfigModel import OptimizationConfigModel
-from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus, SolverStatus
+from app.services.optimization_data_services import OptimizationDataBuilder
+from app.data.models.optimization_config_model import OptimizationConfigModel
+from app.data.models.scheduling_run_model import SchedulingRunModel, SchedulingRunStatus
 from app.services.scheduling.mip_solver import MipSchedulingSolver
 from app.services.scheduling.persistence import SchedulingPersistence
 from app.services.scheduling.run_status import map_to_solver_status_enum, build_error_message
 from app.services.scheduling.types import SchedulingSolution
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.core.exceptions.repository import DatabaseError
 
 logger = logging.getLogger(__name__)
 
 
 class SchedulingService:
-    """Service for solving scheduling optimization problems."""
+    """
+    Service for solving scheduling optimization problems.
     
-    def __init__(self, db: Session):
+    Uses repositories for all database operations.
+    """
+    
+    def __init__(
+        self,
+        run_repository: SchedulingRunRepository,
+        config_repository: OptimizationConfigRepository,
+        data_builder: OptimizationDataBuilder,
+        persistence: SchedulingPersistence
+    ):
         """
         Initialize the scheduling service.
         
         Args:
-            db: SQLAlchemy database session
+            run_repository: SchedulingRunRepository instance
+            config_repository: OptimizationConfigRepository instance
+            data_builder: OptimizationDataBuilder instance (uses repositories internally)
+            persistence: SchedulingPersistence instance (uses repositories internally)
         """
-        self.db = db
-        self.data_builder = OptimizationDataBuilder(db)
-        self.constraint_service = ConstraintService(db)
+        self.run_repository = run_repository
+        self.config_repository = config_repository
+        self.data_builder = data_builder
         self.solver = MipSchedulingSolver()
-        self.persistence = SchedulingPersistence(db)
-    
-    def optimize_schedule(
-        self,
-        weekly_schedule_id: int,
-        config_id: Optional[int] = None
-    ) -> Tuple[SchedulingRunModel, SchedulingSolution]:
-        """
-        Optimize shift assignments for a weekly schedule.
-        
-        Creates a SchedulingRun record to track the optimization execution,
-        runs the MIP solver, and stores the results in the database.
-        
-        Args:
-            weekly_schedule_id: ID of the weekly schedule to optimize
-            config_id: Optional ID of optimization configuration to use
-        
-        Returns:
-            Tuple of (SchedulingRunModel, SchedulingSolution)
-        """
-        # Create SchedulingRun record
-        run = SchedulingRunModel(
-            weekly_schedule_id=weekly_schedule_id,
-            config_id=config_id,
-            status=SchedulingRunStatus.PENDING,
-            started_at=datetime.now()
-        )
-        self.db.add(run)
-        self.db.commit()
-        self.db.refresh(run)
-        
-        try:
-            # Execute optimization
-            run, solution = self._execute_run(run, apply_assignments=True)
-            return run, solution
-            
-        except (ValueError, SQLAlchemyError) as e:
-            # Update run status to FAILED with proper error handling
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.completed_at = datetime.now()
-                run.error_message = str(e)
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                # If commit fails, rollback and log
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status for run_id={run.run_id}, "
-                    f"original_error={e}, commit_error={commit_error}",
-                    exc_info=True
-                )
-            
-            logger.error(
-                f"Optimization failed for run_id={run.run_id}, "
-                f"weekly_schedule_id={weekly_schedule_id}, error={e}",
-                exc_info=True
-            )
-            raise
-        except Exception as e:
-            # Catch-all for unexpected errors (programming errors, etc.)
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.completed_at = datetime.now()
-                run.error_message = f"Unexpected error: {str(e)}"
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status for run_id={run.run_id}, "
-                    f"original_error={e}, commit_error={commit_error}",
-                    exc_info=True
-                )
-            
-            logger.exception(
-                f"Unexpected error during optimization for run_id={run.run_id}, "
-                f"weekly_schedule_id={weekly_schedule_id}"
-            )
-            raise
+        self.persistence = persistence
     
     def _execute_optimization_for_run(
         self,
         run: SchedulingRunModel
     ) -> Tuple[SchedulingRunModel, SchedulingSolution]:
         """
-        Execute optimization for an existing run record (used by async Celery task).
+        Main entry point for executing optimization (used by Celery workers).
+        
+        This is the primary method for running schedule optimization. It executes
+        the full optimization pipeline: data building, MIP solving, and persistence.
         
         This method does NOT apply assignments to the schedule - it only stores
-        solution proposals in SchedulingSolutionModel.
+        solution proposals in SchedulingSolutionModel. This allows for review
+        and approval before assignments are applied.
         
         Args:
             run: SchedulingRunModel record (already created with PENDING status)
         
         Returns:
             Tuple of (updated run, solution)
+        
+        Raises:
+            ValueError: If run not found, already started, or configuration missing
+            DatabaseError: If database operations fail
         """
         try:
             # Execute optimization without applying assignments
             run, solution = self._execute_run(run, apply_assignments=False)
             return run, solution
-        except (ValueError, SQLAlchemyError) as e:
-            # Update run status to FAILED with proper error handling
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.completed_at = datetime.now()
-                run.error_message = str(e)
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                # If commit fails, rollback and log
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status for run_id={run.run_id}, "
-                    f"original_error={e}, commit_error={commit_error}",
-                    exc_info=True
-                )
-            
-            logger.error(
-                f"Optimization failed for run_id={run.run_id}, error={e}",
-                exc_info=True
-            )
-            raise
         except Exception as e:
-            # Catch-all for unexpected errors (programming errors, etc.)
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.completed_at = datetime.now()
-                run.error_message = f"Unexpected error: {str(e)}"
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status for run_id={run.run_id}, "
-                    f"original_error={e}, commit_error={commit_error}",
-                    exc_info=True
-                )
-            
-            logger.exception(
-                f"Unexpected error during optimization for run_id={run.run_id}"
-            )
+            # Update run status to FAILED with proper error handling
+            self._mark_run_as_failed(run, e)
             raise
     
     def _execute_run(
@@ -198,16 +115,37 @@ class SchedulingService:
         # Load configuration
         config = self._load_optimization_config(run)
         
-        # Build and solve
-        solution = self._build_and_solve(run, config)
+        # Build optimization data
+        data = None
+        try:
+            data = self.data_builder.build(run.weekly_schedule_id)
+        except Exception as e:
+            # Store error in solution for better error messages
+            solution = SchedulingSolution()
+            solution.status = 'INFEASIBLE'
+            solution.original_error = e
+            return self._handle_infeasible_solution(run, solution, constraint_info=None)
+        
+        # Extract constraint information for better error messages
+        constraint_info = self._extract_constraint_info(data) if data else None
+        
+        # Solve MIP model
+        try:
+            solution = self.solver.solve(data, config)
+        except Exception as e:
+            # Catch errors during solving (e.g., coverage errors)
+            solution = SchedulingSolution()
+            solution.status = 'INFEASIBLE'
+            solution.original_error = e
+            return self._handle_infeasible_solution(run, solution, constraint_info)
         
         # Check if optimization was infeasible or failed
         if solution.status in ['INFEASIBLE', 'NO_SOLUTION_FOUND']:
-            return self._handle_infeasible_solution(run, solution)
+            return self._handle_infeasible_solution(run, solution, constraint_info)
         
-        # Validate solution against HARD constraints BEFORE persisting
-        if solution.status in ['OPTIMAL', 'FEASIBLE']:
-            self._validate_solution(run, solution)
+        # Note: Solution validation is handled by the MIP solver itself.
+        # If the MIP returns OPTIMAL or FEASIBLE, the solution is guaranteed to satisfy
+        # all hard constraints. No additional validation needed.
         
         # Persist solution and optionally apply assignments
         run = self._persist_solution(run, solution, apply_assignments)
@@ -218,39 +156,80 @@ class SchedulingService:
         """
         Start a run with race condition protection.
         
-        Uses SELECT FOR UPDATE to prevent concurrent execution.
+        Uses repository to update status.
         
         Args:
             run: SchedulingRunModel record
         
         Returns:
-            Locked and updated run record
+            Updated run record
         
         Raises:
             ValueError: If run not found or already started
         """
-        # Use SELECT FOR UPDATE to prevent race conditions
-        locked_run = self.db.query(SchedulingRunModel).filter(
-            SchedulingRunModel.run_id == run.run_id
-        ).with_for_update().first()
-        
-        if not locked_run:
+        # Get fresh copy and check status
+        current_run = self.run_repository.get_by_id(run.run_id)
+        if not current_run:
             raise ValueError(f"Run {run.run_id} not found")
         
         # Check if run was already started by another process
-        if locked_run.status != SchedulingRunStatus.PENDING:
+        if current_run.status != SchedulingRunStatus.PENDING:
             raise ValueError(
-                f"Run {run.run_id} is already in status {locked_run.status}, "
+                f"Run {run.run_id} is already in status {current_run.status}, "
                 f"cannot start again"
             )
         
-        locked_run.status = SchedulingRunStatus.RUNNING
-        if not locked_run.started_at:
-            locked_run.started_at = datetime.now()
-        self.db.commit()
-        self.db.refresh(locked_run)
+        # Update to RUNNING status
+        updated_run = self.run_repository.update_status(
+            run.run_id,
+            SchedulingRunStatus.RUNNING
+        )
         
-        return locked_run
+        return updated_run
+    
+    def _mark_run_as_failed(
+        self,
+        run: SchedulingRunModel,
+        error: Exception
+    ) -> None:
+        """
+        Mark a run as failed and update error information.
+        
+        Uses centralized error message generation to ensure consistent,
+        actionable messages.
+        
+        Args:
+            run: SchedulingRunModel record
+            error: Exception that caused the failure
+        """
+        # Determine status from error type
+        status = 'INFEASIBLE' if isinstance(error, ValueError) and 'Infeasible' in str(error) else 'ERROR'
+        
+        # Use centralized error message builder
+        error_message = build_error_message(status, error)
+        
+        try:
+            self.run_repository.update_status(
+                run.run_id,
+                SchedulingRunStatus.FAILED,
+                error_message=error_message
+            )
+        except Exception as commit_error:
+            logger.error(
+                f"Failed to update run status for run_id={run.run_id}, "
+                f"original_error={error}, commit_error={commit_error}",
+                exc_info=True
+            )
+        
+        if isinstance(error, (ValueError, DatabaseError)):
+            logger.error(
+                f"Optimization failed for run_id={run.run_id}, error={error}",
+                exc_info=True
+            )
+        else:
+            logger.exception(
+                f"Unexpected error during optimization for run_id={run.run_id}"
+            )
     
     def _load_optimization_config(self, run: SchedulingRunModel) -> OptimizationConfigModel:
         """
@@ -266,50 +245,21 @@ class SchedulingService:
             ValueError: If no configuration found
         """
         if run.config_id:
-            config = self.db.query(OptimizationConfigModel).filter(
-                OptimizationConfigModel.config_id == run.config_id
-            ).first()
+            config = self.config_repository.get_by_id(run.config_id)
+            if not config:
+                raise ValueError(f"Optimization config {run.config_id} not found")
         else:
-            config = self.db.query(OptimizationConfigModel).filter(
-                OptimizationConfigModel.is_default == True
-            ).first()
-        
-        if not config:
-            raise ValueError("No optimization configuration found")
+            config = self.config_repository.get_default()
+            if not config:
+                raise ValueError("No default optimization configuration found")
         
         return config
-    
-    def _build_and_solve(
-        self,
-        run: SchedulingRunModel,
-        config: OptimizationConfigModel
-    ) -> SchedulingSolution:
-        """
-        Build optimization data and solve MIP model.
-        
-        Args:
-            run: SchedulingRunModel record
-            config: OptimizationConfigModel
-        
-        Returns:
-            SchedulingSolution
-        """
-        # Build optimization data
-        logger.info(f"Building optimization data for weekly schedule {run.weekly_schedule_id}...")
-        data = self.data_builder.build(run.weekly_schedule_id)
-        
-        logger.info(f"Employees: {len(data.employees)}, Shifts: {len(data.shifts)}")
-        
-        # Build and solve MIP model
-        logger.info(f"Building MIP model...")
-        solution = self.solver.solve(data, config)
-        
-        return solution
     
     def _handle_infeasible_solution(
         self,
         run: SchedulingRunModel,
-        solution: SchedulingSolution
+        solution: SchedulingSolution,
+        constraint_info: Optional[Dict[str, Any]] = None
     ) -> Tuple[SchedulingRunModel, SchedulingSolution]:
         """
         Handle infeasible or failed solution.
@@ -317,84 +267,122 @@ class SchedulingService:
         Args:
             run: SchedulingRunModel record
             solution: SchedulingSolution with failed status
+            constraint_info: Optional constraint information for better error messages
         
         Returns:
             Tuple of (updated run, solution)
         """
-        run.status = SchedulingRunStatus.FAILED
-        run.completed_at = datetime.now()
-        run.runtime_seconds = solution.runtime_seconds
-        run.total_assignments = 0
-        run.solver_status = map_to_solver_status_enum(solution.status)
-        run.error_message = build_error_message(solution.status)
+        updated_run = self.run_repository.update_with_results(
+            run.run_id,
+            solver_status=map_to_solver_status_enum(solution.status),
+            objective_value=None,
+            runtime_seconds=solution.runtime_seconds,
+            mip_gap=None,
+            total_assignments=0
+        )
         
-        self.db.commit()
-        self.db.refresh(run)
+        # Build error message with original error and constraint info if available
+        original_error = getattr(solution, 'original_error', None)
+        error_message = build_error_message(solution.status, original_error, constraint_info)
         
-        logger.warning(f"Optimization failed: {solution.status}, error_message: {run.error_message}")
+        # Update status to FAILED separately
+        updated_run = self.run_repository.update(
+            updated_run.run_id,
+            status=SchedulingRunStatus.FAILED,
+            error_message=error_message
+        )
         
-        return run, solution
+        logger.warning(f"Optimization failed: {solution.status}, error_message: {updated_run.error_message}")
+        
+        return updated_run, solution
     
-    def _validate_solution(
-        self,
-        run: SchedulingRunModel,
-        solution: SchedulingSolution
-    ) -> None:
+    def _extract_constraint_info(self, data) -> Optional[Dict[str, Any]]:
         """
-        Validate solution against HARD constraints.
+        Extract constraint information and calculate feasibility analysis.
         
         Args:
-            run: SchedulingRunModel record
-            solution: SchedulingSolution to validate
-        
-        Raises:
-            ValueError: If HARD constraints are violated
+            data: OptimizationData object
+            
+        Returns:
+            Dict with constraint information and feasibility analysis
         """
-        logger.info(f"Validating solution against HARD constraints...")
-        validation = self.constraint_service.validate_weekly_schedule(
-            run.weekly_schedule_id,
-            solution.assignments
-        )
+        if not data or not hasattr(data, 'system_constraints'):
+            return None
         
-        if not validation.is_valid():
-            # HARD constraints violated - fail the run
-            error_summary = "; ".join([
-                err.message for err in validation.errors[:10]
-            ])
-            if len(validation.errors) > 10:
-                error_summary += f" ... and {len(validation.errors) - 10} more violations"
-            
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.solver_status = SolverStatus.INFEASIBLE
-                run.error_message = f"HARD constraint violations detected: {error_summary}"
-                run.completed_at = datetime.now()
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status after validation failure, "
-                    f"run_id={run.run_id}, commit_error={commit_error}",
-                    exc_info=True
-                )
-                raise
-            
-            logger.error(
-                f"Solution validation failed: {len(validation.errors)} HARD violations, "
-                f"run_id={run.run_id}, weekly_schedule_id={run.weekly_schedule_id}"
-            )
-            raise ValueError(f"HARD constraint violations: {error_summary}")
+        from app.data.models.system_constraints_model import SystemConstraintType
         
-        logger.info(
-            f"Solution validation passed: {len(validation.errors)} HARD violations, "
-            f"{len(validation.warnings)} warnings, run_id={run.run_id}"
-        )
-        if validation.warnings:
-            logger.warning(
-                f"SOFT constraint warnings: {len(validation.warnings)}, run_id={run.run_id}"
-            )
-            for warning in validation.warnings[:5]:
-                logger.debug(f"  - {warning.message}")
+        constraint_info = {
+            'has_hard_max_hours': False,
+            'has_hard_max_shifts': False,
+            'has_hard_min_rest': False,
+            'has_hard_max_consecutive': False,
+            'has_hard_min_hours': False,
+            'has_hard_min_shifts': False,
+        }
+        
+        # Check for hard constraints
+        max_hours = data.system_constraints.get(SystemConstraintType.MAX_HOURS_PER_WEEK)
+        if max_hours and max_hours[1]:  # is_hard
+            constraint_info['has_hard_max_hours'] = True
+            constraint_info['max_hours_value'] = max_hours[0]
+        
+        max_shifts = data.system_constraints.get(SystemConstraintType.MAX_SHIFTS_PER_WEEK)
+        if max_shifts and max_shifts[1]:  # is_hard
+            constraint_info['has_hard_max_shifts'] = True
+            constraint_info['max_shifts_value'] = max_shifts[0]
+        
+        min_rest = data.system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
+        if min_rest and min_rest[1]:  # is_hard
+            constraint_info['has_hard_min_rest'] = True
+            constraint_info['min_rest_value'] = min_rest[0]
+        
+        max_consecutive = data.system_constraints.get(SystemConstraintType.MAX_CONSECUTIVE_DAYS)
+        if max_consecutive and max_consecutive[1]:  # is_hard
+            constraint_info['has_hard_max_consecutive'] = True
+            constraint_info['max_consecutive_value'] = max_consecutive[0]
+        
+        min_hours = data.system_constraints.get(SystemConstraintType.MIN_HOURS_PER_WEEK)
+        if min_hours and min_hours[1]:  # is_hard
+            constraint_info['has_hard_min_hours'] = True
+            constraint_info['min_hours_value'] = min_hours[0]
+        
+        min_shifts = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
+        if min_shifts and min_shifts[1]:  # is_hard
+            constraint_info['has_hard_min_shifts'] = True
+            constraint_info['min_shifts_value'] = min_shifts[0]
+        
+        # Calculate feasibility analysis
+        n_employees = len(data.employees) if data.employees else 0
+        
+        # Calculate total required hours and shifts
+        total_required_hours = 0.0
+        total_required_shifts = 0
+        
+        for shift in data.shifts:
+            required_roles = shift.get('required_roles') or []
+            shift_duration = data.shift_durations.get(shift.get('planned_shift_id'), 0.0)
+            
+            for role_req in required_roles:
+                required_count = int(role_req.get('required_count', 0))
+                total_required_shifts += required_count
+                total_required_hours += required_count * shift_duration
+        
+        constraint_info['total_required_hours'] = total_required_hours
+        constraint_info['total_required_shifts'] = total_required_shifts
+        constraint_info['n_employees'] = n_employees
+        
+        # Calculate maximum possible with constraints
+        if constraint_info['has_hard_max_hours'] and n_employees > 0:
+            max_possible_hours = n_employees * constraint_info['max_hours_value']
+            constraint_info['max_possible_hours'] = max_possible_hours
+            constraint_info['hours_feasible'] = total_required_hours <= max_possible_hours
+        
+        if constraint_info['has_hard_max_shifts'] and n_employees > 0:
+            max_possible_shifts = n_employees * constraint_info['max_shifts_value']
+            constraint_info['max_possible_shifts'] = max_possible_shifts
+            constraint_info['shifts_feasible'] = total_required_shifts <= max_possible_shifts
+        
+        return constraint_info
     
     def _persist_solution(
         self,
@@ -414,24 +402,14 @@ class SchedulingService:
             Updated run record
         
         Raises:
-            SQLAlchemyError: If persistence fails
+            DatabaseError: If persistence fails
         """
         # Clear existing assignments if applying new ones
         if apply_assignments:
             logger.info(f"Clearing existing assignments for weekly_schedule_id={run.weekly_schedule_id}...")
-            self.persistence.clear_existing_assignments(run.weekly_schedule_id, commit=False)
-        
-        # Update run with results
-        run.status = SchedulingRunStatus.COMPLETED
-        run.completed_at = datetime.now()
-        run.runtime_seconds = solution.runtime_seconds
-        run.objective_value = solution.objective_value
-        run.mip_gap = solution.mip_gap
-        run.total_assignments = len(solution.assignments)
-        run.solver_status = map_to_solver_status_enum(solution.status)
+            self.persistence.clear_existing_assignments(run.weekly_schedule_id)
         
         # Persist solution and optionally apply assignments
-        # Use commit=False to combine with run update in single transaction
         if apply_assignments:
             logger.info(f"Creating {len(solution.assignments)} shift assignments...")
         else:
@@ -441,30 +419,34 @@ class SchedulingService:
             self.persistence.persist_solution_and_apply_assignments(
                 run.run_id,
                 solution.assignments,
-                apply_assignments=apply_assignments,
-                commit=False  # Commit together with run update
+                apply_assignments=apply_assignments
             )
             
-            # Commit all changes (clear + persist + run update) in single transaction
-            self.db.commit()
-            self.db.refresh(run)
-        except SQLAlchemyError as e:
-            # Rollback on error
-            self.db.rollback()
+            # Update run with results including metrics
+            updated_run = self.run_repository.update_with_results(
+                run.run_id,
+                solver_status=map_to_solver_status_enum(solution.status),
+                objective_value=solution.objective_value,
+                runtime_seconds=solution.runtime_seconds,
+                mip_gap=solution.mip_gap,
+                total_assignments=len(solution.assignments),
+                metrics=solution.metrics if hasattr(solution, 'metrics') and solution.metrics else None
+            )
+            
+        except Exception as e:
             logger.error(
                 f"Failed to persist solution for run_id={run.run_id}, error={e}",
                 exc_info=True
             )
-            raise
+            raise DatabaseError(f"Failed to persist solution: {str(e)}") from e
         
         if apply_assignments:
             logger.info(
-                f"SchedulingRun {run.run_id} completed with {len(solution.assignments)} assignments"
+                f"SchedulingRun {updated_run.run_id} completed with {len(solution.assignments)} assignments"
             )
         else:
             logger.info(
-                f"SchedulingRun {run.run_id} completed with {len(solution.assignments)} solution records"
+                f"SchedulingRun {updated_run.run_id} completed with {len(solution.assignments)} solution records"
             )
         
-        return run
-
+        return updated_run

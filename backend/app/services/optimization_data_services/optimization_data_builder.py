@@ -1,27 +1,22 @@
 """
 Optimization Data Builder service.
 
-This module is responsible for orchestration and DB access only.
-It extracts data from the database and coordinates the precomputation logic.
-This file should be the only one touching SQLAlchemy sessions.
+This module is responsible for orchestration and data extraction.
+It uses repositories for all database access - no direct ORM access.
 """
 
-from typing import Dict, List, Set, Tuple, Optional
-from datetime import date
-from sqlalchemy.orm import Session
-from sqlalchemy import select
+from typing import Dict, List, Set, Tuple, Optional, Any
+from datetime import date, datetime
 import numpy as np
-from datetime import datetime, time
 
-from app.db.models.userModel import UserModel
-from app.db.models.plannedShiftModel import PlannedShiftModel, PlannedShiftStatus
-from app.db.models.roleModel import RoleModel
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
-from app.db.models.employeePreferencesModel import EmployeePreferencesModel, DayOfWeek
-from app.db.models.timeOffRequestModel import TimeOffRequestModel, TimeOffRequestStatus
-from app.db.models.shiftTemplateModel import ShiftTemplateModel
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.db.models.systemConstraintsModel import SystemConstraintsModel, SystemConstraintType
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories import RoleRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories import ShiftTemplateRepository
 
 from app.services.optimization_data_services.optimization_data import OptimizationData
 from app.services.optimization_data_services.optimization_precompute import (
@@ -30,24 +25,54 @@ from app.services.optimization_data_services.optimization_precompute import (
     build_rest_conflicts,
 )
 from app.services.utils.overlap_utils import build_shift_overlaps
+from app.data.models.system_constraints_model import SystemConstraintType
+from app.data.models.planned_shift_model import PlannedShiftStatus
 
 
 class OptimizationDataBuilder:
     """
     Service for building optimization data from database entities.
     
-    This service extracts data from the database and coordinates the precomputation
-    logic to build a complete OptimizationData object suitable for MIP model construction.
+    This service uses repositories to access the database instead of direct
+    SQLAlchemy queries. It orchestrates data extraction and transformation
+    to build a complete OptimizationData object suitable for MIP model construction.
     """
     
-    def __init__(self, db: Session):
+    def __init__(
+        self,
+        user_repository: UserRepository,
+        shift_repository: ShiftRepository,
+        assignment_repository: ShiftAssignmentRepository,
+        role_repository: RoleRepository,
+        template_repository: ShiftTemplateRepository,
+        schedule_repository: WeeklyScheduleRepository,
+        time_off_repository: TimeOffRequestRepository,
+        constraints_repository: SystemConstraintsRepository,
+        preferences_repository: EmployeePreferencesRepository
+    ):
         """
-        Initialize the data builder with a database session.
+        Initialize the data builder with repositories.
         
         Args:
-            db: SQLAlchemy database session
+            user_repository: UserRepository instance
+            shift_repository: ShiftRepository instance
+            assignment_repository: ShiftAssignmentRepository instance
+            role_repository: RoleRepository instance
+            template_repository: ShiftTemplateRepository instance
+            schedule_repository: WeeklyScheduleRepository instance
+            time_off_repository: TimeOffRequestRepository instance
+            constraints_repository: SystemConstraintsRepository instance
+            preferences_repository: EmployeePreferencesRepository instance
         """
-        self.db = db
+        self.user_repository = user_repository
+        self.shift_repository = shift_repository
+        self.assignment_repository = assignment_repository
+        self.role_repository = role_repository
+        self.template_repository = template_repository
+        self.schedule_repository = schedule_repository
+        self.time_off_repository = time_off_repository
+        self.constraints_repository = constraints_repository
+        self.preferences_repository = preferences_repository
     
     def build(self, weekly_schedule_id: int) -> OptimizationData:
         """
@@ -67,7 +92,7 @@ class OptimizationDataBuilder:
         # Verify weekly schedule exists
         self._verify_weekly_schedule(weekly_schedule_id)
         
-        # Extract base data from database
+        # Extract base data from database using repositories
         data.employees, data.shifts, data.roles = self._extract_base_data(weekly_schedule_id)
         
         # Build index mappings
@@ -101,15 +126,12 @@ class OptimizationDataBuilder:
         
         Args:
             weekly_schedule_id: ID of the weekly schedule
-        
+            
         Raises:
             ValueError: If schedule not found
         """
-        weekly_schedule = self.db.query(WeeklyScheduleModel).filter(
-            WeeklyScheduleModel.weekly_schedule_id == weekly_schedule_id
-        ).first()
-        
-        if not weekly_schedule:
+        schedule = self.schedule_repository.get_by_id(weekly_schedule_id)
+        if not schedule:
             raise ValueError(f"Weekly schedule {weekly_schedule_id} not found")
     
     def _extract_base_data(
@@ -119,12 +141,14 @@ class OptimizationDataBuilder:
         """
         Extract base data from database: employees, shifts, and roles.
         
+        Uses repositories for all database access.
+        
         Args:
             weekly_schedule_id: ID of the weekly schedule
-        
+            
         Returns:
             Tuple of (employees, shifts, roles)
-        
+            
         Raises:
             ValueError: If no employees or shifts found
         """
@@ -142,8 +166,8 @@ class OptimizationDataBuilder:
     
     def _build_indices(
         self,
-        employees: List[Dict],
-        shifts: List[Dict]
+        employees: List[Dict[str, Any]],
+        shifts: List[Dict[str, Any]]
     ) -> Tuple[Dict[int, int], Dict[int, int]]:
         """
         Build index mappings for employees and shifts.
@@ -195,7 +219,7 @@ class OptimizationDataBuilder:
     
     def _build_time_off_map_for_schedule(
         self,
-        shifts: List[Dict]
+        shifts: List[Dict[str, Any]]
     ) -> Dict[int, List[Tuple[date, date]]]:
         """
         Build time-off map for the schedule date range.
@@ -255,16 +279,16 @@ class OptimizationDataBuilder:
         return shift_overlaps, shift_durations, system_constraints, \
                time_off_conflicts, shift_rest_conflicts
     
-    def build_employee_set(self) -> List[Dict]:
+    def build_employee_set(self) -> List[Dict[str, Any]]:
         """
         Extract eligible employees (active, with at least one role).
+        
+        Uses UserRepository for database access.
         
         Returns:
             List of employee dictionaries with user_id, name, email, roles
         """
-        employees = self.db.query(UserModel).filter(
-            UserModel.user_status.in_(["ACTIVE", "active"])
-        ).all()
+        employees = self.user_repository.get_active_users()
         
         # Filter to only employees with at least one role
         eligible_employees = []
@@ -284,8 +308,7 @@ class OptimizationDataBuilder:
         """
         Extract planned shifts from weekly schedule.
         
-        Optimized: Fetches all role requirements in a single batch query
-        instead of querying per shift.
+        Uses ShiftRepository and ShiftTemplateRepository for database access.
         
         Args:
             weekly_schedule_id: ID of the weekly schedule
@@ -293,17 +316,17 @@ class OptimizationDataBuilder:
         Returns:
             List of shift dictionaries with shift details and requirements
         """
-        shifts = self.db.query(PlannedShiftModel).filter(
-            PlannedShiftModel.weekly_schedule_id == weekly_schedule_id,
-            PlannedShiftModel.status != PlannedShiftStatus.CANCELLED
-        ).all()
+        shifts = self.shift_repository.get_by_schedule(weekly_schedule_id)
         
-        # Fetch template role map for all templates in one query
-        shift_list = []
-        template_ids = {shift.shift_template_id for shift in shifts if shift.shift_template_id}
+        # Filter out cancelled shifts
+        active_shifts = [s for s in shifts if s.status != PlannedShiftStatus.CANCELLED]
+        
+        # Fetch template role map for all templates in one batch
+        template_ids = {shift.shift_template_id for shift in active_shifts if shift.shift_template_id}
         template_role_map = self._fetch_template_role_map(template_ids)
         
-        for shift in shifts:
+        shift_list = []
+        for shift in active_shifts:
             shift_dict = {
                 'planned_shift_id': shift.planned_shift_id,
                 'weekly_schedule_id': shift.weekly_schedule_id,
@@ -330,10 +353,9 @@ class OptimizationDataBuilder:
     
     def _fetch_template_role_map(self, template_ids: Set[int]) -> Dict[int, Dict[int, int]]:
         """
-        Fetch template role requirements mapping from database.
+        Fetch template role requirements mapping.
         
-        Fetches all role requirements for all templates in a single query.
-        This is much more efficient than querying per shift.
+        Uses ShiftTemplateRepository for database access.
         
         Args:
             template_ids: Set of template IDs to fetch requirements for
@@ -344,38 +366,19 @@ class OptimizationDataBuilder:
         if not template_ids:
             return {}
         
-        # Import the association table
-        from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
-        
-        # Fetch all role requirements for all templates in one query
-        all_requirements = self.db.execute(
-            select(
-                shift_role_requirements.c.shift_template_id,
-                shift_role_requirements.c.role_id,
-                shift_role_requirements.c.required_count
-            ).where(
-                shift_role_requirements.c.shift_template_id.in_(template_ids)
-            )
-        ).all()
-        
-        # Build template -> role -> count mapping
-        template_role_map: Dict[int, Dict[int, int]] = {}
-        for row in all_requirements:
-            template_id = row.shift_template_id
-            if template_id not in template_role_map:
-                template_role_map[template_id] = {}
-            template_role_map[template_id][row.role_id] = row.required_count
-        
-        return template_role_map
+        # Use repository method to get role requirements with counts
+        return self.template_repository.get_role_requirements_with_counts(list(template_ids))
     
-    def build_role_set(self) -> List[Dict]:
+    def build_role_set(self) -> List[Dict[str, Any]]:
         """
         Extract all roles in the system.
+        
+        Uses RoleRepository for database access.
         
         Returns:
             List of role dictionaries with role_id and role_name
         """
-        roles = self.db.query(RoleModel).all()
+        roles = self.role_repository.get_all()
         
         return [
             {
@@ -391,7 +394,7 @@ class OptimizationDataBuilder:
         
         Args:
             shifts: List of shift dictionaries
-            
+        
         Returns:
             Dictionary mapping shift_id -> list of required role_ids
         """
@@ -405,13 +408,13 @@ class OptimizationDataBuilder:
         
         return role_requirements
     
-    def build_employee_roles(self, employees: List[Dict]) -> Dict[int, List[int]]:
+    def build_employee_roles(self, employees: List[Dict[str, Any]]) -> Dict[int, List[int]]:
         """
         Build employee roles mapping.
         
         Args:
             employees: List of employee dictionaries
-            
+        
         Returns:
             Dictionary mapping user_id -> list of role_ids
         """
@@ -424,38 +427,31 @@ class OptimizationDataBuilder:
         """
         Build set of existing assignments: {(employee_id, shift_id, role_id)}.
         
+        Uses ShiftRepository and ShiftAssignmentRepository for database access.
+        
         Args:
             weekly_schedule_id: ID of the weekly schedule
             
         Returns:
             Set of tuples (employee_id, shift_id, role_id)
         """
-        # Get all planned shifts for this schedule
-        planned_shifts = (
-            self.db.query(PlannedShiftModel.planned_shift_id)
-            .filter(PlannedShiftModel.weekly_schedule_id == weekly_schedule_id)
-            .all()
-        )
+        # Get all shifts for this schedule
+        shifts = self.shift_repository.get_by_schedule(weekly_schedule_id)
+        shift_ids = [s.planned_shift_id for s in shifts]
         
-        shift_id_list = [ps.planned_shift_id for ps in planned_shifts]
-        
-        if not shift_id_list:
+        if not shift_ids:
             return set()
         
         # Get all assignments for these shifts
-        assignments = (
-            self.db.query(ShiftAssignmentModel)
-            .filter(ShiftAssignmentModel.planned_shift_id.in_(shift_id_list))
-            .all()
-        )
-        
         assignment_set = set()
-        for assignment in assignments:
-            assignment_set.add((
-                assignment.user_id,
-                assignment.planned_shift_id,
-                assignment.role_id
-            ))
+        for shift_id in shift_ids:
+            assignments = self.assignment_repository.get_by_shift(shift_id)
+            for assignment in assignments:
+                assignment_set.add((
+                    assignment.user_id,
+                    assignment.planned_shift_id,
+                    assignment.role_id
+                ))
         
         return assignment_set
     
@@ -463,13 +459,12 @@ class OptimizationDataBuilder:
         """
         Build system constraints mapping: {SystemConstraintType: (value, is_hard)}.
         
-        Queries SystemConstraintsModel once to load all system-wide constraints.
-        This keeps the MIP builder clean (no DB queries needed).
+        Uses SystemConstraintsRepository for database access.
         
         Returns:
             Dictionary mapping constraint type to (value, is_hard) tuple
         """
-        constraints = self.db.query(SystemConstraintsModel).all()
+        constraints = self.constraints_repository.get_all()
         
         system_constraints: Dict[SystemConstraintType, Tuple[float, bool]] = {}
         
@@ -489,8 +484,7 @@ class OptimizationDataBuilder:
         """
         Build time-off map: {user_id: [(start_date, end_date), ...]}.
         
-        Optimized: Only fetches time-off requests that overlap with the schedule date range.
-        A time-off request overlaps if: (start_date <= schedule_max_date AND end_date >= schedule_min_date)
+        Uses TimeOffRequestRepository for database access.
         
         Args:
             schedule_min_date: Minimum date in the schedule (None if no shifts)
@@ -499,20 +493,14 @@ class OptimizationDataBuilder:
         Returns:
             Dictionary mapping user_id to list of time-off date ranges
         """
-        # Build query for approved time-off requests
-        query = self.db.query(TimeOffRequestModel).filter(
-            TimeOffRequestModel.status == TimeOffRequestStatus.APPROVED
+        if schedule_min_date is None or schedule_max_date is None:
+            return {}
+        
+        # Get approved time-off requests in date range
+        time_off_requests = self.time_off_repository.get_approved_in_date_range(
+            schedule_min_date,
+            schedule_max_date
         )
-        
-        # Filter to only requests that overlap with schedule date range
-        if schedule_min_date is not None and schedule_max_date is not None:
-            # Overlap condition: start_date <= schedule_max_date AND end_date >= schedule_min_date
-            query = query.filter(
-                TimeOffRequestModel.start_date <= schedule_max_date,
-                TimeOffRequestModel.end_date >= schedule_min_date
-            )
-        
-        time_off_requests = query.all()
         
         time_off_map: Dict[int, List[Tuple[date, date]]] = {}
         for tor in time_off_requests:
@@ -523,8 +511,8 @@ class OptimizationDataBuilder:
         return time_off_map
     
     def build_availability_matrix(
-        self, 
-        employees: List[Dict], 
+        self,
+        employees: List[Dict],
         shifts: List[Dict],
         employee_index: Dict[int, int],
         shift_index: Dict[int, int],
@@ -532,13 +520,7 @@ class OptimizationDataBuilder:
         time_off_map: Dict[int, List[Tuple[date, date]]]
     ) -> np.ndarray:
         """
-        Build availability matrix (employees × shifts).
-        
-        An employee is available for a shift if:
-        1. They don't have approved time-off for that shift's date
-        2. They're not already assigned to this shift (existing assignments)
-        3. The shift doesn't overlap with another shift they're already assigned to
-        4. They have at least one role matching the shift's requirements
+        Build availability matrix: availability[i, j] = 1 if employee i can work shift j.
         
         Args:
             employees: List of employee dictionaries
@@ -546,61 +528,32 @@ class OptimizationDataBuilder:
             employee_index: Mapping of user_id -> array index
             shift_index: Mapping of shift_id -> array index
             existing_assignments: Set of (employee_id, shift_id, role_id) tuples
-            time_off_map: Precomputed time-off map {user_id: [(start_date, end_date), ...]}
-            
+            time_off_map: Precomputed time-off map
+        
         Returns:
-            2D numpy array where 1 = available, 0 = not available
+            NumPy array of shape (num_employees, num_shifts)
         """
-        n_employees = len(employees)
-        n_shifts = len(shifts)
-        availability = np.ones((n_employees, n_shifts), dtype=int)
+        num_employees = len(employees)
+        num_shifts = len(shifts)
+        availability = np.zeros((num_employees, num_shifts), dtype=int)
         
-        # Build set of (employee_id, shift_id) that are already assigned
-        assigned_pairs = {(emp_id, shift_id) for (emp_id, shift_id, _) in existing_assignments}
-        
-        # Mark unavailable due to time-off
-        for emp in employees:
-            user_id = emp['user_id']
-            emp_idx = employee_index[user_id]
+        for shift_idx, shift in enumerate(shifts):
+            shift_date = shift['date']
+            shift_id = shift['planned_shift_id']
             
-            if user_id in time_off_map:
-                for shift in shifts:
-                    shift_idx = shift_index[shift['planned_shift_id']]
-                    shift_date = shift['date']
-                    
-                    # Check if shift date falls within any time-off period
+            for emp_idx, emp in enumerate(employees):
+                user_id = emp['user_id']
+                
+                # Check time-off conflicts
+                has_time_off = False
+                if user_id in time_off_map:
                     for start_date, end_date in time_off_map[user_id]:
                         if start_date <= shift_date <= end_date:
-                            availability[emp_idx, shift_idx] = 0
+                            has_time_off = True
                             break
-        
-        # Mark unavailable if already assigned to this shift
-        for emp in employees:
-            user_id = emp['user_id']
-            emp_idx = employee_index[user_id]
-            
-            for shift in shifts:
-                shift_id = shift['planned_shift_id']
-                shift_idx = shift_index[shift_id]
                 
-                if (user_id, shift_id) in assigned_pairs:
-                    availability[emp_idx, shift_idx] = 0
-        
-        # Mark unavailable if employee doesn't have required roles
-        for emp in employees:
-            user_id = emp['user_id']
-            emp_idx = employee_index[user_id]
-            emp_role_set = set(emp['roles'])
-            
-            for shift in shifts:
-                shift_idx = shift_index[shift['planned_shift_id']]
-                required_role_ids = [req['role_id'] for req in shift['required_roles']]
-                
-                # If shift requires roles and employee has none of them, mark unavailable
-                if required_role_ids:
-                    has_required_role = any(role_id in emp_role_set for role_id in required_role_ids)
-                    if not has_required_role:
-                        availability[emp_idx, shift_idx] = 0
+                if not has_time_off:
+                    availability[emp_idx, shift_idx] = 1
         
         return availability
     
@@ -612,90 +565,65 @@ class OptimizationDataBuilder:
         shift_index: Dict[int, int]
     ) -> np.ndarray:
         """
-        Build preference scores matrix (employees × shifts).
+        Build preference score matrix.
         
-        Preference scores are calculated based on:
-        1. Preferred shift template matches
-        2. Preferred day of week matches
-        3. Preferred time range overlaps
-        4. Weighted by preference_weight
-        
-        Score range: 0.0 (no preference/dislike) to 1.0 (strong preference)
-        Default score: 0.5 (neutral)
+        Uses EmployeePreferencesRepository for database access.
         
         Args:
             employees: List of employee dictionaries
             shifts: List of shift dictionaries
             employee_index: Mapping of user_id -> array index
             shift_index: Mapping of shift_id -> array index
-            
+        
         Returns:
-            2D numpy array of preference scores
+            NumPy array of shape (num_employees, num_shifts) with preference scores
         """
-        n_employees = len(employees)
-        n_shifts = len(shifts)
-        preferences = np.full((n_employees, n_shifts), 0.5, dtype=float)  # Default neutral
+        num_employees = len(employees)
+        num_shifts = len(shifts)
+        preference_scores = np.zeros((num_employees, num_shifts), dtype=float)
         
-        # Get all employee preferences
-        all_preferences = self.db.query(EmployeePreferencesModel).all()
+        # Get all preferences for all employees
+        all_user_ids = [emp['user_id'] for emp in employees]
+        all_preferences = []
+        for user_id in all_user_ids:
+            user_prefs = self.preferences_repository.get_by_user(user_id)
+            all_preferences.extend(user_prefs)
         
-        # Build preference mapping: user_id -> list of preferences
-        pref_map = {}
+        # Build preference map
         for pref in all_preferences:
-            if pref.user_id not in pref_map:
-                pref_map[pref.user_id] = []
-            pref_map[pref.user_id].append(pref)
-        
-        # Calculate preference scores
-        for emp in employees:
-            user_id = emp['user_id']
+            user_id = pref.user_id
+            if user_id not in employee_index:
+                continue
+            
             emp_idx = employee_index[user_id]
             
-            if user_id not in pref_map:
-                continue  # No preferences, use default 0.5
-            
-            for shift in shifts:
-                shift_idx = shift_index[shift['planned_shift_id']]
-                shift_template_id = shift['shift_template_id']
-                shift_date = shift['date']
-                shift_day_of_week = self._date_to_day_of_week(shift_date)
-                shift_start_time = shift['start_time'].time() if isinstance(shift['start_time'], datetime) else shift['start_time']
-                shift_end_time = shift['end_time'].time() if isinstance(shift['end_time'], datetime) else shift['end_time']
+            # Check if preference matches shift
+            for shift_idx, shift in enumerate(shifts):
+                score = 0.0
                 
-                # Aggregate all matching preferences
-                total_score = 0.0
-                total_weight = 0.0
+                # Check template match
+                if pref.preferred_shift_template_id and shift['shift_template_id']:
+                    if pref.preferred_shift_template_id == shift['shift_template_id']:
+                        score += pref.preference_weight * 0.5
                 
-                for pref in pref_map[user_id]:
-                    score = 0.0
+                # Check day of week match
+                if pref.preferred_day_of_week:
+                    shift_day = shift['date'].strftime('%A').upper()
+                    if pref.preferred_day_of_week.value == shift_day:
+                        score += pref.preference_weight * 0.3
+                
+                # Check time range match
+                if pref.preferred_start_time and pref.preferred_end_time:
+                    shift_start = shift['start_time'].time() if isinstance(shift['start_time'], datetime) else shift['start_time']
+                    shift_end = shift['end_time'].time() if isinstance(shift['end_time'], datetime) else shift['end_time']
                     
-                    # Check shift template match
-                    if pref.preferred_shift_template_id == shift_template_id:
-                        score = 1.0
-                    # Check day of week match
-                    elif pref.preferred_day_of_week and pref.preferred_day_of_week.value == shift_day_of_week:
-                        score = 0.8
-                    # Check time range overlap
-                    elif pref.preferred_start_time and pref.preferred_end_time:
-                        overlap = self._calculate_time_overlap(
-                            pref.preferred_start_time,
-                            pref.preferred_end_time,
-                            shift_start_time,
-                            shift_end_time
-                        )
-                        if overlap > 0:
-                            score = 0.6 * overlap  # Scale by overlap percentage
-                    
-                    # Weight the score by preference weight
-                    if score > 0:
-                        total_score += score * pref.preference_weight
-                        total_weight += pref.preference_weight
+                    if (pref.preferred_start_time <= shift_start <= pref.preferred_end_time or
+                        pref.preferred_start_time <= shift_end <= pref.preferred_end_time):
+                        score += pref.preference_weight * 0.2
                 
-                # Calculate weighted average
-                if total_weight > 0:
-                    preferences[emp_idx, shift_idx] = min(total_score / total_weight, 1.0)
+                preference_scores[emp_idx, shift_idx] = max(preference_scores[emp_idx, shift_idx], score)
         
-        return preferences
+        return preference_scores
     
     def detect_shift_overlaps(
         self,
@@ -705,88 +633,13 @@ class OptimizationDataBuilder:
         """
         Detect overlapping shifts.
         
-        Uses improved overlap detection from precompute module that handles:
-        - Full datetime comparison (date + time)
-        - Overnight shifts (end_time < start_time means end is next day)
-        - Cross-day overlaps
+        Uses overlap utility functions.
         
         Args:
             shifts: List of shift dictionaries
-            shift_index: Mapping of shift_id -> array index (unused but kept for compatibility)
-            
+            shift_index: Mapping of shift_id -> array index (not used, kept for compatibility)
+        
         Returns:
             Dictionary mapping shift_id -> list of overlapping shift_ids
         """
-        # Use improved overlap detection from precompute module
-        overlaps_set = build_shift_overlaps(shifts)
-        
-        # Convert sets to lists for backward compatibility
-        overlaps = {shift_id: list(overlapping_ids) for shift_id, overlapping_ids in overlaps_set.items()}
-        
-        # Ensure all shifts have an entry (even if empty)
-        for shift in shifts:
-            shift_id = shift['planned_shift_id']
-            if shift_id not in overlaps:
-                overlaps[shift_id] = []
-        
-        return overlaps
-    
-    # Helper methods
-    
-    def _date_to_day_of_week(self, date_obj: date) -> str:
-        """
-        Convert date to day of week string (MONDAY, TUESDAY, etc.).
-        
-        Args:
-            date_obj: Date object to convert
-        
-        Returns:
-            Day of week string (MONDAY, TUESDAY, etc.)
-        """
-        day_names = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
-        return day_names[date_obj.weekday()]
-    
-    def _calculate_time_overlap(
-        self,
-        pref_start: time,
-        pref_end: time,
-        shift_start: time,
-        shift_end: time
-    ) -> float:
-        """
-        Calculate the percentage overlap between preferred time and shift time.
-        Handles overnight time ranges (end < start).
-        
-        Returns:
-            Overlap percentage (0.0 to 1.0)
-        """
-        # Convert times to minutes since midnight for easier calculation
-        def time_to_minutes(t: time) -> int:
-            return t.hour * 60 + t.minute
-        
-        pref_start_min = time_to_minutes(pref_start)
-        pref_end_min = time_to_minutes(pref_end)
-        shift_start_min = time_to_minutes(shift_start)
-        shift_end_min = time_to_minutes(shift_end)
-        
-        # Handle overnight ranges: if end < start, end is next day (add 24*60 minutes)
-        if pref_end < pref_start:
-            pref_end_min += 24 * 60
-        if shift_end < shift_start:
-            shift_end_min += 24 * 60
-        
-        # Calculate overlap
-        overlap_start = max(pref_start_min, shift_start_min)
-        overlap_end = min(pref_end_min, shift_end_min)
-        
-        if overlap_start >= overlap_end:
-            return 0.0
-        
-        overlap_duration = overlap_end - overlap_start
-        shift_duration = shift_end_min - shift_start_min
-        
-        if shift_duration == 0:
-            return 0.0
-        
-        return min(overlap_duration / shift_duration, 1.0)
-
+        return build_shift_overlaps(shifts)

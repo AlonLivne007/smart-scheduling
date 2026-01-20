@@ -1,192 +1,165 @@
 """
 Employee preferences routes module.
 
-This module defines the REST API endpoints for employee preference management operations
-including CRUD operations for shift preferences.
+This module defines the REST API endpoints for employee preference management operations.
+Routes use repository dependency injection - no direct DB access.
 """
 
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.employeePreferencesController import (
+from app.api.controllers.employee_preferences_controller import (
     create_employee_preference,
     get_employee_preferences_by_user,
     get_employee_preference,
     update_employee_preference,
-    delete_employee_preference,
+    delete_employee_preference
 )
-from app.db.session import get_db
-from app.schemas.employeePreferencesSchema import (
+from app.api.controllers.auth_controller import get_current_user
+from app.api.dependencies.repositories import (
+    get_employee_preferences_repository,
+    get_user_repository,
+    get_shift_template_repository
+)
+from app.data.session import get_db
+from app.schemas.employee_preferences_schema import (
     EmployeePreferencesCreate,
-    EmployeePreferencesRead,
     EmployeePreferencesUpdate,
+    EmployeePreferencesRead
 )
-from app.api.controllers.authController import get_current_user
-from app.api.dependencies.auth import require_auth
-from app.db.models.userModel import UserModel
 
-router = APIRouter(prefix="/employees", tags=["Employee Preferences"])
+# AuthN/Authorization
+from app.api.dependencies.auth import require_auth, require_manager
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.models.user_model import UserModel
+
+router = APIRouter(prefix="/employee-preferences", tags=["Employee Preferences"])
 
 
-# ---------------------- User-specific preference routes -------------------
+# ---------------------- Collection routes -------------------
 
 @router.post(
-    "/{user_id}/preferences",
+    "/users/{user_id}",
     response_model=EmployeePreferencesRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new employee preference",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def create_preference(
     user_id: int,
-    payload: EmployeePreferencesCreate,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    preference_data: EmployeePreferencesCreate,
+    current_user: UserModel = Depends(get_current_user),
+    preferences_repository: EmployeePreferencesRepository = Depends(get_employee_preferences_repository),
+    user_repository: UserRepository = Depends(get_user_repository),
+    template_repository: ShiftTemplateRepository = Depends(get_shift_template_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Create a new employee preference.
-    
-    Employees can only create preferences for themselves.
-    Managers can create preferences for any employee.
-    """
-    # Authorization: employees can only create their own preferences
-    if not current_user.is_manager and user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only create preferences for yourself"
-        )
-    
-    return await create_employee_preference(db, user_id, payload)
+    return await create_employee_preference(
+        user_id,
+        preference_data,
+        current_user,
+        preferences_repository,
+        user_repository,
+        template_repository,
+        db
+    )
 
 
 @router.get(
-    "/{user_id}/preferences",
+    "/users/{user_id}",
     response_model=List[EmployeePreferencesRead],
     status_code=status.HTTP_200_OK,
-    summary="Get all preferences for a specific employee",
-    dependencies=[Depends(require_auth)],
+    summary="Get all preferences for a user",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
-async def list_preferences_for_user(
+async def list_preferences(
     user_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user),
+    preferences_repository: EmployeePreferencesRepository = Depends(get_employee_preferences_repository),
+    user_repository: UserRepository = Depends(get_user_repository)
 ):
-    """
-    Get all preferences for a specific employee.
-    
-    Employees can only view their own preferences.
-    Managers can view any employee's preferences.
-    """
-    # Authorization: employees can only view their own preferences
-    if not current_user.is_manager and user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own preferences"
-        )
-    
-    return await get_employee_preferences_by_user(db, user_id)
+    return await get_employee_preferences_by_user(
+        user_id,
+        current_user,
+        preferences_repository,
+        user_repository
+    )
 
 
-# ---------------------- Individual preference routes -------------------
+# ---------------------- Resource routes ---------------------
 
 @router.get(
-    "/{user_id}/preferences/{preference_id}",
+    "/users/{user_id}/preferences/{preference_id}",
     response_model=EmployeePreferencesRead,
     status_code=status.HTTP_200_OK,
-    summary="Get a single preference by ID",
-    dependencies=[Depends(require_auth)],
+    summary="Get a preference by ID",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def get_preference(
-    user_id: int,
     preference_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    user_id: int,
+    current_user: UserModel = Depends(get_current_user),
+    preferences_repository: EmployeePreferencesRepository = Depends(get_employee_preferences_repository),
+    user_repository: UserRepository = Depends(get_user_repository)
 ):
-    """
-    Get a single preference by ID.
-    
-    Employees can only view their own preferences.
-    Managers can view any employee's preferences.
-    """
-    # Get the preference first to check ownership
-    preference = await get_employee_preference(db, preference_id)
-    
-    # Verify it belongs to the specified user
-    if preference.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Preference {preference_id} does not belong to user {user_id}"
-        )
-    
-    # Authorization: employees can only view their own preferences
-    if not current_user.is_manager and user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own preferences"
-        )
-    
-    return preference
+    return await get_employee_preference(
+        preference_id,
+        user_id,
+        current_user,
+        preferences_repository,
+        user_repository
+    )
 
 
 @router.put(
-    "/{user_id}/preferences/{preference_id}",
+    "/users/{user_id}/preferences/{preference_id}",
     response_model=EmployeePreferencesRead,
     status_code=status.HTTP_200_OK,
-    summary="Update an employee preference",
-    dependencies=[Depends(require_auth)],
+    summary="Update a preference",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def update_preference(
-    user_id: int,
     preference_id: int,
-    payload: EmployeePreferencesUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    user_id: int,
+    preference_data: EmployeePreferencesUpdate,
+    current_user: UserModel = Depends(get_current_user),
+    preferences_repository: EmployeePreferencesRepository = Depends(get_employee_preferences_repository),
+    user_repository: UserRepository = Depends(get_user_repository),
+    template_repository: ShiftTemplateRepository = Depends(get_shift_template_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Update an employee preference.
-    
-    Employees can only update their own preferences.
-    Managers can update any employee's preferences.
-    """
-    # For managers, allow updating any user's preferences
-    # For regular employees, the controller will check ownership
-    if current_user.is_manager:
-        # Manager can update any preference, use the target user_id
-        effective_user_id = user_id
-    else:
-        # Regular employee, use their own user_id (controller will validate)
-        effective_user_id = current_user.user_id
-    
-    return await update_employee_preference(db, preference_id, payload, effective_user_id)
+    return await update_employee_preference(
+        preference_id,
+        preference_data,
+        current_user,
+        user_id,
+        preferences_repository,
+        user_repository,
+        template_repository,
+        db
+    )
 
 
 @router.delete(
-    "/{user_id}/preferences/{preference_id}",
+    "/users/{user_id}/preferences/{preference_id}",
     status_code=status.HTTP_200_OK,
-    summary="Delete an employee preference",
-    dependencies=[Depends(require_auth)],
+    summary="Delete a preference",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def delete_preference(
-    user_id: int,
     preference_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    user_id: int,
+    current_user: UserModel = Depends(get_current_user),
+    preferences_repository: EmployeePreferencesRepository = Depends(get_employee_preferences_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """
-    Delete an employee preference.
-    
-    Employees can only delete their own preferences.
-    Managers can delete any employee's preferences.
-    """
-    # For managers, allow deleting any user's preferences
-    # For regular employees, the controller will check ownership
-    if current_user.is_manager:
-        # Manager can delete any preference, use the target user_id
-        effective_user_id = user_id
-    else:
-        # Regular employee, use their own user_id (controller will validate)
-        effective_user_id = current_user.user_id
-    
-    return await delete_employee_preference(db, preference_id, effective_user_id)
+    return await delete_employee_preference(
+        preference_id,
+        current_user,
+        preferences_repository,
+        db
+    )

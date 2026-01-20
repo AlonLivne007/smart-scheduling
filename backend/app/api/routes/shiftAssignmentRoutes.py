@@ -1,139 +1,129 @@
 """
 Shift assignment routes module.
 
-This module defines the REST API endpoints for shift assignment management operations
-including CRUD operations for shift assignment records.
+This module defines the REST API endpoints for shift assignment management operations.
+Routes use repository dependency injection - no direct DB access.
 """
 
-from fastapi import APIRouter, Depends, status
 from typing import List
+
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
-from app.schemas.shiftAssignmentSchema import (
-    ShiftAssignmentCreate,
-    ShiftAssignmentRead,
-)
-from app.api.controllers.shiftAssignmentController import (
+
+from app.api.controllers import shift_assignment_controller
+from app.api.controllers.shift_assignment_controller import (
     create_shift_assignment,
-    get_all_shift_assignments,
     get_shift_assignment,
     get_assignments_by_shift,
     get_assignments_by_user,
-    delete_shift_assignment,
+    delete_shift_assignment
+)
+from app.api.dependencies.repositories import (
+    get_shift_assignment_repository,
+    get_shift_repository
+)
+from app.data.session import get_db
+from app.schemas.shift_assignment_schema import (
+    ShiftAssignmentCreate,
+    ShiftAssignmentRead
 )
 
-router = APIRouter(
-    prefix="/shift-assignments", tags=["Shift Assignments"]
+# AuthN/Authorization
+from app.api.dependencies.auth import require_auth, require_manager
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+
+router = APIRouter(prefix="/shift-assignments", tags=["Shift Assignments"])
+
+
+# ---------------------- Collection routes -------------------
+
+@router.post(
+    "/",
+    response_model=ShiftAssignmentRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new shift assignment",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
 )
+async def create_assignment(
+    shift_assignment_data: ShiftAssignmentCreate,
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository),
+    shift_repository: ShiftRepository = Depends(get_shift_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await create_shift_assignment(
+        shift_assignment_data,
+        assignment_repository,
+        shift_repository,
+        db
+    )
 
 
-# ------------------------
-# Collection Routes
-# ------------------------
-
-@router.post("/", response_model=ShiftAssignmentRead, status_code=status.HTTP_201_CREATED,
-             summary="Create a new shift assignment")
-async def create_assignment(shift_assignment_data: ShiftAssignmentCreate, db: Session = Depends(get_db)):
-    """
-    Assign a user to a planned shift in a specific role.
-    
-    Args:
-        shift_assignment_data: Shift assignment creation data
-        db: Database session dependency
-        
-    Returns:
-        Created shift assignment data
-    """
-    assignment = await create_shift_assignment(db, shift_assignment_data)
-    return assignment
+@router.get(
+    "/",
+    response_model=List[ShiftAssignmentRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all shift assignments",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def list_all_assignments(
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository)
+):
+    return await shift_assignment_controller.list_shift_assignments(assignment_repository)
 
 
-@router.get("/", response_model=List[ShiftAssignmentRead], status_code=status.HTTP_200_OK,
-            summary="List all shift assignments")
-async def list_all_assignments(db: Session = Depends(get_db)):
-    """
-    Retrieve all shift assignments from the system.
-    
-    Args:
-        db: Database session dependency
-        
-    Returns:
-        List of all shift assignments
-    """
-    assignments = await get_all_shift_assignments(db)
-    return assignments
+# ---------------------- Resource routes ---------------------
+
+@router.get(
+    "/shift/{shift_id}",
+    response_model=List[ShiftAssignmentRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all assignments for a planned shift",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def get_assignments_for_shift(
+    shift_id: int,
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository)
+):
+    return await get_assignments_by_shift(shift_id, assignment_repository)
 
 
-# ------------------------
-# Filter Routes (specific before parameterized)
-# ------------------------
-
-@router.get("/by-shift/{shift_id}", response_model=List[ShiftAssignmentRead], status_code=status.HTTP_200_OK,
-            summary="Get assignments by planned shift")
-async def get_assignments_for_shift(shift_id: int, db: Session = Depends(get_db)):
-    """
-    Retrieve all assignments for a specific planned shift.
-    
-    Args:
-        shift_id: Planned shift identifier
-        db: Database session dependency
-        
-    Returns:
-        List of shift assignments for the specified shift
-    """
-    assignments = await get_assignments_by_shift(db, shift_id)
-    return assignments
+@router.get(
+    "/user/{user_id}",
+    response_model=List[ShiftAssignmentRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all assignments for a user",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def get_assignments_for_user(
+    user_id: int,
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository)
+):
+    return await get_assignments_by_user(user_id, assignment_repository)
 
 
-@router.get("/by-user/{user_id}", response_model=List[ShiftAssignmentRead], status_code=status.HTTP_200_OK,
-            summary="Get assignments by user")
-async def get_assignments_for_user(user_id: int, db: Session = Depends(get_db)):
-    """
-    Retrieve all assignments for a specific user.
-    
-    Args:
-        user_id: User identifier
-        db: Database session dependency
-        
-    Returns:
-        List of shift assignments for the specified user
-    """
-    assignments = await get_assignments_by_user(db, user_id)
-    return assignments
+@router.get(
+    "/{assignment_id}",
+    response_model=ShiftAssignmentRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get a shift assignment by ID",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def get_one_assignment(
+    assignment_id: int,
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository)
+):
+    return await get_shift_assignment(assignment_id, assignment_repository)
 
 
-# ------------------------
-# Resource Routes
-# ------------------------
-
-@router.get("/{assignment_id}", response_model=ShiftAssignmentRead, status_code=status.HTTP_200_OK,
-            summary="Get a shift assignment by ID")
-async def get_one_assignment(assignment_id: int, db: Session = Depends(get_db)):
-    """
-    Retrieve a specific shift assignment by its ID.
-    
-    Args:
-        assignment_id: Shift assignment identifier
-        db: Database session dependency
-        
-    Returns:
-        Shift assignment data
-    """
-    assignment = await get_shift_assignment(db, assignment_id)
-    return assignment
-
-
-@router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT,
-               summary="Delete a shift assignment")
-async def delete_assignment(assignment_id: int, db: Session = Depends(get_db)):
-    """
-    Delete a shift assignment from the system.
-    
-    Args:
-        assignment_id: Shift assignment identifier
-        db: Database session dependency
-        
-    Returns:
-        No content (204)
-    """
-    await delete_shift_assignment(db, assignment_id)
+@router.delete(
+    "/{assignment_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a shift assignment",
+    dependencies=[Depends(require_manager)],  # ADMIN ONLY
+)
+async def delete_assignment(
+    assignment_id: int,
+    assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository),
+    db: Session = Depends(get_db)  # For transaction management
+):
+    return await delete_shift_assignment(assignment_id, assignment_repository, db)

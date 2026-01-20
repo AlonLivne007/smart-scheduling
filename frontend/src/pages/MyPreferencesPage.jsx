@@ -37,7 +37,7 @@ export default function MyPreferencesPage() {
       setLoading(true);
       try {
         const [prefsRes, templatesRes] = await Promise.all([
-          api.get(`/employees/${userId}/preferences`),
+          api.get(`/employee-preferences/users/${userId}`),
           api.get("/shift-templates/"),
         ]);
         if (!canceled) {
@@ -61,7 +61,7 @@ export default function MyPreferencesPage() {
   const handleDelete = async (preferenceId) => {
     if (!confirm("Delete this preference?")) return;
     try {
-      await api.delete(`/employees/${userId}/preferences/${preferenceId}`);
+      await api.delete(`/employee-preferences/users/${userId}/preferences/${preferenceId}`);
       setPreferences(preferences.filter((p) => p.preference_id !== preferenceId));
       toast.success("Preference deleted");
     } catch (e) {
@@ -72,7 +72,7 @@ export default function MyPreferencesPage() {
 
   const refreshPreferences = async () => {
     try {
-      const { data } = await api.get(`/employees/${userId}/preferences`);
+      const { data } = await api.get(`/employee-preferences/users/${userId}`);
       setPreferences(data);
     } catch (e) {
       const msg = e?.response?.data?.detail || "Failed to refresh preferences";
@@ -401,13 +401,13 @@ function PreferenceForm({ userId, shiftTemplates, initialData, onSuccess, onCanc
       if (initialData) {
         // Update existing
         await api.put(
-          `/employees/${userId}/preferences/${initialData.preference_id}`,
+          `/employee-preferences/users/${userId}/preferences/${initialData.preference_id}`,
           payload
         );
         toast.success("Preference updated successfully!");
       } else {
         // Create new
-        await api.post(`/employees/${userId}/preferences`, payload);
+        await api.post(`/employee-preferences/users/${userId}`, payload);
         toast.success("Preference added successfully!");
       }
 

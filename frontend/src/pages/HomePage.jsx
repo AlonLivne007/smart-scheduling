@@ -39,7 +39,7 @@ export default function Home() {
     try {
       setLoading(true);
       console.log('Loading shifts for user:', user.user_id);
-      const { data: assignments } = await api.get(`/shift-assignments/by-user/${user.user_id}`);
+      const { data: assignments } = await api.get(`/shift-assignments/user/${user.user_id}`);
       console.log('Assignments loaded:', assignments.length);
       
       const shiftsWithDetails = await Promise.all(
@@ -85,7 +85,7 @@ export default function Home() {
     if (!user?.user_id) return;
 
     try {
-      const { data } = await api.get(`/time-off-requests/user/${user.user_id}`);
+      const { data } = await api.get(`/time-off-requests/?user_id=${user.user_id}`);
       const pending = data.filter(req => req.status === 'PENDING');
       setTimeOffRequests(pending);
     } catch (error) {

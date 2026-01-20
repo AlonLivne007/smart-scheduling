@@ -8,12 +8,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.db.session import get_db
+from app.data.session import get_db
 from app.api.dependencies.auth import get_current_user
-from app.db.models.userModel import UserModel
-from app.db.models.activityLogModel import ActivityEntityType
-from app.schemas.activityLogSchema import ActivityLogRead
-from app.api.controllers.activityLogController import get_recent_activities
+from app.data.models.user_model import UserModel
+from app.data.models.activity_log_model import ActivityEntityType
+from app.schemas.activity_log_schema import ActivityLogRead
+from app.api.controllers.activity_log_controller import get_recent_activities
 
 router = APIRouter(prefix="/activities", tags=["Activity Logs"])
 

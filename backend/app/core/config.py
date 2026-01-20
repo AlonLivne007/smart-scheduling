@@ -26,7 +26,7 @@ class Settings:
     # Database Configuration
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@db:5432/scheduler_db"
+        "postgresql://postgres:postgres@data:5432/scheduler_db"
     )
 
 

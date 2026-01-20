@@ -17,8 +17,9 @@ import api from '../lib/axios.js';
  * @throws {Error} If API call fails
  */
 export const triggerOptimization = async (weeklyScheduleId, configId = null) => {
-  const url = `/scheduling/optimize/${weeklyScheduleId}`;
-  const params = configId ? { config_id: configId } : {};
+  const url = `/scheduling/optimize`;
+  const params = { weekly_schedule_id: weeklyScheduleId };
+  if (configId) params.config_id = configId;
   
   const response = await api.post(url, null, { params });
   return response.data;
@@ -34,7 +35,7 @@ export const triggerOptimization = async (weeklyScheduleId, configId = null) => 
  * @throws {Error} If API call fails
  */
 export const getAllRuns = async (filters = {}) => {
-  const response = await api.get('/scheduling/runs/', { params: filters });
+  const response = await api.get('/scheduling-runs/', { params: filters });
   return response.data;
 };
 
@@ -46,7 +47,7 @@ export const getAllRuns = async (filters = {}) => {
  * @throws {Error} If API call fails
  */
 export const getRun = async (runId) => {
-  const response = await api.get(`/scheduling/runs/${runId}`);
+  const response = await api.get(`/scheduling-runs/${runId}`);
   return response.data;
 };
 
@@ -58,7 +59,7 @@ export const getRun = async (runId) => {
  * @throws {Error} If API call fails
  */
 export const getSolutions = async (runId) => {
-  const response = await api.get(`/scheduling/runs/${runId}/solutions`);
+  const response = await api.get(`/scheduling-runs/${runId}/solutions`);
   return response.data;
 };
 
@@ -71,7 +72,7 @@ export const getSolutions = async (runId) => {
  * @throws {Error} If API call fails
  */
 export const applySolution = async (runId, overwrite = false) => {
-  const response = await api.post(`/scheduling/runs/${runId}/apply`, null, {
+  const response = await api.post(`/scheduling-runs/${runId}/apply`, null, {
     params: { overwrite }
   });
   return response.data;
@@ -85,6 +86,6 @@ export const applySolution = async (runId, overwrite = false) => {
  * @throws {Error} If API call fails
  */
 export const deleteRun = async (runId) => {
-  const response = await api.delete(`/scheduling/runs/${runId}`);
+  const response = await api.delete(`/scheduling-runs/${runId}`);
   return response.data;
 };

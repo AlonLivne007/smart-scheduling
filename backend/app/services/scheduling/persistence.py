@@ -1,73 +1,69 @@
 """
 Database persistence operations for scheduling solutions.
+
+This service uses repositories for database access - no direct ORM access.
 """
 
-from typing import List, Dict
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from typing import List, Dict, Any
 
-from app.db.models.schedulingSolutionModel import SchedulingSolutionModel
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.db.models.plannedShiftModel import PlannedShiftModel
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories import SchedulingSolutionRepository
+from app.core.exceptions.repository import DatabaseError
 
 
 class SchedulingPersistence:
-    """Handles database persistence of scheduling solutions and assignments."""
+    """
+    Handles database persistence of scheduling solutions and assignments.
     
-    def __init__(self, db: Session):
+    Uses repositories for all database operations.
+    """
+    
+    def __init__(
+        self,
+        shift_repository: ShiftRepository,
+        assignment_repository: ShiftAssignmentRepository,
+        solution_repository: SchedulingSolutionRepository
+    ):
         """
         Initialize persistence handler.
         
         Args:
-            db: SQLAlchemy database session
+            shift_repository: ShiftRepository instance
+            assignment_repository: ShiftAssignmentRepository instance
+            solution_repository: SchedulingSolutionRepository instance
         """
-        self.db = db
+        self.shift_repository = shift_repository
+        self.assignment_repository = assignment_repository
+        self.solution_repository = solution_repository
     
-    def clear_existing_assignments(self, weekly_schedule_id: int, commit: bool = False) -> None:
+    def clear_existing_assignments(self, weekly_schedule_id: int) -> None:
         """
         Clear existing shift assignments for a weekly schedule.
         
-        This method is designed to be part of a larger transaction. By default,
-        it does NOT commit, allowing the caller to combine it with other operations.
+        This method is designed to be part of a larger transaction. It does NOT commit,
+        allowing the caller to combine it with other operations.
         
         Args:
             weekly_schedule_id: ID of the weekly schedule
-            commit: If True, commit the transaction. If False (default), caller is responsible for commit.
-        
+            
         Raises:
-            SQLAlchemyError: If database operation fails
+            DatabaseError: If database operation fails
         """
         try:
-            # Get all shift IDs for this schedule
-            shift_ids = [
-                ps.planned_shift_id 
-                for ps in self.db.query(PlannedShiftModel).filter(
-                    PlannedShiftModel.weekly_schedule_id == weekly_schedule_id
-                ).all()
-            ]
-            
-            if shift_ids:
-                self.db.query(ShiftAssignmentModel).filter(
-                    ShiftAssignmentModel.planned_shift_id.in_(shift_ids)
-                ).delete(synchronize_session=False)
-            
-            # Commit if requested (caller may want to combine with other operations)
-            if commit:
-                self.db.commit()
-        except SQLAlchemyError as e:
-            # Rollback on error
-            self.db.rollback()
-            raise
+            self.assignment_repository.delete_by_schedule(weekly_schedule_id)
+        except Exception as e:
+            raise DatabaseError(f"Failed to clear assignments: {str(e)}") from e
     
     def persist_solution_and_apply_assignments(
         self,
         run_id: int,
-        assignments: List[Dict],
-        apply_assignments: bool = True,
-        commit: bool = True
+        assignments: List[Dict[str, Any]],
+        apply_assignments: bool = True
     ) -> None:
         """
-        Persist solution records and optionally create shift assignments in a single transaction.
+        Persist solution records and optionally create shift assignments.
+        
+        This method does NOT commit, allowing the caller to combine it with other operations.
         
         Args:
             run_id: ID of the scheduling run
@@ -77,15 +73,14 @@ class SchedulingPersistence:
                 - role_id
                 - preference_score (optional)
             apply_assignments: If True, also create ShiftAssignmentModel records
-            commit: If True, commit the transaction. If False, caller is responsible for commit.
-        
+            
         Raises:
-            SQLAlchemyError: If database operation fails
+            DatabaseError: If database operation fails
         """
         try:
             # Create solution records
             for assignment in assignments:
-                solution_record = SchedulingSolutionModel(
+                self.solution_repository.create_solution(
                     run_id=run_id,
                     planned_shift_id=assignment['planned_shift_id'],
                     user_id=assignment['user_id'],
@@ -93,23 +88,14 @@ class SchedulingPersistence:
                     is_selected=True,
                     assignment_score=assignment.get('preference_score')
                 )
-                self.db.add(solution_record)
                 
                 # Optionally create actual shift assignment
                 if apply_assignments:
-                    shift_assignment = ShiftAssignmentModel(
+                    self.assignment_repository.create_assignment(
                         planned_shift_id=assignment['planned_shift_id'],
                         user_id=assignment['user_id'],
                         role_id=assignment['role_id']
                     )
-                    self.db.add(shift_assignment)
             
-            # Commit if requested (caller may want to combine with other operations)
-            if commit:
-                self.db.commit()
-            
-        except SQLAlchemyError as e:
-            # Rollback on error
-            self.db.rollback()
-            raise
-
+        except Exception as e:
+            raise DatabaseError(f"Failed to persist solution: {str(e)}") from e
