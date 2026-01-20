@@ -5,7 +5,7 @@ This module contains the MipSchedulingSolver class that builds and solves
 the Mixed Integer Programming model for shift assignment optimization.
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 from datetime import datetime, date
 import mip
 
