@@ -169,49 +169,82 @@ def build_error_message(
             )
         
         else:
-            # Generic infeasible message with constraint analysis
-            constraint_guidance = ""
+            # Generic infeasible message - be specific and concise with feasibility analysis
             if constraint_info:
-                problematic_constraints = []
+                # Build list of only the hard constraints that exist
+                hard_constraints = []
                 
-                # Check for hard constraints that might be too restrictive
                 if constraint_info.get('has_hard_max_hours'):
-                    problematic_constraints.append("MAX_HOURS_PER_WEEK (hard constraint)")
-                if constraint_info.get('has_hard_max_shifts'):
-                    problematic_constraints.append("MAX_SHIFTS_PER_WEEK (hard constraint)")
-                if constraint_info.get('has_hard_min_rest'):
-                    problematic_constraints.append("MIN_REST_HOURS (hard constraint)")
-                if constraint_info.get('has_hard_max_consecutive'):
-                    problematic_constraints.append("MAX_CONSECUTIVE_DAYS (hard constraint)")
-                if constraint_info.get('has_hard_min_hours'):
-                    problematic_constraints.append("MIN_HOURS_PER_WEEK (hard constraint)")
-                if constraint_info.get('has_hard_min_shifts'):
-                    problematic_constraints.append("MIN_SHIFTS_PER_WEEK (hard constraint)")
+                    value = constraint_info.get('max_hours_value', '?')
+                    hard_constraints.append(f"MAX_HOURS_PER_WEEK = {value} hours")
                 
-                if problematic_constraints:
-                    constraint_guidance = (
-                        f"\n\nProblematic constraints identified:\n"
-                        f"• {', '.join(problematic_constraints)}\n\n"
-                        f"These hard constraints may be too restrictive. Consider:\n"
-                        f"• Converting them to soft constraints (allows violations with penalty)\n"
-                        f"• Relaxing their values (increase max limits, decrease min limits)\n"
-                        f"• Temporarily disabling them to test if they're causing the issue"
-                    )
+                if constraint_info.get('has_hard_max_shifts'):
+                    value = constraint_info.get('max_shifts_value', '?')
+                    hard_constraints.append(f"MAX_SHIFTS_PER_WEEK = {value}")
+                
+                if constraint_info.get('has_hard_min_rest'):
+                    value = constraint_info.get('min_rest_value', '?')
+                    hard_constraints.append(f"MIN_REST_HOURS = {value} hours")
+                
+                if constraint_info.get('has_hard_max_consecutive'):
+                    value = constraint_info.get('max_consecutive_value', '?')
+                    hard_constraints.append(f"MAX_CONSECUTIVE_DAYS = {value}")
+                
+                if constraint_info.get('has_hard_min_hours'):
+                    value = constraint_info.get('min_hours_value', '?')
+                    hard_constraints.append(f"MIN_HOURS_PER_WEEK = {value} hours")
+                
+                if constraint_info.get('has_hard_min_shifts'):
+                    value = constraint_info.get('min_shifts_value', '?')
+                    hard_constraints.append(f"MIN_SHIFTS_PER_WEEK = {value}")
+                
+                if hard_constraints:
+                    # Add feasibility analysis if available
+                    feasibility_msg = ""
+                    
+                    if constraint_info.get('has_hard_max_hours'):
+                        required = constraint_info.get('total_required_hours', 0)
+                        max_possible = constraint_info.get('max_possible_hours', 0)
+                        n_emp = constraint_info.get('n_employees', 0)
+                        if max_possible > 0 and required > max_possible:
+                            feasibility_msg = (
+                                f"\n\nRequired: {required:.1f} hours, "
+                                f"Maximum possible: {max_possible:.1f} hours ({n_emp} employees × {constraint_info.get('max_hours_value')} hours)"
+                            )
+                    
+                    if constraint_info.get('has_hard_max_shifts'):
+                        required = constraint_info.get('total_required_shifts', 0)
+                        max_possible = constraint_info.get('max_possible_shifts', 0)
+                        n_emp = constraint_info.get('n_employees', 0)
+                        if max_possible > 0 and required > max_possible:
+                            if feasibility_msg:
+                                feasibility_msg += f"\nRequired: {required} shifts, Maximum possible: {max_possible} shifts ({n_emp} employees × {constraint_info.get('max_shifts_value')} shifts)"
+                            else:
+                                feasibility_msg = (
+                                    f"\n\nRequired: {required} shifts, "
+                                    f"Maximum possible: {max_possible} shifts ({n_emp} employees × {constraint_info.get('max_shifts_value')} shifts)"
+                                )
+                    
+                    # If only one constraint, be very specific
+                    if len(hard_constraints) == 1:
+                        return (
+                            f"Optimization failed: Hard constraint is too restrictive.\n\n"
+                            f"Constraint: {hard_constraints[0]}{feasibility_msg}\n\n"
+                            f"Solution: Convert to soft constraint or increase the limit."
+                        )
+                    else:
+                        # Multiple constraints - list them concisely
+                        constraints_list = "\n".join(f"• {c}" for c in hard_constraints)
+                        return (
+                            f"Optimization failed: Hard constraints are too restrictive.\n\n"
+                            f"Constraints:\n{constraints_list}{feasibility_msg}\n\n"
+                            f"Solution: Convert to soft constraints or relax the limits."
+                        )
             
+            # No constraint info available - minimal message
             return (
-                f"Optimization failed: Problem is infeasible (INFEASIBLE).\n\n"
-                f"Root cause: No solution exists that satisfies all constraints simultaneously.\n\n"
-                f"Recommended actions:\n"
-                f"• Verify sufficient employees with required roles are available\n"
-                f"• Review hard constraints that may be too restrictive:\n"
-                f"  - Maximum hours per week\n"
-                f"  - Maximum shifts per week\n"
-                f"  - Minimum rest hours between shifts\n"
-                f"  - Maximum consecutive working days\n"
-                f"  - Minimum hours/shifts per week (if set as hard)\n"
-                f"• Check for conflicts between constraints\n"
-                f"• Consider reducing the number of required shifts or roles\n"
-                f"• If you have enough employees, try relaxing hard constraints or converting them to soft constraints{constraint_guidance}"
+                f"Optimization failed: Problem is infeasible.\n\n"
+                f"Check hard constraints or add more employees."
             )
     
     elif status == 'NO_SOLUTION_FOUND':

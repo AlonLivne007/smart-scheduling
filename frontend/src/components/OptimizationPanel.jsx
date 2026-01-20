@@ -373,21 +373,13 @@ export default function OptimizationPanel({ weeklyScheduleId, onSolutionApplied 
                 )}
 
                 {/* Secondary Metrics Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="text-sm text-gray-600 font-medium">Runtime</div>
                     <div className="text-xl font-bold text-gray-900">
                       {selectedRun.runtime_seconds?.toFixed(2) || '0'}s
                     </div>
                   </div>
-                  {selectedRun.objective_value !== null && selectedRun.objective_value !== undefined && (
-                    <div className="bg-indigo-50 rounded-lg p-4">
-                      <div className="text-sm text-indigo-600 font-medium">Objective Value</div>
-                      <div className="text-xl font-bold text-indigo-900">
-                        {selectedRun.objective_value.toFixed(2)}
-                      </div>
-                    </div>
-                  )}
                   {selectedRun.mip_gap !== null && selectedRun.mip_gap !== undefined && (
                     <div className="bg-teal-50 rounded-lg p-4">
                       <div className="text-sm text-teal-600 font-medium">MIP Gap</div>

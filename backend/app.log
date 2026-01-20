@@ -1,0 +1,7 @@
+2026-01-20 18:40:12 - app.core.logging_config - INFO - Logging configured with level: INFO
+2026-01-20 18:40:14 - mip.model - INFO - Using Python-MIP package version 1.15.0
+2026-01-20 18:41:56 - app.core.logging_config - INFO - Logging configured with level: INFO
+2026-01-20 18:42:00 - mip.model - INFO - Using Python-MIP package version 1.15.0
+2026-01-20 18:59:31 - app.core.logging_config - INFO - Logging configured with level: INFO
+2026-01-20 18:59:35 - mip.model - INFO - Using Python-MIP package version 1.15.0
+2026-01-20 19:04:19 - app.api.controllers.schedule_publishing_controller - INFO - Would notify 25 employees about published schedule

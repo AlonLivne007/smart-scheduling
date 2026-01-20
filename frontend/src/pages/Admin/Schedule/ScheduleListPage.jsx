@@ -400,10 +400,6 @@ export default function ScheduleListPage() {
                       <span className="font-medium text-gray-900">{optimizationResult.runtime_seconds?.toFixed(2) || 0}s</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Objective Value:</span>
-                      <span className="font-medium text-gray-900">{optimizationResult.objective_value?.toFixed(2) || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Run ID:</span>
                       <span className="font-medium text-gray-900">#{optimizationResult.run_id}</span>
                     </div>

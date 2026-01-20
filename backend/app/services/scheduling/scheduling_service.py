@@ -15,7 +15,7 @@ returns OPTIMAL or FEASIBLE, the solution is guaranteed to satisfy all hard
 constraints as they are encoded directly in the MIP model.
 """
 
-from typing import Tuple
+from typing import Tuple, Optional, Dict, Any
 import logging
 
 from app.services.optimization_data_services import OptimizationDataBuilder
@@ -116,6 +116,7 @@ class SchedulingService:
         config = self._load_optimization_config(run)
         
         # Build optimization data
+        data = None
         try:
             data = self.data_builder.build(run.weekly_schedule_id)
         except Exception as e:
@@ -123,10 +124,10 @@ class SchedulingService:
             solution = SchedulingSolution()
             solution.status = 'INFEASIBLE'
             solution.original_error = e
-            return self._handle_infeasible_solution(run, solution, data=None)
+            return self._handle_infeasible_solution(run, solution, constraint_info=None)
         
         # Extract constraint information for better error messages
-        constraint_info = self._extract_constraint_info(data)
+        constraint_info = self._extract_constraint_info(data) if data else None
         
         # Solve MIP model
         try:
@@ -297,13 +298,13 @@ class SchedulingService:
     
     def _extract_constraint_info(self, data) -> Optional[Dict[str, Any]]:
         """
-        Extract constraint information to help identify problematic constraints.
+        Extract constraint information and calculate feasibility analysis.
         
         Args:
             data: OptimizationData object
             
         Returns:
-            Dict with constraint information or None if data is not available
+            Dict with constraint information and feasibility analysis
         """
         if not data or not hasattr(data, 'system_constraints'):
             return None
@@ -349,6 +350,37 @@ class SchedulingService:
         if min_shifts and min_shifts[1]:  # is_hard
             constraint_info['has_hard_min_shifts'] = True
             constraint_info['min_shifts_value'] = min_shifts[0]
+        
+        # Calculate feasibility analysis
+        n_employees = len(data.employees) if data.employees else 0
+        
+        # Calculate total required hours and shifts
+        total_required_hours = 0.0
+        total_required_shifts = 0
+        
+        for shift in data.shifts:
+            required_roles = shift.get('required_roles') or []
+            shift_duration = data.shift_durations.get(shift.get('planned_shift_id'), 0.0)
+            
+            for role_req in required_roles:
+                required_count = int(role_req.get('required_count', 0))
+                total_required_shifts += required_count
+                total_required_hours += required_count * shift_duration
+        
+        constraint_info['total_required_hours'] = total_required_hours
+        constraint_info['total_required_shifts'] = total_required_shifts
+        constraint_info['n_employees'] = n_employees
+        
+        # Calculate maximum possible with constraints
+        if constraint_info['has_hard_max_hours'] and n_employees > 0:
+            max_possible_hours = n_employees * constraint_info['max_hours_value']
+            constraint_info['max_possible_hours'] = max_possible_hours
+            constraint_info['hours_feasible'] = total_required_hours <= max_possible_hours
+        
+        if constraint_info['has_hard_max_shifts'] and n_employees > 0:
+            max_possible_shifts = n_employees * constraint_info['max_shifts_value']
+            constraint_info['max_possible_shifts'] = max_possible_shifts
+            constraint_info['shifts_feasible'] = total_required_shifts <= max_possible_shifts
         
         return constraint_info
     
