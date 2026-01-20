@@ -10,9 +10,9 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories import ShiftTemplateRepository
 from app.services.utils.validation import validate_time_range
 from app.schemas.employee_preferences_schema import (
     EmployeePreferencesCreate,
@@ -20,7 +20,7 @@ from app.schemas.employee_preferences_schema import (
     EmployeePreferencesRead,
 )
 from app.data.models.user_model import UserModel
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import NotFoundError
 from app.data.session_manager import transaction
 
 

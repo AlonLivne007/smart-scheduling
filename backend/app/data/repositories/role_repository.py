@@ -4,12 +4,12 @@ Role repository for database operations on roles.
 This repository handles all database access for RoleModel.
 """
 
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy.orm import Session, joinedload
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.role_model import RoleModel
-from app.exceptions.repository import NotFoundError
+from app.core.exceptions.repository import NotFoundError
 
 
 class RoleRepository(BaseRepository[RoleModel]):

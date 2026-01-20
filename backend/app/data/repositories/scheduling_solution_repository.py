@@ -7,7 +7,7 @@ This repository handles all database access for SchedulingSolutionModel.
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.scheduling_solution_model import SchedulingSolutionModel
 
 

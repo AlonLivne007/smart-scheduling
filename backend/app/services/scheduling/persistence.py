@@ -6,9 +6,9 @@ This service uses repositories for database access - no direct ORM access.
 
 from typing import List, Dict, Any
 
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.exceptions.repository import DatabaseError
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories import SchedulingSolutionRepository
+from app.core.exceptions.repository import DatabaseError
 
 
 class SchedulingPersistence:

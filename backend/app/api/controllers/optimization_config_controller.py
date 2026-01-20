@@ -6,17 +6,17 @@ operations including creation, retrieval, updating, and deletion of optimizer se
 Controllers use repositories for database access - no direct ORM access.
 """
 
-from typing import List, Optional
+from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
 from app.schemas.optimization_config_schema import (
     OptimizationConfigCreate,
     OptimizationConfigUpdate,
     OptimizationConfigRead,
 )
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import ConflictError
 from app.data.session_manager import transaction
 
 

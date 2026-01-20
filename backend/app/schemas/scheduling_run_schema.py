@@ -7,7 +7,7 @@ This module contains Pydantic schemas for SchedulingRun API requests and respons
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from app.db.models.schedulingRunModel import SchedulingRunStatus, SolverStatus
+from app.data.models.scheduling_run_model import SchedulingRunStatus, SolverStatus
 
 
 class SchedulingRunBase(BaseModel):

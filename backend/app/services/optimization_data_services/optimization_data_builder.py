@@ -6,17 +6,17 @@ It uses repositories for all database access - no direct ORM access.
 """
 
 from typing import Dict, List, Set, Tuple, Optional, Any
-from datetime import date, datetime, time
+from datetime import date, datetime
 import numpy as np
 
-from app.repositories.user_repository import UserRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.role_repository import RoleRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
-from app.repositories.system_constraints_repository import SystemConstraintsRepository
-from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories import RoleRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories import ShiftTemplateRepository
 
 from app.services.optimization_data_services.optimization_data import OptimizationData
 from app.services.optimization_data_services.optimization_precompute import (
@@ -25,11 +25,8 @@ from app.services.optimization_data_services.optimization_precompute import (
     build_rest_conflicts,
 )
 from app.services.utils.overlap_utils import build_shift_overlaps
-from app.db.models.employeePreferencesModel import DayOfWeek
-from app.db.models.timeOffRequestModel import TimeOffRequestStatus
-from app.db.models.systemConstraintsModel import SystemConstraintType
-from app.db.models.plannedShiftModel import PlannedShiftStatus
-from app.exceptions.repository import NotFoundError
+from app.data.models.system_constraints_model import SystemConstraintType
+from app.data.models.planned_shift_model import PlannedShiftStatus
 
 
 class OptimizationDataBuilder:

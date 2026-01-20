@@ -4,10 +4,10 @@ Employee preferences repository for database operations on employee preferences.
 This repository handles all database access for EmployeePreferencesModel.
 """
 
-from typing import List, Optional
+from typing import List
 from sqlalchemy.orm import Session
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.employee_preferences_model import (
     EmployeePreferencesModel,
     DayOfWeek

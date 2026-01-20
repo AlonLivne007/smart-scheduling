@@ -6,16 +6,15 @@ Controllers use repositories for database access - no direct ORM access.
 """
 
 from typing import List
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
 from app.schemas.system_constraints_schema import (
     SystemConstraintCreate,
     SystemConstraintUpdate,
     SystemConstraintRead
 )
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import ConflictError
 from app.data.session_manager import transaction
 
 

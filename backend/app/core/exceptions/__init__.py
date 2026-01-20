@@ -5,13 +5,13 @@ This module defines domain-level exceptions that are raised by repositories
 and services. Controllers map these to appropriate HTTP responses.
 """
 
-from app.exceptions.repository import (
+from app.core.exceptions.repository import (
     RepositoryError,
     NotFoundError,
     ConflictError,
     DatabaseError,
 )
-from app.exceptions.service import (
+from app.core.exceptions.service import (
     ServiceError,
     ValidationError,
     BusinessRuleError,

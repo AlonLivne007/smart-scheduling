@@ -10,20 +10,20 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import all models first to ensure relationships are properly initialized
-from app.db.models import (
-    roleModel, userModel, userRoleModel, shiftTemplateModel,
-    shiftRoleRequirementsTable, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
-    timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
-    optimizationConfigModel, schedulingRunModel, schedulingSolutionModel
+from app.data.models import (
+    role_model, user_model, user_role_model, shift_template_model,
+    shift_role_requirements_table, weekly_schedule_model, planned_shift_model, shift_assignment_model,
+    time_off_request_model, system_constraints_model, employee_preferences_model,
+    optimization_config_model, scheduling_run_model, scheduling_solution_model
 )
 
-from app.db.session import SessionLocal
-from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus
-from app.db.models.schedulingSolutionModel import SchedulingSolutionModel
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.db.models.plannedShiftModel import PlannedShiftModel, PlannedShiftStatus
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
-from app.api.controllers.schedulingRunController import apply_scheduling_solution
+from app.data.session import SessionLocal
+from app.data.models.scheduling_run_model import SchedulingRunModel, SchedulingRunStatus
+from app.data.models.scheduling_solution_model import SchedulingSolutionModel
+from app.data.models.shift_assignment_model import ShiftAssignmentModel
+from app.data.models.planned_shift_model import PlannedShiftModel, PlannedShiftStatus
+from app.data.models.weekly_schedule_model import WeeklyScheduleModel
+from app.api.controllers.scheduling_run_controller import apply_scheduling_solution
 
 
 def test_apply_solution():

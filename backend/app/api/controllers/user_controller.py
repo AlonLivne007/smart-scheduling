@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session  # Only for type hints
 from fastapi import HTTPException, status
 
 from app.api.controllers.auth_controller import create_access_token
-from app.repositories.user_repository import UserRepository
-from app.repositories.role_repository import RoleRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories import RoleRepository
 from app.schemas.user_schema import (
     UserCreate, UserUpdate, UserLogin, LoginResponse, UserRead
 )
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import ConflictError
 
 # Note: HTTPException is still used for authentication errors (401 Unauthorized)
 # Domain exceptions (NotFoundError, ConflictError, etc.) are handled by centralized handlers

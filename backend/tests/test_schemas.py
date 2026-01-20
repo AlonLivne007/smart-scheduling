@@ -1,21 +1,21 @@
 """Test Pydantic schemas for optimization models."""
 
-from app.schemas.optimizationConfigSchema import (
+from app.schemas.optimization_config_schema import (
     OptimizationConfigCreate,
     OptimizationConfigUpdate,
     OptimizationConfigRead
 )
-from app.schemas.schedulingRunSchema import (
+from app.schemas.scheduling_run_schema import (
     SchedulingRunCreate,
     SchedulingRunRead,
     SchedulingRunSummary
 )
-from app.schemas.schedulingSolutionSchema import (
+from app.schemas.scheduling_solution_schema import (
     SchedulingSolutionCreate,
     SchedulingSolutionRead,
     ApplySolutionRequest
 )
-from app.db.models.schedulingRunModel import SchedulingRunStatus, SolverStatus
+from app.data.models.scheduling_run_model import SchedulingRunStatus, SolverStatus
 from datetime import datetime
 
 print('=== Testing OptimizationConfig Schemas ===')

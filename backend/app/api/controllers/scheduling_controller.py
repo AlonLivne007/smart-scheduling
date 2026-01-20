@@ -8,15 +8,14 @@ Controllers use repositories for database access - no direct ORM access.
 """
 
 from typing import Dict, Any, List, Optional
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories import ShiftTemplateRepository
 from app.tasks.optimization_tasks import run_optimization_task
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import NotFoundError
 from app.data.session_manager import transaction
 
 

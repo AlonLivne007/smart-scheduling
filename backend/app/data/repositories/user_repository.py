@@ -8,10 +8,10 @@ only place where UserModel is queried or modified directly.
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.user_model import UserModel
 from app.data.models.role_model import RoleModel
-from app.exceptions.repository import NotFoundError
+from app.core.exceptions.repository import NotFoundError
 
 
 class UserRepository(BaseRepository[UserModel]):

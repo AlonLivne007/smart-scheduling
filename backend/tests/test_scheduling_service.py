@@ -5,16 +5,16 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 # Import all models
-from app.db.models import (
-    roleModel, userModel, userRoleModel, shiftTemplateModel,
-    shiftRoleRequirementsTable, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
-    timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
-    optimizationConfigModel, schedulingRunModel, schedulingSolutionModel
+from app.data.models import (
+    role_model, user_model, user_role_model, shift_template_model,
+    shift_role_requirements_table, weekly_schedule_model, planned_shift_model, shift_assignment_model,
+    time_off_request_model, system_constraints_model, employee_preferences_model,
+    optimization_config_model, scheduling_run_model, scheduling_solution_model
 )
 
-from app.db.session import SessionLocal
+from app.data.session import SessionLocal
 from app.services.scheduling.scheduling_service import SchedulingService
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
+from app.data.models.weekly_schedule_model import WeeklyScheduleModel
 
 def test_scheduling_service():
     """Test the scheduling service with real data."""
@@ -44,7 +44,7 @@ def test_scheduling_service():
         print('='*60)
         
         # Create SchedulingRun record
-        from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus
+        from app.data.models.scheduling_run_model import SchedulingRunModel, SchedulingRunStatus
         from datetime import datetime
         
         run = SchedulingRunModel(
@@ -128,7 +128,7 @@ def test_scheduling_service():
             
             print(f"\nAssignments by employee:")
             for user_id, emp_assignments in sorted(assignments_by_emp.items()):
-                from app.db.models.userModel import UserModel
+                from app.data.models.user_model import UserModel
                 user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
                 user_name = user.user_full_name if user else f"User {user_id}"
                 
@@ -139,8 +139,8 @@ def test_scheduling_service():
                 
                 # Show first 3 shifts
                 for assignment in emp_assignments[:3]:
-                    from app.db.models.plannedShiftModel import PlannedShiftModel
-                    from app.db.models.roleModel import RoleModel
+                    from app.data.models.planned_shift_model import PlannedShiftModel
+                    from app.data.models.role_model import RoleModel
                     
                     shift = db.query(PlannedShiftModel).filter(
                         PlannedShiftModel.planned_shift_id == assignment['planned_shift_id']
@@ -163,7 +163,7 @@ def test_scheduling_service():
         # Analyze shift coverage
         shifts_with_assignments = set(a['planned_shift_id'] for a in solution.assignments)
         
-        from app.db.models.plannedShiftModel import PlannedShiftModel, PlannedShiftStatus
+        from app.data.models.planned_shift_model import PlannedShiftModel, PlannedShiftStatus
         all_shifts = db.query(PlannedShiftModel).filter(
             PlannedShiftModel.weekly_schedule_id == weekly_schedule.weekly_schedule_id,
             PlannedShiftModel.status != PlannedShiftStatus.CANCELLED

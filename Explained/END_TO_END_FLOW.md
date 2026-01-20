@@ -173,7 +173,7 @@ celery-worker:
   command: celery -A app.celery_app worker --loglevel=info
   depends_on:
     - redis
-    - db
+    - data
 ```
 
 **מה קורה?**
@@ -708,7 +708,7 @@ async def apply_solution(
 ```
 
 ```python
-# schedulingRunController.py - שורה 474
+# scheduling_run_controller.py - שורה 474
 async def apply_scheduling_solution(
     db: Session,
     run_id: int,

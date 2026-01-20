@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.activity_log_model import (
     ActivityLogModel,
     ActivityActionType,

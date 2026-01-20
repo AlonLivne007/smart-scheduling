@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.data.models.user_model import UserModel
-from app.repositories.user_repository import UserRepository
+from app.data.repositories.user_repository import UserRepository
 from app.api.dependencies.repositories import get_user_repository
 
 # Matches your /users/login route

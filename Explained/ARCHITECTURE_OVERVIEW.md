@@ -489,7 +489,7 @@ db.query(UserModel).filter(...).first()
 
 ```python
 async def endpoint(db: Session = Depends(get_db)):
-    # db מוזרק אוטומטית
+    # data מוזרק אוטומטית
 ```
 
 ### 5. Async Task Queue Pattern

@@ -7,13 +7,12 @@ Controllers use repositories for database access - no direct ORM access.
 """
 
 from typing import List
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.role_repository import RoleRepository
+from app.data.repositories import RoleRepository
 from app.data.models.role_model import RoleModel
 from app.schemas.role_schema import RoleCreate, RoleUpdate
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import ConflictError
 from app.data.session_manager import transaction
 
 

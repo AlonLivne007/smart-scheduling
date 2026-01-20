@@ -4,12 +4,12 @@ Optimization config repository for database operations on optimization configs.
 This repository handles all database access for OptimizationConfigModel.
 """
 
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.optimization_config_model import OptimizationConfigModel
-from app.exceptions.repository import NotFoundError
+from app.core.exceptions.repository import NotFoundError
 
 
 class OptimizationConfigRepository(BaseRepository[OptimizationConfigModel]):

@@ -8,7 +8,7 @@ No SQLAlchemy, no business logic.
 
 from typing import Dict, List, Set, Tuple, Any
 import numpy as np
-from app.db.models.systemConstraintsModel import SystemConstraintType
+from app.data.models.system_constraints_model import SystemConstraintType
 
 
 class OptimizationData:

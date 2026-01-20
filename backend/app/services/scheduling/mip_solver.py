@@ -10,8 +10,8 @@ from datetime import datetime, date
 import mip
 
 from app.services.optimization_data_services import OptimizationData
-from app.db.models.optimizationConfigModel import OptimizationConfigModel
-from app.db.models.systemConstraintsModel import SystemConstraintType
+from app.data.models.optimization_config_model import OptimizationConfigModel
+from app.data.models.system_constraints_model import SystemConstraintType
 from app.services.scheduling.types import SchedulingSolution
 from app.services.scheduling.metrics import calculate_metrics
 from app.services.scheduling.run_status import map_solver_status

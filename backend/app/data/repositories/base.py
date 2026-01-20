@@ -6,12 +6,11 @@ operations for all repositories. Entity-specific repositories should inherit
 from this class and add domain-specific methods.
 """
 
-from typing import Generic, TypeVar, Type, Optional, List, Dict, Any
+from typing import Generic, TypeVar, Type, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from app.exceptions.repository import (
-    RepositoryError,
+from app.core.exceptions.repository import (
     NotFoundError,
     ConflictError,
     DatabaseError,

@@ -1,7 +1,7 @@
 """Test script to verify optimization tables were created correctly."""
 
 from sqlalchemy import inspect
-from app.db.session import engine
+from app.data.session import engine
 
 inspector = inspect(engine)
 

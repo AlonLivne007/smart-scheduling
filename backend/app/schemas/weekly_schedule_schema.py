@@ -8,7 +8,7 @@ in API requests and responses.
 from pydantic import BaseModel, Field
 from datetime import date, datetime
 from typing import List, Optional
-from app.schemas.plannedShiftSchema import PlannedShiftRead
+from app.schemas.planned_shift_schema import PlannedShiftRead
 
 
 # ---------- Base ----------

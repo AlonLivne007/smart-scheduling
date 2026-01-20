@@ -10,7 +10,7 @@ instantiated in weekly schedules.
 from sqlalchemy import Column, Integer, String, Time, Index
 from sqlalchemy.orm import relationship
 from app.data.session import Base
-from app.data.models.shiftRoleRequirementsTable import shift_role_requirements
+from app.data.models.shift_role_requirements_table import shift_role_requirements
 
 
 class ShiftTemplateModel(Base):

@@ -12,14 +12,14 @@ from sqlalchemy.orm import Session  # Only for type hints
 
 logger = logging.getLogger(__name__)
 
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.activity_log_repository import ActivityLogRepository
-from app.api.controllers.activityLogController import log_activity
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories import ActivityLogRepository
+from app.api.controllers.activity_log_controller import log_activity
 from app.data.models.activity_log_model import ActivityActionType, ActivityEntityType
 from app.data.models.weekly_schedule_model import ScheduleStatus
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import NotFoundError
 from app.data.session_manager import transaction
 
 

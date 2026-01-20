@@ -1,7 +1,7 @@
 """Test creating sample optimization configuration."""
 
-from app.db.session import SessionLocal
-from app.db.models.optimizationConfigModel import OptimizationConfigModel
+from app.data.session import SessionLocal
+from app.data.models.optimization_config_model import OptimizationConfigModel
 from datetime import datetime
 
 db = SessionLocal()

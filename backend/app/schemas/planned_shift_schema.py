@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 import datetime
 from typing import Optional, List
 from enum import Enum
-from app.schemas.shiftAssignmentSchema import ShiftAssignmentRead
+from app.schemas.shift_assignment_schema import ShiftAssignmentRead
 
 
 # ----------- Enum for status -----------

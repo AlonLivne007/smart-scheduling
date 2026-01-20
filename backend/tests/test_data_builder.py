@@ -5,14 +5,14 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 # Import all models to ensure relationships are properly initialized
-from app.db.models import (
-    roleModel, userModel, userRoleModel, shiftTemplateModel,
-    shiftRoleRequirementsTable, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
-    timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
-    optimizationConfigModel, schedulingRunModel, schedulingSolutionModel
+from app.data.models import (
+    role_model, user_model, user_role_model, shift_template_model,
+    shift_role_requirements_table, weekly_schedule_model, planned_shift_model, shift_assignment_model,
+    time_off_request_model, system_constraints_model, employee_preferences_model,
+    optimization_config_model, scheduling_run_model, scheduling_solution_model
 )
 
-from app.db.session import SessionLocal
+from app.data.session import SessionLocal
 from app.services.optimization_data_services import OptimizationDataBuilder, OptimizationData
 
 def test_data_builder():
@@ -25,7 +25,7 @@ def test_data_builder():
         print("=" * 60)
         
         # Get first available weekly schedule
-        from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
+        from app.data.models.weekly_schedule_model import WeeklyScheduleModel
         weekly_schedule = db.query(WeeklyScheduleModel).first()
         
         if not weekly_schedule:

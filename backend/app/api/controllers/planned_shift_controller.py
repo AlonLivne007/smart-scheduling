@@ -6,20 +6,20 @@ creation, retrieval, updating, and deletion of planned shift records.
 Controllers use repositories for database access - no direct ORM access.
 """
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.shift_repository import ShiftRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.shift_repository import ShiftRepository
+from app.data.repositories import ShiftTemplateRepository
 from app.schemas.planned_shift_schema import (
     PlannedShiftCreate,
     PlannedShiftUpdate,
     PlannedShiftRead,
 )
 from app.schemas.shift_assignment_schema import ShiftAssignmentRead
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import NotFoundError
 from app.data.session_manager import transaction
 
 

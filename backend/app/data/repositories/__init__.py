@@ -11,19 +11,19 @@ Architecture:
 - Repositories: Only layer that accesses the database
 """
 
-from app.repositories.base import BaseRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.role_repository import RoleRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
-from app.repositories.system_constraints_repository import SystemConstraintsRepository
-from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.repositories.activity_log_repository import ActivityLogRepository
+from app.data.repositories.base import BaseRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.role_repository import RoleRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.scheduling_solution_repository import SchedulingSolutionRepository
+from app.data.repositories.activity_log_repository import ActivityLogRepository
 
 __all__ = [
     "BaseRepository",

@@ -6,26 +6,24 @@ creation, retrieval, updating, approval, and rejection of time-off requests.
 Controllers use repositories for database access - no direct ORM access.
 """
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
-from app.repositories.user_repository import UserRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.user_repository import UserRepository
 from app.services.utils.validation import validate_date_range
 from app.data.models.time_off_request_model import (
-    TimeOffRequestStatus,
-    TimeOffRequestType
+    TimeOffRequestStatus
 )
 from app.schemas.time_off_request_schema import (
     TimeOffRequestCreate,
     TimeOffRequestUpdate,
     TimeOffRequestRead,
-    TimeOffRequestAction,
 )
 from app.data.models.user_model import UserModel
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import NotFoundError
 from app.data.session_manager import transaction
 
 

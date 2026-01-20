@@ -7,13 +7,13 @@ are queried or modified directly.
 """
 
 from typing import List, Optional
-from datetime import date, datetime
+from datetime import date
 from sqlalchemy.orm import Session, joinedload
 
-from app.repositories.base import BaseRepository
-from app.data.models.planned_shift_model import PlannedShiftModel, PlannedShiftStatus
+from app.data.repositories.base import BaseRepository
+from app.data.models.planned_shift_model import PlannedShiftModel
 from app.data.models.shift_assignment_model import ShiftAssignmentModel
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import ConflictError
 
 
 class ShiftRepository(BaseRepository[PlannedShiftModel]):

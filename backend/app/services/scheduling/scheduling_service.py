@@ -16,21 +16,18 @@ constraints as they are encoded directly in the MIP model.
 """
 
 from typing import Tuple
-from datetime import datetime
 import logging
 
-from app.services.optimization_data_services import OptimizationDataBuilder, OptimizationData
-from app.db.models.optimizationConfigModel import OptimizationConfigModel
-from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus, SolverStatus
+from app.services.optimization_data_services import OptimizationDataBuilder
+from app.data.models.optimization_config_model import OptimizationConfigModel
+from app.data.models.scheduling_run_model import SchedulingRunModel, SchedulingRunStatus
 from app.services.scheduling.mip_solver import MipSchedulingSolver
 from app.services.scheduling.persistence import SchedulingPersistence
 from app.services.scheduling.run_status import map_to_solver_status_enum, build_error_message
 from app.services.scheduling.types import SchedulingSolution
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.exceptions.repository import NotFoundError, DatabaseError
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.core.exceptions.repository import DatabaseError
 
 logger = logging.getLogger(__name__)
 

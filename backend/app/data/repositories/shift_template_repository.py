@@ -8,10 +8,10 @@ from typing import List, Optional, Dict
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, delete, insert
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.shift_template_model import ShiftTemplateModel
 from app.data.models.role_model import RoleModel
-from app.exceptions.repository import NotFoundError
+from app.core.exceptions.repository import NotFoundError
 
 
 class ShiftTemplateRepository(BaseRepository[ShiftTemplateModel]):

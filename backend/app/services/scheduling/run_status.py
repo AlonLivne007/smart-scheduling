@@ -3,7 +3,7 @@ Status mapping and error message generation for scheduling runs.
 """
 
 import mip
-from app.db.models.schedulingRunModel import SolverStatus
+from app.data.models.scheduling_run_model import SolverStatus
 
 
 def map_solver_status(mip_status: mip.OptimizationStatus) -> str:

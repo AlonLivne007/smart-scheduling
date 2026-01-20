@@ -7,16 +7,14 @@ Controllers use repositories for database access - no direct ORM access.
 """
 
 from typing import List
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.shift_repository import ShiftAssignmentRepository
-from app.repositories.shift_repository import ShiftRepository
+from app.data.repositories.shift_repository import ShiftAssignmentRepository
+from app.data.repositories.shift_repository import ShiftRepository
 from app.schemas.shift_assignment_schema import (
     ShiftAssignmentCreate,
     ShiftAssignmentRead,
 )
-from app.exceptions.repository import NotFoundError, ConflictError
 from app.data.session_manager import transaction
 
 

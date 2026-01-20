@@ -7,27 +7,24 @@ in the background to prevent request timeouts.
 Tasks use repositories for database access - no direct ORM access.
 """
 
-from typing import Optional
-from datetime import datetime
-
 from app.celery_app import celery_app
-from app.db.session_manager import get_db_session, transaction
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.role_repository import RoleRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
-from app.repositories.system_constraints_repository import SystemConstraintsRepository
-from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
-from app.db.models.schedulingRunModel import SchedulingRunModel, SchedulingRunStatus
+from app.data.session_manager import get_db_session, transaction
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories import SchedulingSolutionRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories import RoleRepository
+from app.data.repositories import ShiftTemplateRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.models.scheduling_run_model import SchedulingRunStatus
 from app.services.optimization_data_services.optimization_data_builder import OptimizationDataBuilder
 from app.services.scheduling.scheduling_service import SchedulingService
 from app.services.scheduling.persistence import SchedulingPersistence
-from app.exceptions.repository import NotFoundError
+from app.core.exceptions.repository import NotFoundError
 
 
 @celery_app.task(bind=True, name='app.tasks.optimization_tasks.run_optimization')

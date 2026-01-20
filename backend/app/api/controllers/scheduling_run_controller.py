@@ -10,11 +10,10 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories import SchedulingSolutionRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.user_repository import UserRepository
 from app.data.models.scheduling_run_model import SchedulingRunStatus
 from app.schemas.scheduling_run_schema import (
     SchedulingRunCreate,
@@ -24,7 +23,7 @@ from app.schemas.scheduling_run_schema import (
 from app.schemas.scheduling_solution_schema import (
     SchedulingSolutionRead,
 )
-from app.exceptions.repository import NotFoundError, ConflictError
+from app.core.exceptions.repository import NotFoundError
 from app.data.session_manager import transaction
 
 

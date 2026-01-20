@@ -7,13 +7,12 @@ Controllers use repositories for database access - no direct ORM access.
 
 from datetime import datetime, timedelta
 from typing import Dict, Any
-from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.user_repository import UserRepository
-from app.repositories.shift_repository import ShiftRepository
-from app.repositories.shift_repository import ShiftAssignmentRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.shift_repository import ShiftRepository
+from app.data.repositories.shift_repository import ShiftAssignmentRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
 from app.data.models.time_off_request_model import TimeOffRequestStatus
 
 

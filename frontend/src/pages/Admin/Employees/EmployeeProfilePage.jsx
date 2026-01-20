@@ -121,7 +121,6 @@ function InfoTab({ employee }) {
           value={employee.roles?.map((r) => r.role_name).join(", ") || "No roles assigned"}
         />
         <InfoField label="Manager" value={employee.is_manager ? "Yes" : "No"} />
-        <InfoField label="Status" value={employee.user_status || "ACTIVE"} />
         <InfoField
           label="Joined"
           value={

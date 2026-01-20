@@ -8,10 +8,9 @@ Controllers use repositories for database access - no direct ORM access.
 from typing import List, Optional
 from sqlalchemy.orm import Session  # Only for type hints
 
-from app.repositories.activity_log_repository import ActivityLogRepository
+from app.data.repositories import ActivityLogRepository
 from app.data.models.activity_log_model import ActivityActionType, ActivityEntityType
-from app.schemas.activity_log_schema import ActivityLogCreate, ActivityLogRead
-from app.exceptions.repository import NotFoundError
+from app.schemas.activity_log_schema import ActivityLogRead
 from app.data.session_manager import transaction
 
 

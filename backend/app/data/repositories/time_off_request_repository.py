@@ -8,13 +8,11 @@ from typing import List, Optional
 from datetime import date
 from sqlalchemy.orm import Session, joinedload
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.time_off_request_model import (
     TimeOffRequestModel,
-    TimeOffRequestStatus,
-    TimeOffRequestType
+    TimeOffRequestStatus
 )
-from app.exceptions.repository import NotFoundError
 
 
 class TimeOffRequestRepository(BaseRepository[TimeOffRequestModel]):

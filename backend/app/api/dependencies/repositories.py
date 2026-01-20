@@ -8,19 +8,19 @@ each request gets its own repository instances with the correct session.
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.repositories.user_repository import UserRepository
-from app.repositories.role_repository import RoleRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
-from app.repositories.system_constraints_repository import SystemConstraintsRepository
-from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.repositories.activity_log_repository import ActivityLogRepository
+from app.data.session import get_db
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories import RoleRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories import ShiftTemplateRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories import SchedulingSolutionRepository
+from app.data.repositories import ActivityLogRepository
 
 
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:

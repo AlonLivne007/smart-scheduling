@@ -7,12 +7,12 @@ This repository handles all database access for SystemConstraintsModel.
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from app.repositories.base import BaseRepository
+from app.data.repositories.base import BaseRepository
 from app.data.models.system_constraints_model import (
     SystemConstraintsModel,
     SystemConstraintType
 )
-from app.exceptions.repository import NotFoundError
+from app.core.exceptions.repository import NotFoundError
 
 
 class SystemConstraintsRepository(BaseRepository[SystemConstraintsModel]):

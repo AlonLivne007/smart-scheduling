@@ -9,9 +9,9 @@ from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 
 from app.data.session import Base
-from app.data.models.userRoleModel import user_roles
-from app.data.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.data.models.timeOffRequestModel import TimeOffRequestModel
+from app.data.models.user_role_model import user_roles
+from app.data.models.shift_assignment_model import ShiftAssignmentModel
+from app.data.models.time_off_request_model import TimeOffRequestModel
 
 
 class UserModel(Base):
