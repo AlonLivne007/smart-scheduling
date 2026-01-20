@@ -148,15 +148,21 @@ async def create_time_off_request(
 
 async def get_all_time_off_requests(
     db: Session,
+    current_user: UserModel,
     user_id: Optional[int] = None,
     status_filter: Optional[TimeOffRequestStatus] = None
 ) -> List[TimeOffRequestRead]:
     """
     Retrieve all time-off requests, optionally filtered by user or status.
     
+    Authorization:
+    - Employees can only see their own requests
+    - Managers can see all requests and filter by user_id and status
+    
     Args:
         db: Database session
-        user_id: Optional user ID to filter by
+        current_user: Authenticated user
+        user_id: Optional user ID to filter by (ignored for non-managers)
         status_filter: Optional status to filter by
         
     Returns:
@@ -166,6 +172,10 @@ async def get_all_time_off_requests(
         HTTPException: If database error occurs
     """
     try:
+        # Employees can only see their own requests
+        if not current_user.is_manager:
+            user_id = current_user.user_id
+        
         query = db.query(TimeOffRequestModel).options(
             joinedload(TimeOffRequestModel.user),
             joinedload(TimeOffRequestModel.approved_by)
@@ -189,20 +199,26 @@ async def get_all_time_off_requests(
 
 async def get_time_off_request(
     db: Session,
-    request_id: int
+    request_id: int,
+    current_user: UserModel
 ) -> TimeOffRequestRead:
     """
     Retrieve a single time-off request by ID.
     
+    Authorization:
+    - Employees can only view their own requests
+    - Managers can view any request
+    
     Args:
         db: Database session
         request_id: Time-off request identifier
+        current_user: Authenticated user
         
     Returns:
         TimeOffRequestRead instance
         
     Raises:
-        HTTPException: If request not found or database error occurs
+        HTTPException: If request not found, unauthorized, or database error occurs
     """
     try:
         request = db.query(TimeOffRequestModel).options(
@@ -214,6 +230,13 @@ async def get_time_off_request(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Time-off request not found"
+            )
+        
+        # Employees can only view their own requests
+        if not current_user.is_manager and request.user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own time-off requests"
             )
         
         return _serialize_time_off_request(request)

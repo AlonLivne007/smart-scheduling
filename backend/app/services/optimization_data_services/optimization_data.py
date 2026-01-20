@@ -6,7 +6,7 @@ that holds all the structured data needed to build a MIP model.
 No SQLAlchemy, no business logic.
 """
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Any
 import numpy as np
 from app.db.models.systemConstraintsModel import SystemConstraintType
 
@@ -34,9 +34,9 @@ class OptimizationData:
     
     def __init__(self):
         # Basic sets (from CURRENT)
-        self.employees: List[Dict] = []
-        self.shifts: List[Dict] = []
-        self.roles: List[Dict] = []
+        self.employees: List[Dict[str, Any]] = []
+        self.shifts: List[Dict[str, Any]] = []
+        self.roles: List[Dict[str, Any]] = []
         
         # Numpy matrices (from CURRENT - required for MIP solver)
         self.availability_matrix: np.ndarray = None

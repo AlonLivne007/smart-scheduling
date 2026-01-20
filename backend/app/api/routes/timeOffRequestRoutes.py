@@ -75,10 +75,6 @@ async def list_requests(
     - Employees can only see their own requests
     - Managers can see all requests and filter by user_id and status
     """
-    # Employees can only see their own requests
-    if not current_user.is_manager:
-        user_id = current_user.user_id
-    
     # Parse status filter
     status_enum = None
     if status_filter:
@@ -90,7 +86,7 @@ async def list_requests(
                 detail=f"Invalid status. Must be one of: PENDING, APPROVED, REJECTED"
             )
     
-    return await get_all_time_off_requests(db, user_id=user_id, status_filter=status_enum)
+    return await get_all_time_off_requests(db, current_user, user_id=user_id, status_filter=status_enum)
 
 
 # ---------------------- Resource routes ---------------------
@@ -113,16 +109,7 @@ async def get_single_request(
     - Employees can only view their own requests
     - Managers can view any request
     """
-    request = await get_time_off_request(db, request_id)
-    
-    # Employees can only view their own requests
-    if not current_user.is_manager and request.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own time-off requests"
-        )
-    
-    return request
+    return await get_time_off_request(db, request_id, current_user)
 
 
 @router.put(

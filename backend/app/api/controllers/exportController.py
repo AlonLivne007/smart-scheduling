@@ -5,7 +5,7 @@ Handles exporting schedules to PDF and Excel formats
 
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple, Literal
 from io import BytesIO
 import json
 
@@ -224,3 +224,32 @@ def generate_csv(rows: List[List[str]]) -> bytes:
     writer.writerows(rows)
     
     return output.getvalue().encode('utf-8')
+
+
+async def export_schedule(
+    db: Session,
+    schedule_id: int,
+    format: Literal["pdf", "excel"]
+) -> Tuple[bytes, str, str]:
+    """
+    Export schedule in requested format.
+    
+    Args:
+        db: Database session
+        schedule_id: ID of the schedule to export
+        format: Export format - either "pdf" or "excel"
+        
+    Returns:
+        Tuple of (content, media_type, filename)
+        
+    Raises:
+        ValueError: If schedule not found or invalid format
+    """
+    if format == "pdf":
+        content = await export_schedule_pdf(db, schedule_id)
+        return content, "application/pdf", f"schedule_{schedule_id}.pdf"
+    elif format == "excel":
+        content = await export_schedule_excel(db, schedule_id)
+        return content, "text/csv", f"schedule_{schedule_id}.csv"
+    else:
+        raise ValueError("Invalid format. Use 'pdf' or 'excel'")

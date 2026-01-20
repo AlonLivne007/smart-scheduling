@@ -127,7 +127,8 @@ def _validate_time_range(start_time, end_time):
 async def create_employee_preference(
     db: Session,
     user_id: int,
-    preference_data: EmployeePreferencesCreate
+    preference_data: EmployeePreferencesCreate,
+    current_user: UserModel
 ) -> EmployeePreferencesRead:
     """
     Create a new employee preference.
@@ -136,14 +137,22 @@ async def create_employee_preference(
         db: Database session
         user_id: ID of the user creating the preference
         preference_data: Employee preference creation data
+        current_user: Current authenticated user (for authorization)
         
     Returns:
         Created EmployeePreferencesRead instance
         
     Raises:
-        HTTPException: If validation fails or database error occurs
+        HTTPException: If validation fails, unauthorized, or database error occurs
     """
     try:
+        # Authorization: employees can only create their own preferences
+        if not current_user.is_manager and user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only create preferences for yourself"
+            )
+        
         # Validate user exists
         _validate_user_exists(db, user_id)
         
@@ -191,7 +200,8 @@ async def create_employee_preference(
 
 async def get_employee_preferences_by_user(
     db: Session,
-    user_id: int
+    user_id: int,
+    current_user: UserModel
 ) -> List[EmployeePreferencesRead]:
     """
     Get all preferences for a specific user.
@@ -199,14 +209,22 @@ async def get_employee_preferences_by_user(
     Args:
         db: Database session
         user_id: ID of the user
+        current_user: Current authenticated user (for authorization)
         
     Returns:
         List of EmployeePreferencesRead instances
         
     Raises:
-        HTTPException: If user not found or database error occurs
+        HTTPException: If user not found, unauthorized, or database error occurs
     """
     try:
+        # Authorization: employees can only view their own preferences
+        if not current_user.is_manager and user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own preferences"
+            )
+        
         # Validate user exists
         _validate_user_exists(db, user_id)
         
@@ -228,7 +246,9 @@ async def get_employee_preferences_by_user(
 
 async def get_employee_preference(
     db: Session,
-    preference_id: int
+    preference_id: int,
+    user_id: int,
+    current_user: UserModel
 ) -> EmployeePreferencesRead:
     """
     Get a single preference by ID.
@@ -236,12 +256,14 @@ async def get_employee_preference(
     Args:
         db: Database session
         preference_id: ID of the preference
+        user_id: ID of the user (for validation)
+        current_user: Current authenticated user (for authorization)
         
     Returns:
         EmployeePreferencesRead instance
         
     Raises:
-        HTTPException: If preference not found or database error occurs
+        HTTPException: If preference not found, unauthorized, or database error occurs
     """
     try:
         preference = db.query(EmployeePreferencesModel).filter(
@@ -252,6 +274,20 @@ async def get_employee_preference(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Preference with ID {preference_id} not found"
+            )
+        
+        # Verify it belongs to the specified user
+        if preference.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Preference {preference_id} does not belong to user {user_id}"
+            )
+        
+        # Authorization: employees can only view their own preferences
+        if not current_user.is_manager and user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own preferences"
             )
         
         return _serialize_employee_preferences(preference)
@@ -269,7 +305,8 @@ async def update_employee_preference(
     db: Session,
     preference_id: int,
     preference_data: EmployeePreferencesUpdate,
-    current_user_id: int
+    current_user: UserModel,
+    target_user_id: Optional[int] = None
 ) -> EmployeePreferencesRead:
     """
     Update an existing employee preference.
@@ -278,7 +315,8 @@ async def update_employee_preference(
         db: Database session
         preference_id: ID of the preference to update
         preference_data: Employee preference update data
-        current_user_id: ID of the current user (for authorization)
+        current_user: Current authenticated user (for authorization)
+        target_user_id: Target user ID (for managers to update other users' preferences)
         
     Returns:
         Updated EmployeePreferencesRead instance
@@ -298,9 +336,14 @@ async def update_employee_preference(
                 detail=f"Preference with ID {preference_id} not found"
             )
         
+        # Determine effective user ID based on authorization
+        if current_user.is_manager and target_user_id is not None:
+            effective_user_id = target_user_id
+        else:
+            effective_user_id = current_user.user_id
+        
         # Check authorization: only the owner can update their preferences
-        # (unless the user is a manager, which will be handled in the route)
-        if preference.user_id != current_user_id:
+        if preference.user_id != effective_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update your own preferences"
@@ -352,7 +395,8 @@ async def update_employee_preference(
 async def delete_employee_preference(
     db: Session,
     preference_id: int,
-    current_user_id: int
+    current_user: UserModel,
+    target_user_id: Optional[int] = None
 ) -> dict:
     """
     Delete an employee preference.
@@ -360,7 +404,8 @@ async def delete_employee_preference(
     Args:
         db: Database session
         preference_id: ID of the preference to delete
-        current_user_id: ID of the current user (for authorization)
+        current_user: Current authenticated user (for authorization)
+        target_user_id: Target user ID (for managers to delete other users' preferences)
         
     Returns:
         Success message dict
@@ -380,9 +425,14 @@ async def delete_employee_preference(
                 detail=f"Preference with ID {preference_id} not found"
             )
         
+        # Determine effective user ID based on authorization
+        if current_user.is_manager and target_user_id is not None:
+            effective_user_id = target_user_id
+        else:
+            effective_user_id = current_user.user_id
+        
         # Check authorization: only the owner can delete their preferences
-        # (unless the user is a manager, which will be handled in the route)
-        if preference.user_id != current_user_id:
+        if preference.user_id != effective_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only delete your own preferences"

@@ -11,13 +11,13 @@ from typing import Literal
 from app.db.session import get_db
 from app.api.dependencies.auth import get_current_user
 from app.db.models.userModel import UserModel
-from app.api.controllers.exportController import export_schedule_pdf, export_schedule_excel
+from app.api.controllers.exportController import export_schedule
 
 router = APIRouter(prefix="/export", tags=["Export"])
 
 
 @router.get("/schedule/{schedule_id}")
-async def export_schedule(
+async def export_schedule_endpoint(
     schedule_id: int,
     format: Literal["pdf", "excel"] = "pdf",
     db: Session = Depends(get_db),
@@ -36,16 +36,7 @@ async def export_schedule(
     Requires authentication.
     """
     try:
-        if format == "pdf":
-            content = await export_schedule_pdf(db, schedule_id)
-            media_type = "application/pdf"
-            filename = f"schedule_{schedule_id}.pdf"
-        elif format == "excel":
-            content = await export_schedule_excel(db, schedule_id)
-            media_type = "text/csv"  # Using CSV for now
-            filename = f"schedule_{schedule_id}.csv"
-        else:
-            raise HTTPException(status_code=400, detail="Invalid format. Use 'pdf' or 'excel'")
+        content, media_type, filename = await export_schedule(db, schedule_id, format)
         
         return Response(
             content=content,

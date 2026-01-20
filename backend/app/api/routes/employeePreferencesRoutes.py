@@ -7,7 +7,7 @@ including CRUD operations for shift preferences.
 
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.controllers.employeePreferencesController import (
@@ -51,14 +51,7 @@ async def create_preference(
     Employees can only create preferences for themselves.
     Managers can create preferences for any employee.
     """
-    # Authorization: employees can only create their own preferences
-    if not current_user.is_manager and user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only create preferences for yourself"
-        )
-    
-    return await create_employee_preference(db, user_id, payload)
+    return await create_employee_preference(db, user_id, payload, current_user)
 
 
 @router.get(
@@ -79,14 +72,7 @@ async def list_preferences_for_user(
     Employees can only view their own preferences.
     Managers can view any employee's preferences.
     """
-    # Authorization: employees can only view their own preferences
-    if not current_user.is_manager and user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own preferences"
-        )
-    
-    return await get_employee_preferences_by_user(db, user_id)
+    return await get_employee_preferences_by_user(db, user_id, current_user)
 
 
 # ---------------------- Individual preference routes -------------------
@@ -110,24 +96,7 @@ async def get_preference(
     Employees can only view their own preferences.
     Managers can view any employee's preferences.
     """
-    # Get the preference first to check ownership
-    preference = await get_employee_preference(db, preference_id)
-    
-    # Verify it belongs to the specified user
-    if preference.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Preference {preference_id} does not belong to user {user_id}"
-        )
-    
-    # Authorization: employees can only view their own preferences
-    if not current_user.is_manager and user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own preferences"
-        )
-    
-    return preference
+    return await get_employee_preference(db, preference_id, user_id, current_user)
 
 
 @router.put(
@@ -150,16 +119,7 @@ async def update_preference(
     Employees can only update their own preferences.
     Managers can update any employee's preferences.
     """
-    # For managers, allow updating any user's preferences
-    # For regular employees, the controller will check ownership
-    if current_user.is_manager:
-        # Manager can update any preference, use the target user_id
-        effective_user_id = user_id
-    else:
-        # Regular employee, use their own user_id (controller will validate)
-        effective_user_id = current_user.user_id
-    
-    return await update_employee_preference(db, preference_id, payload, effective_user_id)
+    return await update_employee_preference(db, preference_id, payload, current_user, user_id)
 
 
 @router.delete(
@@ -180,13 +140,4 @@ async def delete_preference(
     Employees can only delete their own preferences.
     Managers can delete any employee's preferences.
     """
-    # For managers, allow deleting any user's preferences
-    # For regular employees, the controller will check ownership
-    if current_user.is_manager:
-        # Manager can delete any preference, use the target user_id
-        effective_user_id = user_id
-    else:
-        # Regular employee, use their own user_id (controller will validate)
-        effective_user_id = current_user.user_id
-    
-    return await delete_employee_preference(db, preference_id, effective_user_id)
+    return await delete_employee_preference(db, preference_id, current_user, user_id)

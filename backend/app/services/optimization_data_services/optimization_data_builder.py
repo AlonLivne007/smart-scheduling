@@ -6,7 +6,7 @@ It extracts data from the database and coordinates the precomputation logic.
 This file should be the only one touching SQLAlchemy sessions.
 """
 
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -142,8 +142,8 @@ class OptimizationDataBuilder:
     
     def _build_indices(
         self,
-        employees: List[Dict],
-        shifts: List[Dict]
+        employees: List[Dict[str, Any]],
+        shifts: List[Dict[str, Any]]
     ) -> Tuple[Dict[int, int], Dict[int, int]]:
         """
         Build index mappings for employees and shifts.
@@ -195,7 +195,7 @@ class OptimizationDataBuilder:
     
     def _build_time_off_map_for_schedule(
         self,
-        shifts: List[Dict]
+        shifts: List[Dict[str, Any]]
     ) -> Dict[int, List[Tuple[date, date]]]:
         """
         Build time-off map for the schedule date range.
@@ -255,7 +255,7 @@ class OptimizationDataBuilder:
         return shift_overlaps, shift_durations, system_constraints, \
                time_off_conflicts, shift_rest_conflicts
     
-    def build_employee_set(self) -> List[Dict]:
+    def build_employee_set(self) -> List[Dict[str, Any]]:
         """
         Extract eligible employees (active, with at least one role).
         
@@ -368,7 +368,7 @@ class OptimizationDataBuilder:
         
         return template_role_map
     
-    def build_role_set(self) -> List[Dict]:
+    def build_role_set(self) -> List[Dict[str, Any]]:
         """
         Extract all roles in the system.
         
@@ -405,7 +405,7 @@ class OptimizationDataBuilder:
         
         return role_requirements
     
-    def build_employee_roles(self, employees: List[Dict]) -> Dict[int, List[int]]:
+    def build_employee_roles(self, employees: List[Dict[str, Any]]) -> Dict[int, List[int]]:
         """
         Build employee roles mapping.
         
@@ -606,8 +606,8 @@ class OptimizationDataBuilder:
     
     def build_preference_scores(
         self,
-        employees: List[Dict],
-        shifts: List[Dict],
+        employees: List[Dict[str, Any]],
+        shifts: List[Dict[str, Any]],
         employee_index: Dict[int, int],
         shift_index: Dict[int, int]
     ) -> np.ndarray:
@@ -699,7 +699,7 @@ class OptimizationDataBuilder:
     
     def detect_shift_overlaps(
         self,
-        shifts: List[Dict],
+        shifts: List[Dict[str, Any]],
         shift_index: Dict[int, int]
     ) -> Dict[int, List[int]]:
         """
