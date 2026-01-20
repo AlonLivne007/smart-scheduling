@@ -96,7 +96,8 @@ class SchedulingRunRepository(BaseRepository[SchedulingRunModel]):
         objective_value: Optional[float] = None,
         runtime_seconds: Optional[float] = None,
         mip_gap: Optional[float] = None,
-        total_assignments: Optional[int] = None
+        total_assignments: Optional[int] = None,
+        metrics: Optional[dict] = None
     ) -> SchedulingRunModel:
         """
         Update run with optimization results.
@@ -108,17 +109,22 @@ class SchedulingRunRepository(BaseRepository[SchedulingRunModel]):
             runtime_seconds: Runtime in seconds
             mip_gap: Final MIP gap
             total_assignments: Number of assignments
+            metrics: Solution metrics dictionary (fairness, coverage, etc.)
             
         Returns:
             Updated run
         """
-        return self.update(
-            run_id,
-            status=SchedulingRunStatus.COMPLETED,
-            solver_status=solver_status,
-            objective_value=objective_value,
-            runtime_seconds=runtime_seconds,
-            mip_gap=mip_gap,
-            total_assignments=total_assignments,
-            completed_at=datetime.now()
-        )
+        update_data = {
+            'status': SchedulingRunStatus.COMPLETED,
+            'solver_status': solver_status,
+            'objective_value': objective_value,
+            'runtime_seconds': runtime_seconds,
+            'mip_gap': mip_gap,
+            'total_assignments': total_assignments,
+            'completed_at': datetime.now()
+        }
+        
+        if metrics is not None:
+            update_data['metrics'] = metrics
+        
+        return self.update(run_id, **update_data)

@@ -6,7 +6,7 @@ that tracks the execution of the MIP solver, its status, results, and metadata.
 """
 
 from sqlalchemy import Column, Integer, ForeignKey, String, Enum as SqlEnum, \
-    DateTime, Float, Text, Index
+    DateTime, Float, Text, Index, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.data.session import Base
@@ -68,6 +68,7 @@ class SchedulingRunModel(Base):
         objective_value: Final objective function value from solver (nullable)
         mip_gap: Final optimality gap achieved (nullable)
         total_assignments: Number of assignments in the solution (nullable)
+        metrics: JSON field storing solution metrics (fairness, coverage, etc.) (nullable)
         error_message: Error message if optimization failed (nullable)
         weekly_schedule: Relationship to the WeeklySchedule being optimized
         config: Relationship to the OptimizationConfig used
@@ -113,6 +114,9 @@ class SchedulingRunModel(Base):
     objective_value = Column(Float, nullable=True)
     mip_gap = Column(Float, nullable=True)  # Final gap achieved
     total_assignments = Column(Integer, nullable=True)
+    
+    # Solution metrics (fairness, coverage, etc.)
+    metrics = Column(JSON, nullable=True)  # Stores metrics dict from calculate_metrics()
     
     # Error tracking
     error_message = Column(Text, nullable=True)

@@ -279,11 +279,18 @@ class MipSchedulingSolver:
 
                 if not eligible_vars:
                     if required_count > 0:
-                        raise ValueError(
+                        # Store detailed error info for better error messages
+                        error_msg = (
                             f"Infeasible coverage: planned_shift_id={shift['planned_shift_id']} "
                             f"requires role_id={role_id} count={required_count}, but no eligible employees exist "
                             f"(availability_matrix=0 or no matching roles)."
                         )
+                        # Create exception with structured info
+                        exc = ValueError(error_msg)
+                        exc.shift_id = shift['planned_shift_id']
+                        exc.role_id = role_id
+                        exc.required_count = required_count
+                        raise exc
                     continue
 
                 model += mip.xsum(eligible_vars) == required_count, f'coverage_shift_{j}_role_{role_id}'

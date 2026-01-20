@@ -120,17 +120,19 @@ def run_optimization_task(
             }
             
         except NotFoundError as e:
-            # Update run record with error
+            # Update run record with error using centralized error messages
             try:
+                from app.services.scheduling.run_status import build_error_message
                 run_repository = SchedulingRunRepository(db)
                 run = run_repository.get_by_id(run_id)
                 
                 if run:
                     with transaction(db):
+                        error_message = build_error_message('ERROR', e)
                         run_repository.update_status(
                             run_id,
                             SchedulingRunStatus.FAILED,
-                            error_message=str(e)
+                            error_message=error_message
                         )
             except:
                 pass
@@ -139,17 +141,21 @@ def run_optimization_task(
             raise ValueError(f"Optimization failed: {str(e)}")
             
         except Exception as e:
-            # Update run record with error
+            # Update run record with error using centralized error messages
             try:
+                from app.services.scheduling.run_status import build_error_message
                 run_repository = SchedulingRunRepository(db)
                 run = run_repository.get_by_id(run_id)
                 
                 if run:
                     with transaction(db):
+                        # Determine status from error type
+                        status = 'INFEASIBLE' if isinstance(e, ValueError) and ('Infeasible' in str(e) or 'no eligible' in str(e).lower()) else 'ERROR'
+                        error_message = build_error_message(status, e)
                         run_repository.update_status(
                             run_id,
                             SchedulingRunStatus.FAILED,
-                            error_message=str(e)
+                            error_message=error_message
                         )
             except:
                 pass

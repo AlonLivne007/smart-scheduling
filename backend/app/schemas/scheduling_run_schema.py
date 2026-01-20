@@ -5,7 +5,7 @@ This module contains Pydantic schemas for SchedulingRun API requests and respons
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from app.data.models.scheduling_run_model import SchedulingRunStatus, SolverStatus
 
@@ -105,6 +105,10 @@ class SchedulingRunRead(SchedulingRunBase):
     objective_value: Optional[float] = Field(None, description="Final objective value")
     mip_gap: Optional[float] = Field(None, description="Final optimality gap")
     total_assignments: Optional[int] = Field(None, description="Number of assignments")
+    metrics: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Solution metrics (fairness, coverage, etc.)"
+    )
     error_message: Optional[str] = Field(None, description="Error message if failed")
     
     # Optional nested config data

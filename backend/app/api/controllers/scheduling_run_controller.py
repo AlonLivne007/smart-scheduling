@@ -46,6 +46,7 @@ def _serialize_scheduling_run(run) -> SchedulingRunRead:
         created_by_id=None,
         created_by_name=None,
         solution_count=solution_count,
+        metrics=run.metrics,
         error_message=run.error_message,
     )
 

@@ -145,7 +145,7 @@ async def get_scheduling_run_with_metrics(
 
         coverage_pct = _calculate_coverage_percentage(run, schedule, template_repository)
     
-    return {
+    result = {
         "run_id": run.run_id,
         "weekly_schedule_id": run.weekly_schedule_id,
         "status": run.solver_status.value if run.solver_status else run.status.value,
@@ -159,6 +159,12 @@ async def get_scheduling_run_with_metrics(
         "completed_at": run.completed_at.isoformat() if run.completed_at else None,
         "error_message": run.error_message
     }
+    
+    # Add metrics if available
+    if run.metrics:
+        result["metrics"] = run.metrics
+    
+    return result
 
 
 async def get_schedule_runs_with_metrics(

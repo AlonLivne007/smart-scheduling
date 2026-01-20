@@ -116,14 +116,31 @@ class SchedulingService:
         config = self._load_optimization_config(run)
         
         # Build optimization data
-        data = self.data_builder.build(run.weekly_schedule_id)
+        try:
+            data = self.data_builder.build(run.weekly_schedule_id)
+        except Exception as e:
+            # Store error in solution for better error messages
+            solution = SchedulingSolution()
+            solution.status = 'INFEASIBLE'
+            solution.original_error = e
+            return self._handle_infeasible_solution(run, solution, data=None)
+        
+        # Extract constraint information for better error messages
+        constraint_info = self._extract_constraint_info(data)
         
         # Solve MIP model
-        solution = self.solver.solve(data, config)
+        try:
+            solution = self.solver.solve(data, config)
+        except Exception as e:
+            # Catch errors during solving (e.g., coverage errors)
+            solution = SchedulingSolution()
+            solution.status = 'INFEASIBLE'
+            solution.original_error = e
+            return self._handle_infeasible_solution(run, solution, constraint_info)
         
         # Check if optimization was infeasible or failed
         if solution.status in ['INFEASIBLE', 'NO_SOLUTION_FOUND']:
-            return self._handle_infeasible_solution(run, solution)
+            return self._handle_infeasible_solution(run, solution, constraint_info)
         
         # Note: Solution validation is handled by the MIP solver itself.
         # If the MIP returns OPTIMAL or FEASIBLE, the solution is guaranteed to satisfy
@@ -177,11 +194,18 @@ class SchedulingService:
         """
         Mark a run as failed and update error information.
         
+        Uses centralized error message generation to ensure consistent,
+        actionable messages.
+        
         Args:
             run: SchedulingRunModel record
             error: Exception that caused the failure
         """
-        error_message = str(error) if str(error) else f"Unexpected error: {type(error).__name__}"
+        # Determine status from error type
+        status = 'INFEASIBLE' if isinstance(error, ValueError) and 'Infeasible' in str(error) else 'ERROR'
+        
+        # Use centralized error message builder
+        error_message = build_error_message(status, error)
         
         try:
             self.run_repository.update_status(
@@ -233,7 +257,8 @@ class SchedulingService:
     def _handle_infeasible_solution(
         self,
         run: SchedulingRunModel,
-        solution: SchedulingSolution
+        solution: SchedulingSolution,
+        constraint_info: Optional[Dict[str, Any]] = None
     ) -> Tuple[SchedulingRunModel, SchedulingSolution]:
         """
         Handle infeasible or failed solution.
@@ -241,6 +266,7 @@ class SchedulingService:
         Args:
             run: SchedulingRunModel record
             solution: SchedulingSolution with failed status
+            constraint_info: Optional constraint information for better error messages
         
         Returns:
             Tuple of (updated run, solution)
@@ -254,16 +280,77 @@ class SchedulingService:
             total_assignments=0
         )
         
+        # Build error message with original error and constraint info if available
+        original_error = getattr(solution, 'original_error', None)
+        error_message = build_error_message(solution.status, original_error, constraint_info)
+        
         # Update status to FAILED separately
         updated_run = self.run_repository.update(
             updated_run.run_id,
             status=SchedulingRunStatus.FAILED,
-            error_message=build_error_message(solution.status)
+            error_message=error_message
         )
         
         logger.warning(f"Optimization failed: {solution.status}, error_message: {updated_run.error_message}")
         
         return updated_run, solution
+    
+    def _extract_constraint_info(self, data) -> Optional[Dict[str, Any]]:
+        """
+        Extract constraint information to help identify problematic constraints.
+        
+        Args:
+            data: OptimizationData object
+            
+        Returns:
+            Dict with constraint information or None if data is not available
+        """
+        if not data or not hasattr(data, 'system_constraints'):
+            return None
+        
+        from app.data.models.system_constraints_model import SystemConstraintType
+        
+        constraint_info = {
+            'has_hard_max_hours': False,
+            'has_hard_max_shifts': False,
+            'has_hard_min_rest': False,
+            'has_hard_max_consecutive': False,
+            'has_hard_min_hours': False,
+            'has_hard_min_shifts': False,
+        }
+        
+        # Check for hard constraints
+        max_hours = data.system_constraints.get(SystemConstraintType.MAX_HOURS_PER_WEEK)
+        if max_hours and max_hours[1]:  # is_hard
+            constraint_info['has_hard_max_hours'] = True
+            constraint_info['max_hours_value'] = max_hours[0]
+        
+        max_shifts = data.system_constraints.get(SystemConstraintType.MAX_SHIFTS_PER_WEEK)
+        if max_shifts and max_shifts[1]:  # is_hard
+            constraint_info['has_hard_max_shifts'] = True
+            constraint_info['max_shifts_value'] = max_shifts[0]
+        
+        min_rest = data.system_constraints.get(SystemConstraintType.MIN_REST_HOURS)
+        if min_rest and min_rest[1]:  # is_hard
+            constraint_info['has_hard_min_rest'] = True
+            constraint_info['min_rest_value'] = min_rest[0]
+        
+        max_consecutive = data.system_constraints.get(SystemConstraintType.MAX_CONSECUTIVE_DAYS)
+        if max_consecutive and max_consecutive[1]:  # is_hard
+            constraint_info['has_hard_max_consecutive'] = True
+            constraint_info['max_consecutive_value'] = max_consecutive[0]
+        
+        min_hours = data.system_constraints.get(SystemConstraintType.MIN_HOURS_PER_WEEK)
+        if min_hours and min_hours[1]:  # is_hard
+            constraint_info['has_hard_min_hours'] = True
+            constraint_info['min_hours_value'] = min_hours[0]
+        
+        min_shifts = data.system_constraints.get(SystemConstraintType.MIN_SHIFTS_PER_WEEK)
+        if min_shifts and min_shifts[1]:  # is_hard
+            constraint_info['has_hard_min_shifts'] = True
+            constraint_info['min_shifts_value'] = min_shifts[0]
+        
+        return constraint_info
     
     def _persist_solution(
         self,
@@ -303,14 +390,15 @@ class SchedulingService:
                 apply_assignments=apply_assignments
             )
             
-            # Update run with results
+            # Update run with results including metrics
             updated_run = self.run_repository.update_with_results(
                 run.run_id,
                 solver_status=map_to_solver_status_enum(solution.status),
                 objective_value=solution.objective_value,
                 runtime_seconds=solution.runtime_seconds,
                 mip_gap=solution.mip_gap,
-                total_assignments=len(solution.assignments)
+                total_assignments=len(solution.assignments),
+                metrics=solution.metrics if hasattr(solution, 'metrics') and solution.metrics else None
             )
             
         except Exception as e:
