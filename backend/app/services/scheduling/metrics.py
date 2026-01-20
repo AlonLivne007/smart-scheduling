@@ -2,11 +2,11 @@
 Metrics calculation for scheduling solutions.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Any
 from app.services.optimization_data_services import OptimizationData
 
 
-def calculate_metrics(data: OptimizationData, assignments: List[Dict]) -> Dict:
+def calculate_metrics(data: OptimizationData, assignments: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Calculate solution metrics."""
     if not assignments:
         return {

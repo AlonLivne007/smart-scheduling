@@ -13,7 +13,7 @@ returns OPTIMAL or FEASIBLE, the solution is guaranteed to satisfy all hard
 constraints as they are encoded directly in the MIP model.
 """
 
-from typing import Dict, List, Tuple, Optional
+from typing import Tuple
 from datetime import datetime
 import logging
 from sqlalchemy.orm import Session
@@ -73,45 +73,9 @@ class SchedulingService:
             # Execute optimization without applying assignments
             run, solution = self._execute_run(run, apply_assignments=False)
             return run, solution
-        except (ValueError, SQLAlchemyError) as e:
-            # Update run status to FAILED with proper error handling
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.completed_at = datetime.now()
-                run.error_message = str(e)
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                # If commit fails, rollback and log
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status for run_id={run.run_id}, "
-                    f"original_error={e}, commit_error={commit_error}",
-                    exc_info=True
-                )
-            
-            logger.error(
-                f"Optimization failed for run_id={run.run_id}, error={e}",
-                exc_info=True
-            )
-            raise
         except Exception as e:
-            # Catch-all for unexpected errors (programming errors, etc.)
-            try:
-                run.status = SchedulingRunStatus.FAILED
-                run.completed_at = datetime.now()
-                run.error_message = f"Unexpected error: {str(e)}"
-                self.db.commit()
-            except SQLAlchemyError as commit_error:
-                self.db.rollback()
-                logger.error(
-                    f"Failed to update run status for run_id={run.run_id}, "
-                    f"original_error={e}, commit_error={commit_error}",
-                    exc_info=True
-                )
-            
-            logger.exception(
-                f"Unexpected error during optimization for run_id={run.run_id}"
-            )
+            # Update run status to FAILED with proper error handling
+            self._mark_run_as_failed(run, e)
             raise
     
     def _execute_run(
@@ -136,12 +100,9 @@ class SchedulingService:
         config = self._load_optimization_config(run)
         
         # Build optimization data
-        logger.info(f"Building optimization data for weekly schedule {run.weekly_schedule_id}...")
         data = self.data_builder.build(run.weekly_schedule_id)
-        logger.info(f"Employees: {len(data.employees)}, Shifts: {len(data.shifts)}")
         
         # Solve MIP model
-        logger.info(f"Building and solving MIP model...")
         solution = self.solver.solve(data, config)
         
         # Check if optimization was infeasible or failed
@@ -194,6 +155,43 @@ class SchedulingService:
         self.db.refresh(locked_run)
         
         return locked_run
+    
+    def _mark_run_as_failed(
+        self,
+        run: SchedulingRunModel,
+        error: Exception
+    ) -> None:
+        """
+        Mark a run as failed and update error information.
+        
+        Args:
+            run: SchedulingRunModel record
+            error: Exception that caused the failure
+        """
+        error_message = str(error) if str(error) else f"Unexpected error: {type(error).__name__}"
+        
+        try:
+            run.status = SchedulingRunStatus.FAILED
+            run.completed_at = datetime.now()
+            run.error_message = error_message
+            self.db.commit()
+        except SQLAlchemyError as commit_error:
+            self.db.rollback()
+            logger.error(
+                f"Failed to update run status for run_id={run.run_id}, "
+                f"original_error={error}, commit_error={commit_error}",
+                exc_info=True
+            )
+        
+        if isinstance(error, (ValueError, SQLAlchemyError)):
+            logger.error(
+                f"Optimization failed for run_id={run.run_id}, error={error}",
+                exc_info=True
+            )
+        else:
+            logger.exception(
+                f"Unexpected error during optimization for run_id={run.run_id}"
+            )
     
     def _load_optimization_config(self, run: SchedulingRunModel) -> OptimizationConfigModel:
         """
@@ -286,7 +284,6 @@ class SchedulingService:
         run.solver_status = map_to_solver_status_enum(solution.status)
         
         # Persist solution and optionally apply assignments
-        # Use commit=False to combine with run update in single transaction
         if apply_assignments:
             logger.info(f"Creating {len(solution.assignments)} shift assignments...")
         else:

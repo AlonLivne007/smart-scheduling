@@ -6,9 +6,8 @@ the Mixed Integer Programming model for shift assignment optimization.
 """
 
 from typing import Dict, List, Tuple
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 import mip
-import numpy as np
 
 from app.services.optimization_data_services import OptimizationData
 from app.db.models.optimizationConfigModel import OptimizationConfigModel
@@ -116,8 +115,8 @@ class MipSchedulingSolver:
             - vars_by_emp_shift: {(emp_idx, shift_idx): [var1, var2, ...]} mapping for performance
             - vars_by_employee: {emp_idx: [var1, var2, ...]} mapping for O(1) access
         """
-        x = {}
-        vars_by_emp_shift = {}
+        x: Dict[Tuple[int, int, int], mip.Var] = {}
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]] = {}
         vars_by_employee: Dict[int, List[mip.Var]] = {}
         
         for emp_idx, emp in enumerate(data.employees):
@@ -168,7 +167,7 @@ class MipSchedulingSolver:
         return vars_by_employee.get(emp_idx, [])
     
     def _get_employee_hours_vars(
-        self, emp_idx: int, vars_by_emp_shift: Dict, data: OptimizationData
+        self, emp_idx: int, vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]], data: OptimizationData
     ) -> List[mip.LinExpr]:
         """
         Get list of (duration * var) expressions for a specific employee.
@@ -215,7 +214,7 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        vars_by_emp_shift: Dict,
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]],
         n_employees: int,
         date_to_shifts: Dict[date, List[int]],
         var_name_prefix: str = "works_day"
@@ -262,7 +261,7 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
         n_employees: int,
         n_shifts: int
     ) -> None:
@@ -292,8 +291,8 @@ class MipSchedulingSolver:
     def _add_single_role_constraints(
         self,
         model: mip.Model,
-        x: Dict,
-        vars_by_emp_shift: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]],
         n_employees: int,
         n_shifts: int
     ) -> int:
@@ -318,8 +317,8 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
-        vars_by_emp_shift: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]],
         n_employees: int
     ) -> int:
         """
@@ -353,8 +352,8 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
-        vars_by_emp_shift: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]],
         vars_by_employee: Dict[int, List[mip.Var]],
         n_employees: int
     ) -> Dict[str, int]:
@@ -440,8 +439,8 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
-        vars_by_emp_shift: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]],
         n_employees: int,
         max_consecutive: int
     ) -> int:
@@ -501,10 +500,10 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
         vars_by_employee: Dict[int, List[mip.Var]],
         n_employees: int
-    ) -> Tuple[List, float]:
+    ) -> Tuple[List[mip.LinExpr], float]:
         """
         Add fairness terms (constraints and auxiliary variables).
         
@@ -533,8 +532,8 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
-        vars_by_emp_shift: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
+        vars_by_emp_shift: Dict[Tuple[int, int], List[mip.Var]],
         vars_by_employee: Dict[int, List[mip.Var]],
         n_employees: int
     ) -> mip.LinExpr:
@@ -656,9 +655,9 @@ class MipSchedulingSolver:
         self,
         model: mip.Model,
         data: OptimizationData,
-        x: Dict,
+        x: Dict[Tuple[int, int, int], mip.Var],
         config: OptimizationConfigModel,
-        assignments_per_employee: List,
+        assignments_per_employee: List[mip.LinExpr],
         soft_penalty_component: mip.LinExpr,
         avg_assignments: float
     ) -> mip.LinExpr:
@@ -723,7 +722,7 @@ class MipSchedulingSolver:
         
         return objective
     
-    def _extract_assignments(self, x: Dict, data: OptimizationData) -> List[Dict]:
+    def _extract_assignments(self, x: Dict, data: OptimizationData) -> List[Dict[str, Any]]:
         """
         Extract assignments from solved model.
         

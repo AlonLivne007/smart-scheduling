@@ -2,7 +2,7 @@
 Database persistence operations for scheduling solutions.
 """
 
-from typing import List, Dict
+from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -62,7 +62,7 @@ class SchedulingPersistence:
     def persist_solution_and_apply_assignments(
         self,
         run_id: int,
-        assignments: List[Dict],
+        assignments: List[Dict[str, Any]],
         apply_assignments: bool = True,
         commit: bool = True
     ) -> None:
