@@ -45,7 +45,7 @@ class SchedulingRunRepository(BaseRepository[SchedulingRunModel]):
             .first()
         )
     
-    def get_with_all_relationships(self, run_id: int) -> Optional[SchedulingRunModel]:
+    def get_with_relations(self, run_id: int) -> Optional[SchedulingRunModel]:
         """Get a run with all relationships eagerly loaded."""
         return (
             self.db.query(SchedulingRunModel)

@@ -91,10 +91,10 @@ async def create_scheduling_run(
     """
     try:
         # Business rule: Verify weekly schedule exists
-        schedule_repository.get_by_id_or_raise(run_data.weekly_schedule_id)
+        schedule_repository.get_or_raise(run_data.weekly_schedule_id)
         
         # Business rule: Verify user exists
-        user_repository.get_by_id_or_raise(user_id)
+        user_repository.get_or_raise(user_id)
         
         with transaction(db):
             run = run_repository.create(
@@ -118,7 +118,7 @@ async def create_scheduling_run(
         )
 
 
-async def get_all_scheduling_runs(
+async def list_scheduling_runs(
     run_repository: SchedulingRunRepository,
     weekly_schedule_id: Optional[int] = None,
     status_filter: Optional[SchedulingRunStatus] = None
@@ -177,7 +177,7 @@ async def update_scheduling_run(
     - Update fields if provided
     """
     try:
-        run_repository.get_by_id_or_raise(run_id)  # Verify exists
+        run_repository.get_or_raise(run_id)  # Verify exists
         
         with transaction(db):
             # Update fields
@@ -225,7 +225,7 @@ async def delete_scheduling_run(
     - Delete run (solutions cascade)
     """
     try:
-        run_repository.get_by_id_or_raise(run_id)  # Verify exists
+        run_repository.get_or_raise(run_id)  # Verify exists
         
         with transaction(db):
             run_repository.delete(run_id)
@@ -250,7 +250,7 @@ async def get_solutions_for_run(
     - Get solutions with relationships
     """
     try:
-        run_repository.get_by_id_or_raise(run_id)  # Verify run exists
+        run_repository.get_or_raise(run_id)  # Verify run exists
         
         solutions = solution_repository.get_all_with_relationships_by_run(run_id)
         return [_serialize_scheduling_solution(s) for s in solutions]
@@ -279,7 +279,7 @@ async def apply_solution_to_schedule(
     - Clear existing assignments for the schedule
     """
     try:
-        run = run_repository.get_with_all_relationships(run_id)
+        run = run_repository.get_with_relations(run_id)
         if not run:
             raise NotFoundError(f"Scheduling run {run_id} not found")
         

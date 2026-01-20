@@ -10,9 +10,9 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.controllers import plannedShiftController
 from app.api.controllers.plannedShiftController import (
     create_planned_shift,
-    get_all_planned_shifts,
     get_planned_shift,
     update_planned_shift,
     delete_planned_shift
@@ -69,7 +69,7 @@ async def create_shift(
 async def list_all_shifts(
     shift_repository: ShiftRepository = Depends(get_shift_repository)
 ):
-    return await get_all_planned_shifts(shift_repository)
+    return await plannedShiftController.list_planned_shifts(shift_repository)
 
 
 # ---------------------- Resource routes ---------------------

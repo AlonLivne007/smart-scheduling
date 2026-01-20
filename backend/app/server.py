@@ -29,7 +29,7 @@ from app.api.routes import (
 from app.db.session import engine, Base
 from app.db.models import (
     roleModel, userModel, userRoleModel, shiftTemplateModel,
-    shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
+    shiftRoleRequirementsTable, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
     timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
     optimizationConfigModel, schedulingRunModel, schedulingSolutionModel, activityLogModel
 )

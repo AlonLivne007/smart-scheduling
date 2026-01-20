@@ -58,7 +58,7 @@ async def get_system_constraint(
     Get a system constraint by ID.
     """
     try:
-        constraint = constraints_repository.get_by_id_or_raise(constraint_id)
+        constraint = constraints_repository.get_or_raise(constraint_id)
         return SystemConstraintRead.model_validate(constraint)
     except NotFoundError:
         raise HTTPException(
@@ -67,7 +67,7 @@ async def get_system_constraint(
         )
 
 
-async def get_all_system_constraints(
+async def list_system_constraints(
     constraints_repository: SystemConstraintsRepository
 ) -> List[SystemConstraintRead]:
     """
@@ -91,7 +91,7 @@ async def update_system_constraint(
     - Update only provided fields
     """
     try:
-        constraint = constraints_repository.get_by_id_or_raise(constraint_id)
+        constraint = constraints_repository.get_or_raise(constraint_id)
         
         with transaction(db):
             # Build update data from provided fields
@@ -124,7 +124,7 @@ async def delete_system_constraint(
     - Delete constraint
     """
     try:
-        constraint = constraints_repository.get_by_id_or_raise(constraint_id)
+        constraint = constraints_repository.get_or_raise(constraint_id)
         
         with transaction(db):
             constraints_repository.delete(constraint_id)

@@ -48,7 +48,7 @@ class ShiftTemplateRepository(BaseRepository[ShiftTemplateModel]):
         Raises:
             NotFoundError: If template or any role is not found
         """
-        template = self.get_by_id_or_raise(template_id)
+        template = self.get_or_raise(template_id)
         
         # Fetch roles
         roles = self.db.query(RoleModel).filter(RoleModel.role_id.in_(role_ids)).all()
@@ -81,7 +81,7 @@ class ShiftTemplateRepository(BaseRepository[ShiftTemplateModel]):
         if not template_ids:
             return {}
         
-        from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
+        from app.db.models.shiftRoleRequirementsTable import shift_role_requirements
         
         all_requirements = self.db.execute(
             select(
@@ -115,7 +115,7 @@ class ShiftTemplateRepository(BaseRepository[ShiftTemplateModel]):
         Returns:
             List of dicts with role_id, required_count, role_name
         """
-        from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
+        from app.db.models.shiftRoleRequirementsTable import shift_role_requirements
         
         rows = self.db.execute(
             select(
@@ -148,7 +148,7 @@ class ShiftTemplateRepository(BaseRepository[ShiftTemplateModel]):
             template_id: Template ID
             role_requirements: List of dicts with 'role_id' and 'required_count'
         """
-        from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
+        from app.db.models.shiftRoleRequirementsTable import shift_role_requirements
         
         # Delete existing requirements
         self.db.execute(

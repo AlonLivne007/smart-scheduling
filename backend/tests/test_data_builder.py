@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 # Import all models to ensure relationships are properly initialized
 from app.db.models import (
     roleModel, userModel, userRoleModel, shiftTemplateModel,
-    shiftRoleRequirementsTabel, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
+    shiftRoleRequirementsTable, weeklyScheduleModel, plannedShiftModel, shiftAssignmentModel,
     timeOffRequestModel, systemConstraintsModel, employeePreferencesModel,
     optimizationConfigModel, schedulingRunModel, schedulingSolutionModel
 )

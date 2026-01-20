@@ -81,7 +81,7 @@ async def create_time_off_request(
         _validate_date_range(request_data.start_date, request_data.end_date)
         
         # Business rule: Verify user exists
-        user_repository.get_by_id_or_raise(user_id)
+        user_repository.get_or_raise(user_id)
         
         with transaction(db):
             request = time_off_repository.create(
@@ -109,7 +109,7 @@ async def create_time_off_request(
         )
 
 
-async def get_all_time_off_requests(
+async def list_time_off_requests(
     current_user: UserModel,
     time_off_repository: TimeOffRequestRepository,
     user_id: Optional[int] = None,
@@ -183,7 +183,7 @@ async def update_time_off_request(
     - Validate date range
     """
     try:
-        request = time_off_repository.get_by_id_or_raise(request_id)
+        request = time_off_repository.get_or_raise(request_id)
         
         # Business rule: Only pending requests can be updated
         if request.status != TimeOffRequestStatus.PENDING:
@@ -248,7 +248,7 @@ async def delete_time_off_request(
     - Only the creator can delete
     """
     try:
-        request = time_off_repository.get_by_id_or_raise(request_id)
+        request = time_off_repository.get_or_raise(request_id)
         
         # Business rule: Only pending requests can be deleted
         if request.status != TimeOffRequestStatus.PENDING:
@@ -290,7 +290,7 @@ async def approve_time_off_request(
     - Approve request
     """
     try:
-        request = time_off_repository.get_by_id_or_raise(request_id)
+        request = time_off_repository.get_or_raise(request_id)
         
         # Business rule: Only pending requests can be approved
         if request.status != TimeOffRequestStatus.PENDING:
@@ -300,7 +300,7 @@ async def approve_time_off_request(
             )
         
         # Business rule: Verify manager exists and is manager
-        manager = user_repository.get_by_id_or_raise(manager_id)
+        manager = user_repository.get_or_raise(manager_id)
         if not manager.is_manager:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -335,7 +335,7 @@ async def reject_time_off_request(
     - Reject request
     """
     try:
-        request = time_off_repository.get_by_id_or_raise(request_id)
+        request = time_off_repository.get_or_raise(request_id)
         
         # Business rule: Only pending requests can be rejected
         if request.status != TimeOffRequestStatus.PENDING:
@@ -345,7 +345,7 @@ async def reject_time_off_request(
             )
         
         # Business rule: Verify manager exists and is manager
-        manager = user_repository.get_by_id_or_raise(manager_id)
+        manager = user_repository.get_or_raise(manager_id)
         if not manager.is_manager:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

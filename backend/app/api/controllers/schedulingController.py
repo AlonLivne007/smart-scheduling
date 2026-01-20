@@ -90,11 +90,11 @@ async def trigger_optimization(
     """
     try:
         # Business rule: Verify schedule exists
-        schedule_repository.get_by_id_or_raise(weekly_schedule_id)
+        schedule_repository.get_or_raise(weekly_schedule_id)
         
         # Business rule: Verify config if provided
         if config_id:
-            config_repository.get_by_id_or_raise(config_id)
+            config_repository.get_or_raise(config_id)
         
         with transaction(db):
             # Create SchedulingRun record with PENDING status
@@ -195,7 +195,7 @@ async def get_schedule_runs_with_metrics(
     - Calculate metrics for each
     """
     try:
-        schedule_repository.get_by_id_or_raise(weekly_schedule_id)  # Verify schedule exists
+        schedule_repository.get_or_raise(weekly_schedule_id)  # Verify schedule exists
         
         runs = run_repository.get_by_schedule(weekly_schedule_id)
         

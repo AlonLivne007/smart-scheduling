@@ -117,7 +117,7 @@ class UserRepository(BaseRepository[UserModel]):
         Raises:
             NotFoundError: If user or any role is not found
         """
-        user = self.get_by_id_or_raise(user_id)
+        user = self.get_or_raise(user_id)
         
         # Fetch roles
         roles = self.db.query(RoleModel).filter(RoleModel.role_id.in_(role_ids)).all()

@@ -58,7 +58,7 @@ async def create_user(
             if user_data.roles_by_id:
                 # Validate roles exist
                 for role_id in user_data.roles_by_id:
-                    role_repository.get_by_id_or_raise(role_id)
+                    role_repository.get_or_raise(role_id)
                 user = user_repository.assign_roles(user.user_id, user_data.roles_by_id)
             
             return UserRead.model_validate(user)
@@ -107,7 +107,7 @@ async def authenticate_user(
     )
 
 
-async def get_all_users(user_repository: UserRepository) -> List[UserRead]:
+async def list_users(user_repository: UserRepository) -> List[UserRead]:
     """Get all users with their roles."""
     users = user_repository.get_all_with_roles()
     return [UserRead.model_validate(user) for user in users]
@@ -116,7 +116,7 @@ async def get_all_users(user_repository: UserRepository) -> List[UserRead]:
 async def get_user(user_id: int, user_repository: UserRepository) -> UserRead:
     """Get a user by ID."""
     try:
-        user = user_repository.get_by_id_or_raise(user_id)
+        user = user_repository.get_or_raise(user_id)
         return UserRead.model_validate(user)
     except NotFoundError:
         raise HTTPException(
@@ -142,7 +142,7 @@ async def update_user(
     - Hash new password if provided
     """
     try:
-        user = user_repository.get_by_id_or_raise(user_id)
+        user = user_repository.get_or_raise(user_id)
         
         # Business rule: Check email uniqueness if email is being changed
         if user_data.user_email and user_data.user_email != user.user_email:
@@ -168,7 +168,7 @@ async def update_user(
             if user_data.roles_by_id is not None:
                 # Validate roles exist
                 for role_id in user_data.roles_by_id:
-                    role_repository.get_by_id_or_raise(role_id)
+                    role_repository.get_or_raise(role_id)
                 updated_user = user_repository.assign_roles(user_id, user_data.roles_by_id)
             
             return UserRead.model_validate(updated_user)
@@ -198,7 +198,7 @@ async def delete_user(
     - Delete user (cascade will handle related records)
     """
     try:
-        user_repository.get_by_id_or_raise(user_id)  # Verify exists
+        user_repository.get_or_raise(user_id)  # Verify exists
         
         with transaction(db):
             user_repository.delete(user_id)

@@ -87,7 +87,7 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             raise DatabaseError(f"Database error during get_by_id: {str(e)}") from e
     
-    def get_by_id_or_raise(self, entity_id: int) -> ModelType:
+    def get_or_raise(self, entity_id: int) -> ModelType:
         """
         Get an entity by its primary key, raising NotFoundError if not found.
         
@@ -184,7 +184,7 @@ class BaseRepository(Generic[ModelType]):
             DatabaseError: If a database error occurs
         """
         try:
-            entity = self.get_by_id_or_raise(entity_id)
+            entity = self.get_or_raise(entity_id)
             
             for attr, value in kwargs.items():
                 if hasattr(entity, attr) and value is not None:
@@ -214,7 +214,7 @@ class BaseRepository(Generic[ModelType]):
             DatabaseError: If a database error occurs
         """
         try:
-            entity = self.get_by_id_or_raise(entity_id)
+            entity = self.get_or_raise(entity_id)
             self.db.delete(entity)
             self.db.flush()  # Flush but don't commit yet
         except NotFoundError:

@@ -9,9 +9,9 @@ from typing import List
 
 from fastapi import APIRouter, Depends, status
 
+from app.api.controllers import weeklyScheduleController
 from app.api.controllers.weeklyScheduleController import (
     create_weekly_schedule,
-    get_all_weekly_schedules,
     get_weekly_schedule,
     delete_weekly_schedule
 )
@@ -57,11 +57,11 @@ async def create_schedule(
 ):
     return await create_weekly_schedule(
         schedule_data,
-        current_user.user_id,
-        schedule_repository,
-        template_repository,
-        user_repository,
-        db
+        created_by_id=current_user.user_id,
+        schedule_repository=schedule_repository,
+        template_repository=template_repository,
+        user_repository=user_repository,
+        db=db
     )
 
 
@@ -76,7 +76,7 @@ async def get_all_schedules(
     schedule_repository: WeeklyScheduleRepository = Depends(get_weekly_schedule_repository),
     template_repository: ShiftTemplateRepository = Depends(get_shift_template_repository)
 ):
-    return await get_all_weekly_schedules(schedule_repository, template_repository)
+    return await weeklyScheduleController.list_weekly_schedules(schedule_repository, template_repository)
 
 
 # ---------------------- Resource routes ---------------------

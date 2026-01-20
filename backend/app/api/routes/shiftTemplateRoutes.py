@@ -10,9 +10,9 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.controllers import shiftTemplateController
 from app.api.controllers.shiftTemplateController import (
     create_shift_template,
-    get_all_shift_templates,
     get_shift_template,
     update_shift_template,
     delete_shift_template
@@ -71,7 +71,7 @@ async def create_template(
 async def list_all_templates(
     template_repository: ShiftTemplateRepository = Depends(get_shift_template_repository)
 ):
-    return await get_all_shift_templates(template_repository)
+    return await shiftTemplateController.list_shift_templates(template_repository)
 
 
 # ---------------------- Resource routes ---------------------

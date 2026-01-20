@@ -34,7 +34,7 @@ class WeeklyScheduleRepository(BaseRepository[WeeklyScheduleModel]):
             .first()
         )
     
-    def get_with_all_relationships(self, schedule_id: int) -> Optional[WeeklyScheduleModel]:
+    def get_with_relations(self, schedule_id: int) -> Optional[WeeklyScheduleModel]:
         """Get a schedule with all relationships eagerly loaded."""
         return (
             self.db.query(WeeklyScheduleModel)
@@ -84,7 +84,7 @@ class WeeklyScheduleRepository(BaseRepository[WeeklyScheduleModel]):
         Returns:
             Updated schedule
         """
-        schedule = self.get_by_id_or_raise(schedule_id)
+        schedule = self.get_or_raise(schedule_id)
         
         update_data = {"status": status}
         if status == ScheduleStatus.PUBLISHED and published_by_id:

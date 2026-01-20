@@ -33,7 +33,7 @@ from app.db.models.timeOffRequestModel import TimeOffRequestModel, TimeOffReques
 from app.db.models.optimizationConfigModel import OptimizationConfigModel
 from app.db.models.schedulingRunModel import SchedulingRunModel  # noqa: F401 - ensure mapper registration
 from app.db.models.schedulingSolutionModel import SchedulingSolutionModel  # noqa: F401 - ensure mapper registration
-from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
+from app.db.models.shiftRoleRequirementsTable import shift_role_requirements
 
 
 RANDOM_SEED = 42

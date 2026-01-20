@@ -12,8 +12,9 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.controllers import userController
 from app.api.controllers.userController import (
-    create_user, get_all_users, get_user, update_user, delete_user,
+    create_user, get_user, update_user, delete_user,
     authenticate_user
 )
 from app.api.dependencies.repositories import get_user_repository, get_role_repository
@@ -90,7 +91,7 @@ async def add_user(
 async def list_users(
     user_repository: UserRepository = Depends(get_user_repository)
 ):
-    return await get_all_users(user_repository)
+    return await userController.list_users(user_repository)
 
 
 # ---------------------- Resource routes ---------------------

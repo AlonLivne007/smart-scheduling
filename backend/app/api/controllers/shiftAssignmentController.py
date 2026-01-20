@@ -52,7 +52,7 @@ async def create_shift_assignment(
     """
     try:
         # Business rule: Verify shift exists
-        shift_repository.get_by_id_or_raise(shift_assignment_data.planned_shift_id)
+        shift_repository.get_or_raise(shift_assignment_data.planned_shift_id)
         
         with transaction(db):
             assignment = assignment_repository.create_assignment(
@@ -76,7 +76,7 @@ async def create_shift_assignment(
         )
 
 
-async def get_all_shift_assignments(
+async def list_shift_assignments(
     assignment_repository: ShiftAssignmentRepository
 ) -> List[ShiftAssignmentRead]:
     """
@@ -94,7 +94,7 @@ async def get_shift_assignment(
     Retrieve a single shift assignment by ID.
     """
     try:
-        assignment = assignment_repository.get_by_id_or_raise(assignment_id)
+        assignment = assignment_repository.get_or_raise(assignment_id)
         return _serialize_assignment(assignment)
     except NotFoundError:
         raise HTTPException(
@@ -134,7 +134,7 @@ async def delete_shift_assignment(
     Delete a shift assignment.
     """
     try:
-        assignment_repository.get_by_id_or_raise(assignment_id)  # Verify exists
+        assignment_repository.get_or_raise(assignment_id)  # Verify exists
         
         with transaction(db):
             assignment_repository.delete(assignment_id)

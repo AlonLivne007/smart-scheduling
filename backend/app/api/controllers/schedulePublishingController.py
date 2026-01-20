@@ -46,7 +46,7 @@ async def publish_schedule(
     - Log activity
     """
     try:
-        schedule = schedule_repository.get_with_all_relationships(schedule_id)
+        schedule = schedule_repository.get_with_relations(schedule_id)
         if not schedule:
             raise NotFoundError(f"Weekly schedule {schedule_id} not found")
         
@@ -161,7 +161,7 @@ async def unpublish_schedule(
     - Log activity
     """
     try:
-        schedule = schedule_repository.get_by_id_or_raise(schedule_id)
+        schedule = schedule_repository.get_or_raise(schedule_id)
         
         # Business rule: Check if schedule is published
         if schedule.status != ScheduleStatus.PUBLISHED:

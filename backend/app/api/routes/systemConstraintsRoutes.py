@@ -10,10 +10,10 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.controllers import systemConstraintsController
 from app.api.controllers.systemConstraintsController import (
     create_system_constraint,
     get_system_constraint,
-    get_all_system_constraints,
     update_system_constraint,
     delete_system_constraint
 )
@@ -59,7 +59,7 @@ async def create_constraint(
 async def list_constraints(
     constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository)
 ):
-    return await get_all_system_constraints(constraints_repository)
+    return await systemConstraintsController.list_system_constraints(constraints_repository)
 
 
 # ---------------------- Resource routes ---------------------

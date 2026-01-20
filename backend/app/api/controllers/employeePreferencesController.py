@@ -82,11 +82,11 @@ async def create_employee_preference(
             )
         
         # Business rule: Validate user exists
-        user_repository.get_by_id_or_raise(user_id)
+        user_repository.get_or_raise(user_id)
         
         # Business rule: Validate shift template if provided
         if preference_data.preferred_shift_template_id:
-            template_repository.get_by_id_or_raise(preference_data.preferred_shift_template_id)
+            template_repository.get_or_raise(preference_data.preferred_shift_template_id)
         
         # Business rule: Validate time range
         _validate_time_range(
@@ -149,7 +149,7 @@ async def get_employee_preferences_by_user(
             )
         
         # Business rule: Validate user exists
-        user_repository.get_by_id_or_raise(user_id)
+        user_repository.get_or_raise(user_id)
         
         # Get preferences
         preferences = preferences_repository.get_by_user(user_id)
@@ -177,7 +177,7 @@ async def get_employee_preference(
     - Authorization: employees can only view their own preferences
     """
     try:
-        preference = preferences_repository.get_by_id_or_raise(preference_id)
+        preference = preferences_repository.get_or_raise(preference_id)
         
         # Business rule: Verify it belongs to the specified user
         if preference.user_id != user_id:
@@ -223,7 +223,7 @@ async def update_employee_preference(
     - Update preference
     """
     try:
-        preference = preferences_repository.get_by_id_or_raise(preference_id)
+        preference = preferences_repository.get_or_raise(preference_id)
         
         # Business rule: Determine effective user ID
         if current_user.is_manager and target_user_id is not None:
@@ -240,7 +240,7 @@ async def update_employee_preference(
         
         # Business rule: Validate shift template if provided
         if preference_data.preferred_shift_template_id is not None:
-            template_repository.get_by_id_or_raise(preference_data.preferred_shift_template_id)
+            template_repository.get_or_raise(preference_data.preferred_shift_template_id)
         
         # Business rule: Validate time range
         start_time = preference_data.preferred_start_time if preference_data.preferred_start_time else preference.preferred_start_time
@@ -297,7 +297,7 @@ async def delete_employee_preference(
     - Delete preference
     """
     try:
-        preference = preferences_repository.get_by_id_or_raise(preference_id)
+        preference = preferences_repository.get_or_raise(preference_id)
         
         # Business rule: Only the owner can delete
         if not current_user.is_manager and preference.user_id != current_user.user_id:

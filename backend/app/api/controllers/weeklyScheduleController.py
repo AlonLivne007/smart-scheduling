@@ -70,7 +70,7 @@ def _serialize_weekly_schedule(
 
 async def create_weekly_schedule(
     schedule_data: WeeklyScheduleCreate,
-    user_id: int,
+    created_by_id: int,
     schedule_repository: WeeklyScheduleRepository,
     template_repository: ShiftTemplateRepository,
     user_repository: UserRepository,
@@ -86,7 +86,7 @@ async def create_weekly_schedule(
     """
     try:
         # Business rule: Verify user exists
-        user_repository.get_by_id_or_raise(user_id)
+        user_repository.get_or_raise(created_by_id)
         
         # Business rule: Check if schedule for this week already exists
         existing = schedule_repository.get_by_week_start(schedule_data.week_start_date)
@@ -96,11 +96,11 @@ async def create_weekly_schedule(
         with transaction(db):
             schedule = schedule_repository.create(
                 week_start_date=schedule_data.week_start_date,
-                created_by_id=user_id,
+                created_by_id=created_by_id,
             )
             
             # Get schedule with relationships for serialization
-            schedule = schedule_repository.get_with_all_relationships(schedule.weekly_schedule_id)
+            schedule = schedule_repository.get_with_relations(schedule.weekly_schedule_id)
             return _serialize_weekly_schedule(schedule, template_repository)
             
     except NotFoundError as e:
@@ -115,7 +115,7 @@ async def create_weekly_schedule(
         )
 
 
-async def get_all_weekly_schedules(
+async def list_weekly_schedules(
     schedule_repository: WeeklyScheduleRepository,
     template_repository: ShiftTemplateRepository
 ) -> List[WeeklyScheduleRead]:
@@ -135,7 +135,7 @@ async def get_weekly_schedule(
     Retrieve a single weekly schedule by ID.
     """
     try:
-        schedule = schedule_repository.get_with_all_relationships(schedule_id)
+        schedule = schedule_repository.get_with_relations(schedule_id)
         if not schedule:
             raise NotFoundError(f"Weekly schedule {schedule_id} not found")
         return _serialize_weekly_schedule(schedule, template_repository)
@@ -160,7 +160,7 @@ async def delete_weekly_schedule(
     - Delete schedule (cascade handles shifts)
     """
     try:
-        schedule_repository.get_by_id_or_raise(schedule_id)  # Verify exists
+        schedule_repository.get_or_raise(schedule_id)  # Verify exists
         
         with transaction(db):
             schedule_repository.delete(schedule_id)

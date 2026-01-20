@@ -58,7 +58,7 @@ async def create_optimization_config(
         )
 
 
-async def get_all_optimization_configs(
+async def list_optimization_configs(
     config_repository: OptimizationConfigRepository
 ) -> List[OptimizationConfigRead]:
     """
@@ -78,7 +78,7 @@ async def get_optimization_config(
     Retrieve a single optimization configuration by ID.
     """
     try:
-        config = config_repository.get_by_id_or_raise(config_id)
+        config = config_repository.get_or_raise(config_id)
         return OptimizationConfigRead.model_validate(config)
     except NotFoundError:
         raise HTTPException(
@@ -117,7 +117,7 @@ async def update_optimization_config(
     - Update fields
     """
     try:
-        config = config_repository.get_by_id_or_raise(config_id)
+        config = config_repository.get_or_raise(config_id)
         
         with transaction(db):
             # If setting as default, unmark others
@@ -154,7 +154,7 @@ async def delete_optimization_config(
     - Don't allow deleting the default config
     """
     try:
-        config = config_repository.get_by_id_or_raise(config_id)
+        config = config_repository.get_or_raise(config_id)
         
         # Business rule: Don't allow deleting the default config
         if config.is_default:

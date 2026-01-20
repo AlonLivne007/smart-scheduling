@@ -10,9 +10,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
+from app.api.controllers import timeOffRequestController
 from app.api.controllers.timeOffRequestController import (
     create_time_off_request,
-    get_all_time_off_requests,
     get_time_off_request,
     update_time_off_request,
     delete_time_off_request,
@@ -80,7 +80,7 @@ async def list_requests(
     user_id: Optional[int] = Query(None, description="Filter by user ID (managers only)"),
     status_filter: Optional[TimeOffRequestStatus] = Query(None, description="Filter by status")
 ):
-    return await get_all_time_off_requests(
+    return await timeOffRequestController.list_time_off_requests(
         current_user,
         time_off_repository,
         user_id,

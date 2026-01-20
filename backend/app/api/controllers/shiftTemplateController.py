@@ -32,7 +32,7 @@ def _serialize_template(
     
     Uses repository to fetch role requirements.
     """
-    template = template_repository.get_by_id_or_raise(template_id)
+    template = template_repository.get_or_raise(template_id)
     role_requirements = template_repository.get_role_requirements_for_template(template_id)
     
     return ShiftTemplateRead(
@@ -76,7 +76,7 @@ async def create_shift_template(
         if shift_template_data.required_roles:
             role_ids = [r.role_id for r in shift_template_data.required_roles]
             for role_id in role_ids:
-                role_repository.get_by_id_or_raise(role_id)
+                role_repository.get_or_raise(role_id)
         
         with transaction(db):
             # Create template
@@ -109,7 +109,7 @@ async def create_shift_template(
         )
 
 
-async def get_all_shift_templates(
+async def list_shift_templates(
     template_repository: ShiftTemplateRepository
 ) -> List[ShiftTemplateRead]:
     """
@@ -127,7 +127,7 @@ async def get_shift_template(
     Retrieve a single shift template by ID.
     """
     try:
-        template_repository.get_by_id_or_raise(template_id)  # Verify exists
+        template_repository.get_or_raise(template_id)  # Verify exists
         return _serialize_template(template_repository, template_id)
     except NotFoundError:
         raise HTTPException(
@@ -152,7 +152,7 @@ async def update_shift_template(
     - Update template and role requirements
     """
     try:
-        template = template_repository.get_by_id_or_raise(template_id)
+        template = template_repository.get_or_raise(template_id)
         
         # Business rule: Check name uniqueness if name is being changed
         if shift_template_data.shift_template_name and shift_template_data.shift_template_name != template.shift_template_name:
@@ -164,7 +164,7 @@ async def update_shift_template(
         if shift_template_data.required_roles is not None:
             role_ids = [r.role_id for r in shift_template_data.required_roles]
             for role_id in role_ids:
-                role_repository.get_by_id_or_raise(role_id)
+                role_repository.get_or_raise(role_id)
         
         with transaction(db):
             # Update template fields
@@ -217,7 +217,7 @@ async def delete_shift_template(
     - Delete template (role requirements cascade)
     """
     try:
-        template = template_repository.get_by_id_or_raise(template_id)
+        template = template_repository.get_or_raise(template_id)
         
         # Business rule: Check if template is used in planned shifts
         # Get all shifts using this template

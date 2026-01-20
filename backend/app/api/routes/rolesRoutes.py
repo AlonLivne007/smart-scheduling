@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.controllers.roleController import (
-    create_role, get_all_roles, get_role, update_role, delete_role
+    create_role, list_roles, get_role, update_role, delete_role
 )
 from app.api.dependencies.repositories import get_role_repository
 from app.db.session import get_db
@@ -53,7 +53,7 @@ async def add_role(
 async def list_roles(
     role_repository: RoleRepository = Depends(get_role_repository)
 ):
-    return await get_all_roles(role_repository)
+    return await list_roles(role_repository)
 
 
 # ---------------------- Resource routes ---------------------

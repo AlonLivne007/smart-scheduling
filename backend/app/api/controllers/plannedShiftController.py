@@ -78,7 +78,7 @@ async def create_planned_shift(
     """
     try:
         # Get template to get default values
-        template = template_repository.get_by_id_or_raise(planned_shift_data.shift_template_id)
+        template = template_repository.get_or_raise(planned_shift_data.shift_template_id)
         
         # Use provided values or fall back to template values
         start_datetime = planned_shift_data.start_time
@@ -133,7 +133,7 @@ async def create_planned_shift(
         )
 
 
-async def get_all_planned_shifts(
+async def list_planned_shifts(
     shift_repository: ShiftRepository
 ) -> List[PlannedShiftRead]:
     """
@@ -176,7 +176,7 @@ async def update_planned_shift(
     - Return updated shift with relationships
     """
     try:
-        shift_repository.get_by_id_or_raise(shift_id)  # Verify exists
+        shift_repository.get_or_raise(shift_id)  # Verify exists
         
         with transaction(db):
             # Update fields
@@ -228,7 +228,7 @@ async def delete_planned_shift(
     - Delete shift (assignments cascade automatically)
     """
     try:
-        shift_repository.get_by_id_or_raise(shift_id)  # Verify exists
+        shift_repository.get_or_raise(shift_id)  # Verify exists
         
         with transaction(db):
             shift_repository.delete(shift_id)

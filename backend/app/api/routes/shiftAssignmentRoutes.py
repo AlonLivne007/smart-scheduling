@@ -10,9 +10,9 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.controllers import shiftAssignmentController
 from app.api.controllers.shiftAssignmentController import (
     create_shift_assignment,
-    get_all_shift_assignments,
     get_shift_assignment,
     get_assignments_by_shift,
     get_assignments_by_user,
@@ -68,7 +68,7 @@ async def create_assignment(
 async def list_all_assignments(
     assignment_repository: ShiftAssignmentRepository = Depends(get_shift_assignment_repository)
 ):
-    return await get_all_shift_assignments(assignment_repository)
+    return await shiftAssignmentController.list_shift_assignments(assignment_repository)
 
 
 # ---------------------- Resource routes ---------------------

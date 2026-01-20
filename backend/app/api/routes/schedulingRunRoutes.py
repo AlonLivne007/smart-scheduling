@@ -10,9 +10,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
+from app.api.controllers import schedulingRunController
 from app.api.controllers.schedulingRunController import (
     create_scheduling_run,
-    get_all_scheduling_runs,
     get_scheduling_run,
     update_scheduling_run,
     delete_scheduling_run,
@@ -97,7 +97,7 @@ async def list_runs(
                 detail=f"Invalid status. Must be one of: {[s.name for s in SchedulingRunStatus]}"
             )
     
-    return await get_all_scheduling_runs(
+    return await schedulingRunController.list_scheduling_runs(
         run_repository,
         weekly_schedule_id,
         status_enum

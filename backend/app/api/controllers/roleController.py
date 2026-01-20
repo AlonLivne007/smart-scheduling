@@ -46,7 +46,7 @@ async def create_role(
         )
 
 
-async def get_all_roles(role_repository: RoleRepository) -> List[RoleModel]:
+async def list_roles(role_repository: RoleRepository) -> List[RoleModel]:
     """
     Retrieve all roles from the database.
     """
@@ -58,7 +58,7 @@ async def get_role(role_id: int, role_repository: RoleRepository) -> RoleModel:
     Retrieve a single role by ID.
     """
     try:
-        return role_repository.get_by_id_or_raise(role_id)
+        return role_repository.get_or_raise(role_id)
     except NotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -75,7 +75,7 @@ async def delete_role(
     Delete a role from the database.
     """
     try:
-        role_repository.get_by_id_or_raise(role_id)  # Verify exists
+        role_repository.get_or_raise(role_id)  # Verify exists
         
         with transaction(db):
             role_repository.delete(role_id)
@@ -107,7 +107,7 @@ async def update_role(
     - Update role
     """
     try:
-        role = role_repository.get_by_id_or_raise(role_id)
+        role = role_repository.get_or_raise(role_id)
         
         # Business rule: Check name uniqueness if name is being changed
         if role_data.role_name and role_data.role_name != role.role_name:

@@ -33,7 +33,7 @@ def _fetch_schedule_export_data(
         Tuple of (schedule, planned_shifts, templates_dict, assignments_dict)
     """
     # Get schedule
-    schedule = schedule_repository.get_with_all_relationships(schedule_id)
+    schedule = schedule_repository.get_with_relations(schedule_id)
     if not schedule:
         raise NotFoundError(f"Schedule with ID {schedule_id} not found")
     

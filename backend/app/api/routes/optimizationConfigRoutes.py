@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.api.controllers.optimizationConfigController import (
     create_optimization_config,
-    get_all_optimization_configs,
+    list_optimization_configs,
     get_optimization_config,
     get_default_optimization_config,
     update_optimization_config,
@@ -60,7 +60,7 @@ async def create_config(
 async def list_configs(
     config_repository: OptimizationConfigRepository = Depends(get_optimization_config_repository)
 ):
-    return await get_all_optimization_configs(config_repository)
+    return await list_optimization_configs(config_repository)
 
 
 @router.get(
