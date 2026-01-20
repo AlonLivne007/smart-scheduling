@@ -3,101 +3,103 @@ User controller module.
 
 This module contains business logic for user management operations including
 creation, retrieval, updating, and deletion of user records.
+Controllers use repositories for database access - no direct ORM access.
 """
-from typing import List, Optional
-
+from typing import List
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # Only for type hints
 from fastapi import HTTPException, status
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.api.controllers.authController import create_access_token
-from app.db.models.userModel import UserModel
-from app.db.models.roleModel import RoleModel
+from app.repositories.user_repository import UserRepository
+from app.repositories.role_repository import RoleRepository
 from app.schemas.userSchema import (
     UserCreate, UserUpdate, UserLogin, LoginResponse, UserRead
 )
+from app.exceptions.repository import NotFoundError, ConflictError
+from app.db.session_manager import transaction
 
 
-def _resolve_roles(db: Session, role_ids: Optional[List[int]] = None) -> List[RoleModel]:
-    """Validate and fetch roles by their IDs."""
-    if not role_ids:
-        return []
-
-    # Fetch roles - database foreign key will validate existence on commit
-    roles = db.query(RoleModel).filter(RoleModel.role_id.in_(role_ids)).all()
+async def create_user(
+    user_data: UserCreate,
+    user_repository: UserRepository,
+    role_repository: RoleRepository,
+    db: Session  # For transaction management
+) -> UserRead:
+    """
+    Create a new user with optional role assignments.
     
-    # Remove duplicates 
-    unique_roles = list(set(roles))
-    
-    # Validate all requested roles were found (foreign key will also catch this, but this provides better UX)
-    found_ids = {r.role_id for r in unique_roles}
-    missing = [rid for rid in role_ids if rid not in found_ids]
-    if missing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"The following role IDs do not exist: {missing}"
-        )
-    
-    return unique_roles
-
-
-async def create_user(db: Session, user_data: UserCreate) -> UserModel:
-    """Create a new user with optional role assignments."""
+    Business logic:
+    - Check if email already exists
+    - Hash password
+    - Validate roles exist
+    - Create user and assign roles
+    """
     try:
-        hashed_pw = generate_password_hash(user_data.user_password)
-        user = UserModel(
-            user_full_name=user_data.user_full_name,
-            user_email=user_data.user_email,
-            hashed_password=hashed_pw,
-            is_manager=user_data.is_manager,
-        )
-
-        roles = _resolve_roles(db, user_data.roles_by_id)
-        if roles:
-            user.roles = roles
-
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return user
-
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        # Business rule: Check if email already exists
+        existing = user_repository.get_by_email(user_data.user_email)
+        if existing:
+            raise ConflictError(f"User with email {user_data.user_email} already exists")
+        
+        # Hash password
+        hashed_password = generate_password_hash(user_data.user_password)
+        
+        with transaction(db):
+            # Create user
+            user = user_repository.create(
+                user_full_name=user_data.user_full_name,
+                user_email=user_data.user_email,
+                hashed_password=hashed_password,
+                is_manager=user_data.is_manager,
+                user_status="ACTIVE"
+            )
+            
+            # Assign roles if provided
+            if user_data.roles_by_id:
+                # Validate roles exist
+                for role_id in user_data.roles_by_id:
+                    role_repository.get_by_id_or_raise(role_id)
+                user = user_repository.assign_roles(user.user_id, user_data.roles_by_id)
+            
+            return UserRead.model_validate(user)
+            
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
+            detail=str(e)
         )
-    except SQLAlchemyError as e:
-        db.rollback()
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
 
-async def authenticate_user(db: Session, user_login_data: UserLogin) -> LoginResponse:
+async def authenticate_user(
+    user_login_data: UserLogin,
+    user_repository: UserRepository
+) -> LoginResponse:
     """
     Authenticate user and return JWT token if valid.
-
-    Security/UX: unify errors → 401 for both unknown user and bad password.
+    
+    Business logic:
+    - Find user by email
+    - Verify password
+    - Generate JWT token
     """
-    user = db.query(UserModel).filter(UserModel.user_email == user_login_data.user_email).first()
+    user = user_repository.get_by_email(user_login_data.user_email)
+    
     if not user or not check_password_hash(user.hashed_password, user_login_data.user_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
-
+    
     access_token = create_access_token(
         data={"sub": user.user_email, "user_id": user.user_id}
     )
     user_data = UserRead.model_validate(user)
-
+    
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
@@ -105,102 +107,105 @@ async def authenticate_user(db: Session, user_login_data: UserLogin) -> LoginRes
     )
 
 
-async def get_all_users(db: Session) -> List[UserModel]:
-    """Retrieve all users from the database."""
+async def get_all_users(user_repository: UserRepository) -> List[UserRead]:
+    """Get all users with their roles."""
+    users = user_repository.get_all_with_roles()
+    return [UserRead.model_validate(user) for user in users]
+
+
+async def get_user(user_id: int, user_repository: UserRepository) -> UserRead:
+    """Get a user by ID."""
     try:
-        return db.query(UserModel).all()
-    except SQLAlchemyError as e:
+        user = user_repository.get_by_id_or_raise(user_id)
+        return UserRead.model_validate(user)
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
         )
 
 
-async def get_user(db: Session, user_id: int) -> UserModel:
-    """Retrieve a single user by ID."""
+async def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    user_repository: UserRepository,
+    role_repository: RoleRepository,
+    db: Session  # For transaction management
+) -> UserRead:
+    """
+    Update an existing user.
+    
+    Business logic:
+    - Check email uniqueness if email is being changed
+    - Update fields
+    - Update roles if provided
+    - Hash new password if provided
+    """
     try:
-        user = db.get(UserModel, user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        return user
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+        user = user_repository.get_by_id_or_raise(user_id)
+        
+        # Business rule: Check email uniqueness if email is being changed
+        if user_data.user_email and user_data.user_email != user.user_email:
+            existing = user_repository.get_by_email(user_data.user_email)
+            if existing:
+                raise ConflictError(f"Email {user_data.user_email} is already taken")
+        
+        with transaction(db):
+            # Update fields
+            update_data = {}
+            if user_data.user_full_name is not None:
+                update_data["user_full_name"] = user_data.user_full_name
+            if user_data.user_email is not None:
+                update_data["user_email"] = user_data.user_email
+            if user_data.is_manager is not None:
+                update_data["is_manager"] = user_data.is_manager
+            if user_data.new_password:
+                update_data["hashed_password"] = generate_password_hash(user_data.new_password)
+            
+            updated_user = user_repository.update(user_id, **update_data)
+            
+            # Update roles if provided
+            if user_data.roles_by_id is not None:
+                # Validate roles exist
+                for role_id in user_data.roles_by_id:
+                    role_repository.get_by_id_or_raise(role_id)
+                updated_user = user_repository.assign_roles(user_id, user_data.roles_by_id)
+            
+            return UserRead.model_validate(updated_user)
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
         )
-
-
-async def update_user(db: Session, user_id: int, data: UserUpdate) -> UserModel:
-    """Update an existing user's information (incl. optional password, roles)."""
-    try:
-        user = db.get(UserModel, user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        if data.user_full_name is not None:
-            user.user_full_name = data.user_full_name
-        if data.user_email is not None:
-            user.user_email = data.user_email
-        if data.is_manager is not None:
-            user.is_manager = data.is_manager
-
-        # NEW: password change
-        if data.new_password:
-            user.hashed_password = generate_password_hash(data.new_password)
-
-        # Replace role set if provided
-        if data.roles_by_id is not None:
-            roles = _resolve_roles(db, data.roles_by_id)
-            user.roles = roles
-
-        db.commit()
-        db.refresh(user)
-        return user
-
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
-async def delete_user(db: Session, user_id: int) -> dict:
-    """Delete a user from the database."""
+async def delete_user(
+    user_id: int,
+    user_repository: UserRepository,
+    db: Session  # For transaction management
+) -> dict:
+    """
+    Delete a user.
+    
+    Business logic:
+    - Verify user exists
+    - Delete user (cascade will handle related records)
+    """
     try:
-        user = db.get(UserModel, user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        db.delete(user)
-        db.commit()
-        return {"message": "User deleted successfully"}
-
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        user_repository.get_by_id_or_raise(user_id)  # Verify exists
+        
+        with transaction(db):
+            user_repository.delete(user_id)
+            return {"message": "User deleted successfully"}
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
         )

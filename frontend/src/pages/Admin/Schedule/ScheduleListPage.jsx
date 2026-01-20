@@ -114,7 +114,9 @@ export default function ScheduleListPage() {
     setOptimizationResult(null);
     
     try {
-      const { data } = await api.post(`/scheduling/optimize/${scheduleId}`);
+      const { data } = await api.post(`/scheduling/optimize`, null, {
+        params: { weekly_schedule_id: scheduleId }
+      });
       
       toast.success(`Schedule optimized successfully! ${data.total_assignments} assignments created.`);
       setOptimizationResult(data);

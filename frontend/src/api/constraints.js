@@ -15,7 +15,7 @@ import api from '../lib/axios.js';
  * @throws {Error} If API call fails
  */
 export const getAllConstraints = async () => {
-  const response = await api.get('/system/constraints/');
+  const response = await api.get('/system-constraints/');
   return response.data;
 };
 
@@ -27,7 +27,7 @@ export const getAllConstraints = async () => {
  * @throws {Error} If API call fails
  */
 export const getConstraint = async (constraintId) => {
-  const response = await api.get(`/system/constraints/${constraintId}`);
+  const response = await api.get(`/system-constraints/${constraintId}`);
   return response.data;
 };
 
@@ -42,7 +42,7 @@ export const getConstraint = async (constraintId) => {
  * @throws {Error} If API call fails
  */
 export const createConstraint = async (constraintData) => {
-  const response = await api.post('/system/constraints/', constraintData);
+  const response = await api.post('/system-constraints/', constraintData);
   return response.data;
 };
 
@@ -55,7 +55,7 @@ export const createConstraint = async (constraintData) => {
  * @throws {Error} If API call fails
  */
 export const updateConstraint = async (constraintId, constraintData) => {
-  const response = await api.put(`/system/constraints/${constraintId}`, constraintData);
+  const response = await api.put(`/system-constraints/${constraintId}`, constraintData);
   return response.data;
 };
 
@@ -67,7 +67,7 @@ export const updateConstraint = async (constraintId, constraintData) => {
  * @throws {Error} If API call fails
  */
 export const deleteConstraint = async (constraintId) => {
-  const response = await api.delete(`/system/constraints/${constraintId}`);
+  const response = await api.delete(`/system-constraints/${constraintId}`);
   return response.data;
 };
 

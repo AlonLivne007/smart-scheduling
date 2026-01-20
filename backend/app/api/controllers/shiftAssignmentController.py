@@ -3,34 +3,27 @@ Shift assignment controller module.
 
 This module contains business logic for shift assignment management operations including
 creation, retrieval, and deletion of shift assignment records.
+Controllers use repositories for database access - no direct ORM access.
 """
 
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from typing import List
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session  # Only for type hints
+
+from app.repositories.shift_repository import ShiftAssignmentRepository
+from app.repositories.shift_repository import ShiftRepository
 from app.schemas.shiftAssignmentSchema import (
     ShiftAssignmentCreate,
     ShiftAssignmentRead,
 )
+from app.exceptions.repository import NotFoundError, ConflictError
+from app.db.session_manager import transaction
 
 
-# ------------------------
-# Helper Functions
-# ------------------------
-
-def _serialize_assignment(assignment: ShiftAssignmentModel) -> ShiftAssignmentRead:
+def _serialize_assignment(assignment) -> ShiftAssignmentRead:
     """
     Convert ORM object to Pydantic schema.
-    
-    Args:
-        assignment: ShiftAssignmentModel instance
-        
-    Returns:
-        ShiftAssignmentRead instance
     """
-    # Extract relationship data explicitly
     user_full_name = assignment.user.user_full_name if assignment.user else None
     role_name = assignment.role.role_name if assignment.role else None
     
@@ -44,210 +37,110 @@ def _serialize_assignment(assignment: ShiftAssignmentModel) -> ShiftAssignmentRe
     )
 
 
-# ------------------------
-# CRUD Functions
-# ------------------------
-
-async def create_shift_assignment(db: Session, shift_assignment_data: ShiftAssignmentCreate) -> ShiftAssignmentRead:
+async def create_shift_assignment(
+    shift_assignment_data: ShiftAssignmentCreate,
+    assignment_repository: ShiftAssignmentRepository,
+    shift_repository: ShiftRepository,
+    db: Session  # For transaction management
+) -> ShiftAssignmentRead:
     """
     Assign a user to a planned shift in a specific role.
     
-    Args:
-        db: Database session
-        shift_assignment_data: Shift assignment creation data
-        
-    Returns:
-        Created ShiftAssignmentRead instance
-        
-    Raises:
-        HTTPException: If constraint violation (e.g., duplicate assignment) or database error occurs
+    Business logic:
+    - Verify shift exists
+    - Create assignment (repository handles uniqueness)
     """
     try:
-        assignment = ShiftAssignmentModel(
-            planned_shift_id=shift_assignment_data.planned_shift_id,
-            user_id=shift_assignment_data.user_id,
-            role_id=shift_assignment_data.role_id,
+        # Business rule: Verify shift exists
+        shift_repository.get_by_id_or_raise(shift_assignment_data.planned_shift_id)
+        
+        with transaction(db):
+            assignment = assignment_repository.create_assignment(
+                planned_shift_id=shift_assignment_data.planned_shift_id,
+                user_id=shift_assignment_data.user_id,
+                role_id=shift_assignment_data.role_id
+            )
+            # Refresh to load relationships
+            assignment = assignment_repository.get_by_id(assignment.assignment_id)
+            return _serialize_assignment(assignment)
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        db.add(assignment)
-        db.commit()
-        db.refresh(assignment)
-        # Ensure relationships are loaded
-        _ = assignment.user  # Trigger lazy load
-        _ = assignment.role  # Trigger lazy load
-        return _serialize_assignment(assignment)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
-async def get_all_shift_assignments(db: Session) -> List[ShiftAssignmentRead]:
+async def get_all_shift_assignments(
+    assignment_repository: ShiftAssignmentRepository
+) -> List[ShiftAssignmentRead]:
     """
     Retrieve all shift assignments from the database.
-    
-    Args:
-        db: Database session
-        
-    Returns:
-        List of all ShiftAssignmentRead instances
-        
-    Raises:
-        HTTPException: If database error occurs
     """
-    try:
-        assignments = db.query(ShiftAssignmentModel).options(
-            joinedload(ShiftAssignmentModel.user),
-            joinedload(ShiftAssignmentModel.role)
-        ).all()
-        return [_serialize_assignment(a) for a in assignments]
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    assignments = assignment_repository.get_all()
+    return [_serialize_assignment(a) for a in assignments]
 
 
-async def get_shift_assignment(db: Session, assignment_id: int) -> ShiftAssignmentRead:
+async def get_shift_assignment(
+    assignment_id: int,
+    assignment_repository: ShiftAssignmentRepository
+) -> ShiftAssignmentRead:
     """
     Retrieve a single shift assignment by ID.
-    
-    Args:
-        db: Database session
-        assignment_id: Shift assignment identifier
-        
-    Returns:
-        ShiftAssignmentRead instance
-        
-    Raises:
-        HTTPException: If assignment not found or database error occurs
     """
     try:
-        assignment = db.query(ShiftAssignmentModel).options(
-            joinedload(ShiftAssignmentModel.user),
-            joinedload(ShiftAssignmentModel.role)
-        ).filter(ShiftAssignmentModel.assignment_id == assignment_id).first()
-        if not assignment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Shift assignment not found"
-            )
+        assignment = assignment_repository.get_by_id_or_raise(assignment_id)
         return _serialize_assignment(assignment)
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shift assignment not found"
         )
 
 
-async def get_assignments_by_shift(db: Session, shift_id: int) -> List[ShiftAssignmentRead]:
+async def get_assignments_by_shift(
+    shift_id: int,
+    assignment_repository: ShiftAssignmentRepository
+) -> List[ShiftAssignmentRead]:
     """
-    Retrieve all assignments for a given planned shift.
-    
-    Args:
-        db: Database session
-        shift_id: Planned shift identifier
-        
-    Returns:
-        List of ShiftAssignmentRead instances for the shift
-        
-    Raises:
-        HTTPException: If database error occurs
+    Get all assignments for a planned shift.
     """
-    try:
-        assignments = db.query(ShiftAssignmentModel).options(
-            joinedload(ShiftAssignmentModel.user),
-            joinedload(ShiftAssignmentModel.role)
-        ).filter(
-            ShiftAssignmentModel.planned_shift_id == shift_id
-        ).all()
-        return [_serialize_assignment(a) for a in assignments]
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    assignments = assignment_repository.get_by_shift(shift_id)
+    return [_serialize_assignment(a) for a in assignments]
 
 
-async def get_assignments_by_user(db: Session, user_id: int) -> List[ShiftAssignmentRead]:
+async def get_assignments_by_user(
+    user_id: int,
+    assignment_repository: ShiftAssignmentRepository
+) -> List[ShiftAssignmentRead]:
     """
-    Retrieve all assignments for a specific user.
-    
-    Args:
-        db: Database session
-        user_id: User identifier
-        
-    Returns:
-        List of ShiftAssignmentRead instances for the user
-        
-    Raises:
-        HTTPException: If database error occurs
+    Get all assignments for a user.
     """
-    try:
-        assignments = db.query(ShiftAssignmentModel).options(
-            joinedload(ShiftAssignmentModel.user),
-            joinedload(ShiftAssignmentModel.role)
-        ).filter(
-            ShiftAssignmentModel.user_id == user_id
-        ).all()
-        return [_serialize_assignment(a) for a in assignments]
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    assignments = assignment_repository.get_by_user(user_id)
+    return [_serialize_assignment(a) for a in assignments]
 
 
-async def delete_shift_assignment(db: Session, assignment_id: int) -> None:
+async def delete_shift_assignment(
+    assignment_id: int,
+    assignment_repository: ShiftAssignmentRepository,
+    db: Session  # For transaction management
+) -> None:
     """
     Delete a shift assignment.
-    
-    Args:
-        db: Database session
-        assignment_id: Shift assignment identifier
-        
-    Raises:
-        HTTPException: If assignment not found or database error occurs
     """
     try:
-        assignment = db.get(ShiftAssignmentModel, assignment_id)
-        if not assignment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Shift assignment not found"
-            )
+        assignment_repository.get_by_id_or_raise(assignment_id)  # Verify exists
         
-        db.delete(assignment)
-        db.commit()
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            assignment_repository.delete(assignment_id)
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shift assignment not found"
         )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-

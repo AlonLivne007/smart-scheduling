@@ -1,8 +1,8 @@
 """
 System constraints routes module.
 
-This module defines the REST API endpoints for system-wide constraint
-management operations.
+This module defines the REST API endpoints for system constraints management operations.
+Routes use repository dependency injection - no direct DB access.
 """
 
 from typing import List
@@ -12,49 +12,54 @@ from sqlalchemy.orm import Session
 
 from app.api.controllers.systemConstraintsController import (
     create_system_constraint,
-    get_all_system_constraints,
     get_system_constraint,
+    get_all_system_constraints,
     update_system_constraint,
-    delete_system_constraint,
+    delete_system_constraint
 )
+from app.api.dependencies.repositories import get_system_constraints_repository
 from app.db.session import get_db
 from app.schemas.systemConstraintsSchema import (
     SystemConstraintCreate,
-    SystemConstraintRead,
     SystemConstraintUpdate,
+    SystemConstraintRead
 )
-from app.api.dependencies.auth import require_auth, require_manager
 
-router = APIRouter(prefix="/system/constraints", tags=["System Constraints"])
+# AuthN/Authorization
+from app.api.dependencies.auth import require_auth, require_manager
+from app.repositories.system_constraints_repository import SystemConstraintsRepository
+
+router = APIRouter(prefix="/system-constraints", tags=["System Constraints"])
 
 
 # ---------------------- Collection routes -------------------
-
-@router.get(
-    "/",
-    response_model=List[SystemConstraintRead],
-    status_code=status.HTTP_200_OK,
-    summary="Get all system constraints",
-    dependencies=[Depends(require_auth)],
-)
-async def list_constraints(db: Session = Depends(get_db)):
-    """Retrieve all system-wide constraints."""
-    return await get_all_system_constraints(db)
-
 
 @router.post(
     "/",
     response_model=SystemConstraintRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new system constraint",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # MANAGER ONLY
 )
-async def add_constraint(
-    payload: SystemConstraintCreate,
-    db: Session = Depends(get_db),
+async def create_constraint(
+    constraint_data: SystemConstraintCreate,
+    constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """Create a new system-wide constraint (manager only)."""
-    return await create_system_constraint(db, payload)
+    return await create_system_constraint(constraint_data, constraints_repository, db)
+
+
+@router.get(
+    "/",
+    response_model=List[SystemConstraintRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get all system constraints",
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
+)
+async def list_constraints(
+    constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository)
+):
+    return await get_all_system_constraints(constraints_repository)
 
 
 # ---------------------- Resource routes ---------------------
@@ -64,14 +69,13 @@ async def add_constraint(
     response_model=SystemConstraintRead,
     status_code=status.HTTP_200_OK,
     summary="Get a system constraint by ID",
-    dependencies=[Depends(require_auth)],
+    dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
 async def get_constraint(
     constraint_id: int,
-    db: Session = Depends(get_db),
+    constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository)
 ):
-    """Retrieve a single system-wide constraint by ID."""
-    return await get_system_constraint(db, constraint_id)
+    return await get_system_constraint(constraint_id, constraints_repository)
 
 
 @router.put(
@@ -79,28 +83,26 @@ async def get_constraint(
     response_model=SystemConstraintRead,
     status_code=status.HTTP_200_OK,
     summary="Update a system constraint",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # MANAGER ONLY
 )
-async def edit_constraint(
+async def update_constraint(
     constraint_id: int,
-    payload: SystemConstraintUpdate,
-    db: Session = Depends(get_db),
+    constraint_data: SystemConstraintUpdate,
+    constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """Update an existing system-wide constraint (manager only)."""
-    return await update_system_constraint(db, constraint_id, payload)
+    return await update_system_constraint(constraint_id, constraint_data, constraints_repository, db)
 
 
 @router.delete(
     "/{constraint_id}",
     status_code=status.HTTP_200_OK,
     summary="Delete a system constraint",
-    dependencies=[Depends(require_manager)],
+    dependencies=[Depends(require_manager)],  # MANAGER ONLY
 )
-async def remove_constraint(
+async def delete_constraint(
     constraint_id: int,
-    db: Session = Depends(get_db),
+    constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository),
+    db: Session = Depends(get_db)  # For transaction management
 ):
-    """Delete a system-wide constraint (manager only)."""
-    await delete_system_constraint(db, constraint_id)
-    return {"message": "System constraint deleted successfully"}
-
+    return await delete_system_constraint(constraint_id, constraints_repository, db)

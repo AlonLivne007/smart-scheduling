@@ -1,94 +1,91 @@
 """
 Export Controller
 Handles exporting schedules to PDF and Excel formats
+Controllers use repositories for database access - no direct ORM access.
 """
 
-from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Tuple, Literal
 from io import BytesIO
-import json
 
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
-from app.db.models.plannedShiftModel import PlannedShiftModel
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.db.models.userModel import UserModel
-from app.db.models.shiftTemplateModel import ShiftTemplateModel
+from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.repositories.shift_repository import ShiftRepository
+from app.repositories.shift_repository import ShiftAssignmentRepository
+from app.repositories.user_repository import UserRepository
+from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.exceptions.repository import NotFoundError
 
 
 def _fetch_schedule_export_data(
-    db: Session,
-    schedule_id: int
-) -> Tuple[WeeklyScheduleModel, List[PlannedShiftModel], Dict[int, ShiftTemplateModel], Dict[int, List[ShiftAssignmentModel]]]:
+    schedule_id: int,
+    schedule_repository: WeeklyScheduleRepository,
+    shift_repository: ShiftRepository,
+    template_repository: ShiftTemplateRepository,
+    assignment_repository: ShiftAssignmentRepository,
+    user_repository: UserRepository
+) -> Tuple:
     """
     Fetch all data needed for schedule export.
     
-    Args:
-        db: Database session
-        schedule_id: ID of the weekly schedule to export
-        
+    Uses repositories to get all data.
+    
     Returns:
         Tuple of (schedule, planned_shifts, templates_dict, assignments_dict)
-        
-    Raises:
-        ValueError: If schedule not found
     """
     # Get schedule
-    schedule = db.query(WeeklyScheduleModel).filter(
-        WeeklyScheduleModel.weekly_schedule_id == schedule_id
-    ).first()
-    
+    schedule = schedule_repository.get_with_all_relationships(schedule_id)
     if not schedule:
-        raise ValueError(f"Schedule with ID {schedule_id} not found")
+        raise NotFoundError(f"Schedule with ID {schedule_id} not found")
     
     # Get all planned shifts for this schedule
-    planned_shifts = db.query(PlannedShiftModel).filter(
-        PlannedShiftModel.weekly_schedule_id == schedule_id
-    ).all()
+    all_shifts = shift_repository.get_all()
+    planned_shifts = [s for s in all_shifts if s.weekly_schedule_id == schedule_id]
     
     # Get all unique template IDs
     template_ids = list(set(shift.shift_template_id for shift in planned_shifts if shift.shift_template_id))
     
-    # Fetch all templates at once
-    templates = db.query(ShiftTemplateModel).filter(
-        ShiftTemplateModel.shift_template_id.in_(template_ids)
-    ).all() if template_ids else []
-    templates_dict = {t.shift_template_id: t for t in templates}
+    # Fetch all templates using repository
+    templates_dict = {}
+    for template_id in template_ids:
+        template = template_repository.get_by_id(template_id)
+        if template:
+            templates_dict[template_id] = template
     
     # Get all shift IDs
     shift_ids = [shift.planned_shift_id for shift in planned_shifts]
     
-    # Fetch all assignments at once
-    assignments = db.query(ShiftAssignmentModel).filter(
-        ShiftAssignmentModel.planned_shift_id.in_(shift_ids)
-    ).all() if shift_ids else []
-    
-    # Group assignments by shift_id
-    assignments_dict: Dict[int, List[ShiftAssignmentModel]] = {}
-    for assignment in assignments:
-        if assignment.planned_shift_id not in assignments_dict:
-            assignments_dict[assignment.planned_shift_id] = []
-        assignments_dict[assignment.planned_shift_id].append(assignment)
+    # Fetch all assignments using repository
+    assignments_dict: Dict[int, List] = {}
+    for shift_id in shift_ids:
+        assignments = assignment_repository.get_by_shift(shift_id)
+        if assignments:
+            assignments_dict[shift_id] = assignments
     
     return schedule, planned_shifts, templates_dict, assignments_dict
 
 
-async def _export_schedule_pdf(db: Session, schedule_id: int) -> bytes:
+async def _export_schedule_pdf(
+    schedule_id: int,
+    schedule_repository: WeeklyScheduleRepository,
+    shift_repository: ShiftRepository,
+    template_repository: ShiftTemplateRepository,
+    assignment_repository: ShiftAssignmentRepository,
+    user_repository: UserRepository
+) -> bytes:
     """
     Export a weekly schedule to PDF format
     
-    Args:
-        db: Database session
-        schedule_id: ID of the weekly schedule to export
-        
-    Returns:
-        PDF file as bytes
-        
-    Raises:
-        ValueError: If schedule not found
+    Uses repositories to get all data.
     """
     # Fetch all data needed
-    schedule, planned_shifts, templates_dict, assignments_dict = _fetch_schedule_export_data(db, schedule_id)
+    schedule, planned_shifts, templates_dict, assignments_dict = _fetch_schedule_export_data(
+        schedule_id,
+        schedule_repository,
+        shift_repository,
+        template_repository,
+        assignment_repository,
+        user_repository
+    )
     
     # Organize shifts by day
     shifts_by_day = {}
@@ -109,13 +106,11 @@ async def _export_schedule_pdf(db: Session, schedule_id: int) -> bytes:
             # Get assignments
             assignments = assignments_dict.get(shift.planned_shift_id, [])
             
-            # Get employee names
+            # Get employee names using repository
             employee_names = []
             for assignment in assignments:
                 if assignment.user_id:
-                    employee = db.query(UserModel).filter(
-                        UserModel.user_id == assignment.user_id
-                    ).first()
+                    employee = user_repository.get_by_id(assignment.user_id)
                     employee_names.append(employee.user_full_name if employee else "Unassigned")
             
             shift_data = {
@@ -132,29 +127,34 @@ async def _export_schedule_pdf(db: Session, schedule_id: int) -> bytes:
             }
             shifts_by_day[shift_date].append(shift_data)
     
-    # For now, return a simple text representation as bytes
-    # In production, you would use a library like reportlab or weasyprint
+    # Generate PDF
     pdf_content = generate_simple_pdf(schedule, shifts_by_day)
     
     return pdf_content
 
 
-async def _export_schedule_excel(db: Session, schedule_id: int) -> bytes:
+async def _export_schedule_excel(
+    schedule_id: int,
+    schedule_repository: WeeklyScheduleRepository,
+    shift_repository: ShiftRepository,
+    template_repository: ShiftTemplateRepository,
+    assignment_repository: ShiftAssignmentRepository,
+    user_repository: UserRepository
+) -> bytes:
     """
     Export a weekly schedule to Excel format
     
-    Args:
-        db: Database session
-        schedule_id: ID of the weekly schedule to export
-        
-    Returns:
-        Excel file as bytes
-        
-    Raises:
-        ValueError: If schedule not found
+    Uses repositories to get all data.
     """
     # Fetch all data needed
-    schedule, planned_shifts, templates_dict, assignments_dict = _fetch_schedule_export_data(db, schedule_id)
+    schedule, planned_shifts, templates_dict, assignments_dict = _fetch_schedule_export_data(
+        schedule_id,
+        schedule_repository,
+        shift_repository,
+        template_repository,
+        assignment_repository,
+        user_repository
+    )
     
     # Prepare data for Excel
     rows = []
@@ -180,9 +180,7 @@ async def _export_schedule_excel(db: Session, schedule_id: int) -> bytes:
         
         if assignments:
             for assignment in assignments:
-                employee = db.query(UserModel).filter(
-                    UserModel.user_id == assignment.user_id
-                ).first()
+                employee = user_repository.get_by_id(assignment.user_id)
                 employee_name = employee.user_full_name if employee else "Unassigned"
                 
                 rows.append([
@@ -206,14 +204,13 @@ async def _export_schedule_excel(db: Session, schedule_id: int) -> bytes:
                 ""
             ])
     
-    # Generate CSV format (simple export without external dependencies)
-    # In production, use openpyxl or xlsxwriter for proper Excel files
+    # Generate CSV format
     csv_content = generate_csv(rows)
     
     return csv_content
 
 
-def generate_simple_pdf(schedule: WeeklyScheduleModel, shifts_by_day: Dict[str, List]) -> bytes:
+def generate_simple_pdf(schedule, shifts_by_day: Dict[str, List]) -> bytes:
     """
     Generate a simple PDF representation
     For production, use reportlab or weasyprint
@@ -263,29 +260,41 @@ def generate_csv(rows: List[List[str]]) -> bytes:
 
 
 async def export_schedule(
-    db: Session,
     schedule_id: int,
-    format: Literal["pdf", "excel"]
+    format: Literal["pdf", "excel"],
+    schedule_repository: WeeklyScheduleRepository,
+    shift_repository: ShiftRepository,
+    template_repository: ShiftTemplateRepository,
+    assignment_repository: ShiftAssignmentRepository,
+    user_repository: UserRepository
 ) -> Tuple[bytes, str, str]:
     """
     Export schedule in requested format.
     
-    Args:
-        db: Database session
-        schedule_id: ID of the schedule to export
-        format: Export format - either "pdf" or "excel"
-        
+    Uses repositories to get all data.
+    
     Returns:
         Tuple of (content, media_type, filename)
-        
-    Raises:
-        ValueError: If schedule not found or invalid format
     """
     if format == "pdf":
-        content = await _export_schedule_pdf(db, schedule_id)
+        content = await _export_schedule_pdf(
+            schedule_id,
+            schedule_repository,
+            shift_repository,
+            template_repository,
+            assignment_repository,
+            user_repository
+        )
         return content, "application/pdf", f"schedule_{schedule_id}.pdf"
     elif format == "excel":
-        content = await _export_schedule_excel(db, schedule_id)
+        content = await _export_schedule_excel(
+            schedule_id,
+            schedule_repository,
+            shift_repository,
+            template_repository,
+            assignment_repository,
+            user_repository
+        )
         return content, "text/csv", f"schedule_{schedule_id}.csv"
     else:
         raise ValueError("Invalid format. Use 'pdf' or 'excel'")

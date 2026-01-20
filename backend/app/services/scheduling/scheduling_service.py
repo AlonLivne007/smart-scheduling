@@ -8,6 +8,8 @@ The service is designed to be used by Celery workers for async optimization.
 The main entry point is `_execute_optimization_for_run()` which executes
 optimization for an existing SchedulingRun record.
 
+This service uses repositories for database access - no direct ORM access.
+
 Note: Solution validation is handled by the MIP solver itself. If the MIP
 returns OPTIMAL or FEASIBLE, the solution is guaranteed to satisfy all hard
 constraints as they are encoded directly in the MIP model.
@@ -16,8 +18,6 @@ constraints as they are encoded directly in the MIP model.
 from typing import Tuple
 from datetime import datetime
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.optimization_data_services import OptimizationDataBuilder, OptimizationData
 from app.db.models.optimizationConfigModel import OptimizationConfigModel
@@ -26,24 +26,43 @@ from app.services.scheduling.mip_solver import MipSchedulingSolver
 from app.services.scheduling.persistence import SchedulingPersistence
 from app.services.scheduling.run_status import map_to_solver_status_enum, build_error_message
 from app.services.scheduling.types import SchedulingSolution
+from app.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
+from app.exceptions.repository import NotFoundError, DatabaseError
 
 logger = logging.getLogger(__name__)
 
 
 class SchedulingService:
-    """Service for solving scheduling optimization problems."""
+    """
+    Service for solving scheduling optimization problems.
     
-    def __init__(self, db: Session):
+    Uses repositories for all database operations.
+    """
+    
+    def __init__(
+        self,
+        run_repository: SchedulingRunRepository,
+        config_repository: OptimizationConfigRepository,
+        data_builder: OptimizationDataBuilder,
+        persistence: SchedulingPersistence
+    ):
         """
         Initialize the scheduling service.
         
         Args:
-            db: SQLAlchemy database session
+            run_repository: SchedulingRunRepository instance
+            config_repository: OptimizationConfigRepository instance
+            data_builder: OptimizationDataBuilder instance (uses repositories internally)
+            persistence: SchedulingPersistence instance (uses repositories internally)
         """
-        self.db = db
-        self.data_builder = OptimizationDataBuilder(db)
+        self.run_repository = run_repository
+        self.config_repository = config_repository
+        self.data_builder = data_builder
         self.solver = MipSchedulingSolver()
-        self.persistence = SchedulingPersistence(db)
+        self.persistence = persistence
     
     def _execute_optimization_for_run(
         self,
@@ -67,7 +86,7 @@ class SchedulingService:
         
         Raises:
             ValueError: If run not found, already started, or configuration missing
-            SQLAlchemyError: If database operations fail
+            DatabaseError: If database operations fail
         """
         try:
             # Execute optimization without applying assignments
@@ -122,39 +141,36 @@ class SchedulingService:
         """
         Start a run with race condition protection.
         
-        Uses SELECT FOR UPDATE to prevent concurrent execution.
+        Uses repository to update status.
         
         Args:
             run: SchedulingRunModel record
         
         Returns:
-            Locked and updated run record
+            Updated run record
         
         Raises:
             ValueError: If run not found or already started
         """
-        # Use SELECT FOR UPDATE to prevent race conditions
-        locked_run = self.db.query(SchedulingRunModel).filter(
-            SchedulingRunModel.run_id == run.run_id
-        ).with_for_update().first()
-        
-        if not locked_run:
+        # Get fresh copy and check status
+        current_run = self.run_repository.get_by_id(run.run_id)
+        if not current_run:
             raise ValueError(f"Run {run.run_id} not found")
         
         # Check if run was already started by another process
-        if locked_run.status != SchedulingRunStatus.PENDING:
+        if current_run.status != SchedulingRunStatus.PENDING:
             raise ValueError(
-                f"Run {run.run_id} is already in status {locked_run.status}, "
+                f"Run {run.run_id} is already in status {current_run.status}, "
                 f"cannot start again"
             )
         
-        locked_run.status = SchedulingRunStatus.RUNNING
-        if not locked_run.started_at:
-            locked_run.started_at = datetime.now()
-        self.db.commit()
-        self.db.refresh(locked_run)
+        # Update to RUNNING status
+        updated_run = self.run_repository.update_status(
+            run.run_id,
+            SchedulingRunStatus.RUNNING
+        )
         
-        return locked_run
+        return updated_run
     
     def _mark_run_as_failed(
         self,
@@ -171,19 +187,19 @@ class SchedulingService:
         error_message = str(error) if str(error) else f"Unexpected error: {type(error).__name__}"
         
         try:
-            run.status = SchedulingRunStatus.FAILED
-            run.completed_at = datetime.now()
-            run.error_message = error_message
-            self.db.commit()
-        except SQLAlchemyError as commit_error:
-            self.db.rollback()
+            self.run_repository.update_status(
+                run.run_id,
+                SchedulingRunStatus.FAILED,
+                error_message=error_message
+            )
+        except Exception as commit_error:
             logger.error(
                 f"Failed to update run status for run_id={run.run_id}, "
                 f"original_error={error}, commit_error={commit_error}",
                 exc_info=True
             )
         
-        if isinstance(error, (ValueError, SQLAlchemyError)):
+        if isinstance(error, (ValueError, DatabaseError)):
             logger.error(
                 f"Optimization failed for run_id={run.run_id}, error={error}",
                 exc_info=True
@@ -207,16 +223,13 @@ class SchedulingService:
             ValueError: If no configuration found
         """
         if run.config_id:
-            config = self.db.query(OptimizationConfigModel).filter(
-                OptimizationConfigModel.config_id == run.config_id
-            ).first()
+            config = self.config_repository.get_by_id(run.config_id)
+            if not config:
+                raise ValueError(f"Optimization config {run.config_id} not found")
         else:
-            config = self.db.query(OptimizationConfigModel).filter(
-                OptimizationConfigModel.is_default == True
-            ).first()
-        
-        if not config:
-            raise ValueError("No optimization configuration found")
+            config = self.config_repository.get_default()
+            if not config:
+                raise ValueError("No default optimization configuration found")
         
         return config
     
@@ -235,19 +248,25 @@ class SchedulingService:
         Returns:
             Tuple of (updated run, solution)
         """
-        run.status = SchedulingRunStatus.FAILED
-        run.completed_at = datetime.now()
-        run.runtime_seconds = solution.runtime_seconds
-        run.total_assignments = 0
-        run.solver_status = map_to_solver_status_enum(solution.status)
-        run.error_message = build_error_message(solution.status)
+        updated_run = self.run_repository.update_with_results(
+            run.run_id,
+            solver_status=map_to_solver_status_enum(solution.status),
+            objective_value=None,
+            runtime_seconds=solution.runtime_seconds,
+            mip_gap=None,
+            total_assignments=0
+        )
         
-        self.db.commit()
-        self.db.refresh(run)
+        # Update status to FAILED separately
+        updated_run = self.run_repository.update(
+            updated_run.run_id,
+            status=SchedulingRunStatus.FAILED,
+            error_message=build_error_message(solution.status)
+        )
         
-        logger.warning(f"Optimization failed: {solution.status}, error_message: {run.error_message}")
+        logger.warning(f"Optimization failed: {solution.status}, error_message: {updated_run.error_message}")
         
-        return run, solution
+        return updated_run, solution
     
     def _persist_solution(
         self,
@@ -267,21 +286,12 @@ class SchedulingService:
             Updated run record
         
         Raises:
-            SQLAlchemyError: If persistence fails
+            DatabaseError: If persistence fails
         """
         # Clear existing assignments if applying new ones
         if apply_assignments:
             logger.info(f"Clearing existing assignments for weekly_schedule_id={run.weekly_schedule_id}...")
-            self.persistence.clear_existing_assignments(run.weekly_schedule_id, commit=False)
-        
-        # Update run with results
-        run.status = SchedulingRunStatus.COMPLETED
-        run.completed_at = datetime.now()
-        run.runtime_seconds = solution.runtime_seconds
-        run.objective_value = solution.objective_value
-        run.mip_gap = solution.mip_gap
-        run.total_assignments = len(solution.assignments)
-        run.solver_status = map_to_solver_status_enum(solution.status)
+            self.persistence.clear_existing_assignments(run.weekly_schedule_id)
         
         # Persist solution and optionally apply assignments
         if apply_assignments:
@@ -293,30 +303,33 @@ class SchedulingService:
             self.persistence.persist_solution_and_apply_assignments(
                 run.run_id,
                 solution.assignments,
-                apply_assignments=apply_assignments,
-                commit=False  # Commit together with run update
+                apply_assignments=apply_assignments
             )
             
-            # Commit all changes (clear + persist + run update) in single transaction
-            self.db.commit()
-            self.db.refresh(run)
-        except SQLAlchemyError as e:
-            # Rollback on error
-            self.db.rollback()
+            # Update run with results
+            updated_run = self.run_repository.update_with_results(
+                run.run_id,
+                solver_status=map_to_solver_status_enum(solution.status),
+                objective_value=solution.objective_value,
+                runtime_seconds=solution.runtime_seconds,
+                mip_gap=solution.mip_gap,
+                total_assignments=len(solution.assignments)
+            )
+            
+        except Exception as e:
             logger.error(
                 f"Failed to persist solution for run_id={run.run_id}, error={e}",
                 exc_info=True
             )
-            raise
+            raise DatabaseError(f"Failed to persist solution: {str(e)}") from e
         
         if apply_assignments:
             logger.info(
-                f"SchedulingRun {run.run_id} completed with {len(solution.assignments)} assignments"
+                f"SchedulingRun {updated_run.run_id} completed with {len(solution.assignments)} assignments"
             )
         else:
             logger.info(
-                f"SchedulingRun {run.run_id} completed with {len(solution.assignments)} solution records"
+                f"SchedulingRun {updated_run.run_id} completed with {len(solution.assignments)} solution records"
             )
         
-        return run
-
+        return updated_run

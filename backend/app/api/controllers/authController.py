@@ -3,16 +3,18 @@ Authentication controller module.
 
 This module handles JWT token creation, verification, and user authentication
 for the Smart Scheduling application.
+
+Controllers use repositories for database access - no direct ORM access.
 """
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.session import get_db
 from app.db.models.userModel import UserModel
+from app.repositories.user_repository import UserRepository
+from app.api.dependencies.repositories import get_user_repository
 
 # Matches your /users/login route
 bearer_scheme = HTTPBearer()
@@ -68,14 +70,16 @@ def verify_token(token: str) -> dict:
 
 def get_current_user(
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+    user_repository: UserRepository = Depends(get_user_repository),
 ) -> UserModel:
     """
     Dependency function to get the current authenticated user from JWT token.
     
+    Uses repository for database access - no direct ORM access.
+    
     Args:
-        token: JWT token from Authorization header
-        db: Database session
+        creds: HTTP authorization credentials from header
+        user_repository: UserRepository instance (dependency injection)
         
     Returns:
         UserModel: The authenticated user
@@ -104,9 +108,9 @@ def get_current_user(
 
     user = None
     if uid is not None:
-        user = db.query(UserModel).filter(UserModel.user_id == int(uid)).first()
+        user = user_repository.get_by_id(int(uid))
     if user is None and email:
-        user = db.query(UserModel).filter(UserModel.user_email == email).first()
+        user = user_repository.get_by_email(email)
 
     if not user:
         raise credentials_exception

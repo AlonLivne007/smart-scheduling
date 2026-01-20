@@ -3,37 +3,30 @@ Employee preferences controller module.
 
 This module contains business logic for employee preference management operations including
 creation, retrieval, updating, and deletion of shift preferences.
+Controllers use repositories for database access - no direct ORM access.
 """
 
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from typing import List, Optional
-from app.db.models.employeePreferencesModel import EmployeePreferencesModel
-from app.db.models.userModel import UserModel
-from app.db.models.shiftTemplateModel import ShiftTemplateModel
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session  # Only for type hints
+
+from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.repositories.user_repository import UserRepository
+from app.repositories.shift_template_repository import ShiftTemplateRepository
 from app.schemas.employeePreferencesSchema import (
     EmployeePreferencesCreate,
     EmployeePreferencesUpdate,
     EmployeePreferencesRead,
 )
+from app.db.models.userModel import UserModel
+from app.exceptions.repository import NotFoundError, ConflictError
+from app.db.session_manager import transaction
 
 
-# ------------------------
-# Helper Functions
-# ------------------------
-
-def _serialize_employee_preferences(preference: EmployeePreferencesModel) -> EmployeePreferencesRead:
+def _serialize_employee_preferences(preference) -> EmployeePreferencesRead:
     """
     Convert ORM object to Pydantic schema.
-    
-    Args:
-        preference: EmployeePreferencesModel instance
-        
-    Returns:
-        EmployeePreferencesRead instance
     """
-    # Extract relationship data explicitly
     user_full_name = preference.user.user_full_name if preference.user else None
     shift_template_name = preference.shift_template.shift_template_name if preference.shift_template else None
     
@@ -50,68 +43,9 @@ def _serialize_employee_preferences(preference: EmployeePreferencesModel) -> Emp
     )
 
 
-def _validate_user_exists(db: Session, user_id: int) -> UserModel:
-    """
-    Validate that a user exists in the database.
-    
-    Args:
-        db: Database session
-        user_id: ID of the user to validate
-        
-    Returns:
-        UserModel instance if found
-        
-    Raises:
-        HTTPException: If user not found
-    """
-    user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {user_id} not found"
-        )
-    return user
-
-
-def _validate_shift_template_exists(db: Session, shift_template_id: Optional[int]) -> Optional[ShiftTemplateModel]:
-    """
-    Validate that a shift template exists if provided.
-    
-    Args:
-        db: Database session
-        shift_template_id: ID of the shift template to validate (optional)
-        
-    Returns:
-        ShiftTemplateModel instance if found, None if not provided
-        
-    Raises:
-        HTTPException: If shift template ID is provided but not found
-    """
-    if shift_template_id is None:
-        return None
-        
-    shift_template = db.query(ShiftTemplateModel).filter(
-        ShiftTemplateModel.shift_template_id == shift_template_id
-    ).first()
-    
-    if not shift_template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Shift template with ID {shift_template_id} not found"
-        )
-    return shift_template
-
-
 def _validate_time_range(start_time, end_time):
     """
     Validate that start_time is before end_time if both are provided.
-    
-    Args:
-        start_time: Preferred start time
-        end_time: Preferred end time
-        
-    Raises:
-        HTTPException: If start_time is after or equal to end_time
     """
     if start_time and end_time and start_time >= end_time:
         raise HTTPException(
@@ -120,334 +54,263 @@ def _validate_time_range(start_time, end_time):
         )
 
 
-# ------------------------
-# CRUD Functions
-# ------------------------
-
 async def create_employee_preference(
-    db: Session,
     user_id: int,
     preference_data: EmployeePreferencesCreate,
-    current_user: UserModel
+    current_user: UserModel,
+    preferences_repository: EmployeePreferencesRepository,
+    user_repository: UserRepository,
+    template_repository: ShiftTemplateRepository,
+    db: Session  # For transaction management
 ) -> EmployeePreferencesRead:
     """
     Create a new employee preference.
     
-    Args:
-        db: Database session
-        user_id: ID of the user creating the preference
-        preference_data: Employee preference creation data
-        current_user: Current authenticated user (for authorization)
-        
-    Returns:
-        Created EmployeePreferencesRead instance
-        
-    Raises:
-        HTTPException: If validation fails, unauthorized, or database error occurs
+    Business logic:
+    - Authorization: employees can only create their own preferences
+    - Validate user exists
+    - Validate shift template exists if provided
+    - Validate time range
+    - Create preference
     """
     try:
-        # Authorization: employees can only create their own preferences
+        # Business rule: Authorization - employees can only create their own preferences
         if not current_user.is_manager and user_id != current_user.user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only create preferences for yourself"
             )
         
-        # Validate user exists
-        _validate_user_exists(db, user_id)
+        # Business rule: Validate user exists
+        user_repository.get_by_id_or_raise(user_id)
         
-        # Validate shift template if provided
+        # Business rule: Validate shift template if provided
         if preference_data.preferred_shift_template_id:
-            _validate_shift_template_exists(db, preference_data.preferred_shift_template_id)
+            template_repository.get_by_id_or_raise(preference_data.preferred_shift_template_id)
         
-        # Validate time range if provided
+        # Business rule: Validate time range
         _validate_time_range(
             preference_data.preferred_start_time,
             preference_data.preferred_end_time
         )
         
-        # Create new preference
-        new_preference = EmployeePreferencesModel(
-            user_id=user_id,
-            preferred_shift_template_id=preference_data.preferred_shift_template_id,
-            preferred_day_of_week=preference_data.preferred_day_of_week,
-            preferred_start_time=preference_data.preferred_start_time,
-            preferred_end_time=preference_data.preferred_end_time,
-            preference_weight=preference_data.preference_weight,
+        with transaction(db):
+            preference = preferences_repository.create(
+                user_id=user_id,
+                preferred_shift_template_id=preference_data.preferred_shift_template_id,
+                preferred_day_of_week=preference_data.preferred_day_of_week,
+                preferred_start_time=preference_data.preferred_start_time,
+                preferred_end_time=preference_data.preferred_end_time,
+                preference_weight=preference_data.preference_weight,
+            )
+            
+            # Get preference with relationships for serialization
+            # Need to refresh to load relationships
+            preference = preferences_repository.get_by_id(preference.preference_id)
+            # Load relationships manually
+            if preference:
+                _ = preference.user
+                _ = preference.shift_template
+            
+            return _serialize_employee_preferences(preference)
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-        db.add(new_preference)
-        db.commit()
-        db.refresh(new_preference)
-        
-        return _serialize_employee_preferences(new_preference)
-        
-    except HTTPException:
-        raise
-    except IntegrityError as e:
-        db.rollback()
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database integrity error: {str(e.orig)}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error occurred: {str(e)}"
+            detail=str(e)
         )
 
 
 async def get_employee_preferences_by_user(
-    db: Session,
     user_id: int,
-    current_user: UserModel
+    current_user: UserModel,
+    preferences_repository: EmployeePreferencesRepository,
+    user_repository: UserRepository
 ) -> List[EmployeePreferencesRead]:
     """
     Get all preferences for a specific user.
     
-    Args:
-        db: Database session
-        user_id: ID of the user
-        current_user: Current authenticated user (for authorization)
-        
-    Returns:
-        List of EmployeePreferencesRead instances
-        
-    Raises:
-        HTTPException: If user not found, unauthorized, or database error occurs
+    Business logic:
+    - Authorization: employees can only view their own preferences
+    - Validate user exists
+    - Get preferences
     """
     try:
-        # Authorization: employees can only view their own preferences
+        # Business rule: Authorization - employees can only view their own preferences
         if not current_user.is_manager and user_id != current_user.user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only view your own preferences"
             )
         
-        # Validate user exists
-        _validate_user_exists(db, user_id)
+        # Business rule: Validate user exists
+        user_repository.get_by_id_or_raise(user_id)
         
-        # Fetch all preferences for the user
-        preferences = db.query(EmployeePreferencesModel).filter(
-            EmployeePreferencesModel.user_id == user_id
-        ).all()
+        # Get preferences
+        preferences = preferences_repository.get_by_user(user_id)
+        return [_serialize_employee_preferences(p) for p in preferences]
         
-        return [_serialize_employee_preferences(pref) for pref in preferences]
-        
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error occurred: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
 
 
 async def get_employee_preference(
-    db: Session,
     preference_id: int,
     user_id: int,
-    current_user: UserModel
+    current_user: UserModel,
+    preferences_repository: EmployeePreferencesRepository,
+    user_repository: UserRepository
 ) -> EmployeePreferencesRead:
     """
     Get a single preference by ID.
     
-    Args:
-        db: Database session
-        preference_id: ID of the preference
-        user_id: ID of the user (for validation)
-        current_user: Current authenticated user (for authorization)
-        
-    Returns:
-        EmployeePreferencesRead instance
-        
-    Raises:
-        HTTPException: If preference not found, unauthorized, or database error occurs
+    Business logic:
+    - Verify preference exists and belongs to user
+    - Authorization: employees can only view their own preferences
     """
     try:
-        preference = db.query(EmployeePreferencesModel).filter(
-            EmployeePreferencesModel.preference_id == preference_id
-        ).first()
+        preference = preferences_repository.get_by_id_or_raise(preference_id)
         
-        if not preference:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Preference with ID {preference_id} not found"
-            )
-        
-        # Verify it belongs to the specified user
+        # Business rule: Verify it belongs to the specified user
         if preference.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Preference {preference_id} does not belong to user {user_id}"
-            )
+            raise NotFoundError(f"Preference {preference_id} does not belong to user {user_id}")
         
-        # Authorization: employees can only view their own preferences
+        # Business rule: Authorization - employees can only view their own preferences
         if not current_user.is_manager and user_id != current_user.user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only view your own preferences"
             )
         
+        # Load relationships
+        _ = preference.user
+        _ = preference.shift_template
+        
         return _serialize_employee_preferences(preference)
         
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error occurred: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Preference with ID {preference_id} not found"
         )
 
 
 async def update_employee_preference(
-    db: Session,
     preference_id: int,
     preference_data: EmployeePreferencesUpdate,
     current_user: UserModel,
-    target_user_id: Optional[int] = None
+    target_user_id: Optional[int],
+    preferences_repository: EmployeePreferencesRepository,
+    user_repository: UserRepository,
+    template_repository: ShiftTemplateRepository,
+    db: Session  # For transaction management
 ) -> EmployeePreferencesRead:
     """
     Update an existing employee preference.
     
-    Args:
-        db: Database session
-        preference_id: ID of the preference to update
-        preference_data: Employee preference update data
-        current_user: Current authenticated user (for authorization)
-        target_user_id: Target user ID (for managers to update other users' preferences)
-        
-    Returns:
-        Updated EmployeePreferencesRead instance
-        
-    Raises:
-        HTTPException: If preference not found, unauthorized, or validation fails
+    Business logic:
+    - Authorization: only the owner can update
+    - Validate shift template if provided
+    - Validate time range
+    - Update preference
     """
     try:
-        # Fetch existing preference
-        preference = db.query(EmployeePreferencesModel).filter(
-            EmployeePreferencesModel.preference_id == preference_id
-        ).first()
+        preference = preferences_repository.get_by_id_or_raise(preference_id)
         
-        if not preference:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Preference with ID {preference_id} not found"
-            )
-        
-        # Determine effective user ID based on authorization
+        # Business rule: Determine effective user ID
         if current_user.is_manager and target_user_id is not None:
             effective_user_id = target_user_id
         else:
             effective_user_id = current_user.user_id
         
-        # Check authorization: only the owner can update their preferences
+        # Business rule: Only the owner can update
         if preference.user_id != effective_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update your own preferences"
             )
         
-        # Validate shift template if being updated
+        # Business rule: Validate shift template if provided
         if preference_data.preferred_shift_template_id is not None:
-            _validate_shift_template_exists(db, preference_data.preferred_shift_template_id)
+            template_repository.get_by_id_or_raise(preference_data.preferred_shift_template_id)
         
-        # Build updated time range (using existing values if not provided)
-        start_time = (
-            preference_data.preferred_start_time 
-            if preference_data.preferred_start_time is not None 
-            else preference.preferred_start_time
-        )
-        end_time = (
-            preference_data.preferred_end_time 
-            if preference_data.preferred_end_time is not None 
-            else preference.preferred_end_time
-        )
+        # Business rule: Validate time range
+        start_time = preference_data.preferred_start_time if preference_data.preferred_start_time else preference.preferred_start_time
+        end_time = preference_data.preferred_end_time if preference_data.preferred_end_time else preference.preferred_end_time
         _validate_time_range(start_time, end_time)
         
-        # Update fields
-        update_data = preference_data.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(preference, field, value)
-        
-        db.commit()
-        db.refresh(preference)
-        
-        return _serialize_employee_preferences(preference)
-        
-    except HTTPException:
-        raise
-    except IntegrityError as e:
-        db.rollback()
+        with transaction(db):
+            # Update fields
+            update_data = {}
+            if preference_data.preferred_shift_template_id is not None:
+                update_data["preferred_shift_template_id"] = preference_data.preferred_shift_template_id
+            if preference_data.preferred_day_of_week is not None:
+                update_data["preferred_day_of_week"] = preference_data.preferred_day_of_week
+            if preference_data.preferred_start_time is not None:
+                update_data["preferred_start_time"] = preference_data.preferred_start_time
+            if preference_data.preferred_end_time is not None:
+                update_data["preferred_end_time"] = preference_data.preferred_end_time
+            if preference_data.preference_weight is not None:
+                update_data["preference_weight"] = preference_data.preference_weight
+            
+            if update_data:
+                preferences_repository.update(preference_id, **update_data)
+            
+            # Get updated preference with relationships
+            preference = preferences_repository.get_by_id(preference_id)
+            _ = preference.user
+            _ = preference.shift_template
+            
+            return _serialize_employee_preferences(preference)
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database integrity error: {str(e.orig)}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error occurred: {str(e)}"
+            detail=str(e)
         )
 
 
 async def delete_employee_preference(
-    db: Session,
     preference_id: int,
     current_user: UserModel,
-    target_user_id: Optional[int] = None
-) -> dict:
+    preferences_repository: EmployeePreferencesRepository,
+    db: Session  # For transaction management
+) -> None:
     """
     Delete an employee preference.
     
-    Args:
-        db: Database session
-        preference_id: ID of the preference to delete
-        current_user: Current authenticated user (for authorization)
-        target_user_id: Target user ID (for managers to delete other users' preferences)
-        
-    Returns:
-        Success message dict
-        
-    Raises:
-        HTTPException: If preference not found or unauthorized
+    Business logic:
+    - Authorization: only the owner can delete
+    - Delete preference
     """
     try:
-        # Fetch existing preference
-        preference = db.query(EmployeePreferencesModel).filter(
-            EmployeePreferencesModel.preference_id == preference_id
-        ).first()
+        preference = preferences_repository.get_by_id_or_raise(preference_id)
         
-        if not preference:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Preference with ID {preference_id} not found"
-            )
-        
-        # Determine effective user ID based on authorization
-        if current_user.is_manager and target_user_id is not None:
-            effective_user_id = target_user_id
-        else:
-            effective_user_id = current_user.user_id
-        
-        # Check authorization: only the owner can delete their preferences
-        if preference.user_id != effective_user_id:
+        # Business rule: Only the owner can delete
+        if not current_user.is_manager and preference.user_id != current_user.user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only delete your own preferences"
             )
         
-        db.delete(preference)
-        db.commit()
-        
-        return {"message": f"Preference {preference_id} deleted successfully"}
-        
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
-        db.rollback()
+        with transaction(db):
+            preferences_repository.delete(preference_id)
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error occurred: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Preference with ID {preference_id} not found"
         )

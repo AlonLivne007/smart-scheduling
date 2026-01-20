@@ -3,48 +3,35 @@ Scheduling run controller module.
 
 This module contains business logic for scheduling run management operations including
 creation, retrieval, updating, and deletion of optimization runs and their solutions.
+Controllers use repositories for database access - no direct ORM access.
 """
 
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from typing import List, Optional
-from app.db.models.schedulingRunModel import (
-    SchedulingRunModel,
-    SchedulingRunStatus
-)
-from app.db.models.schedulingSolutionModel import SchedulingSolutionModel
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
-from app.db.models.userModel import UserModel
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.db.models.plannedShiftModel import PlannedShiftModel, PlannedShiftStatus
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session  # Only for type hints
+
+from app.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
+from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.repositories.user_repository import UserRepository
+from app.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.db.models.schedulingRunModel import SchedulingRunStatus
 from app.schemas.schedulingRunSchema import (
     SchedulingRunCreate,
     SchedulingRunUpdate,
     SchedulingRunRead,
 )
 from app.schemas.schedulingSolutionSchema import (
-    SchedulingSolutionCreate,
     SchedulingSolutionRead,
 )
-from app.schemas.shiftAssignmentSchema import ShiftAssignmentRead
+from app.exceptions.repository import NotFoundError, ConflictError
+from app.db.session_manager import transaction
 
 
-# ------------------------
-# Helper Functions
-# ------------------------
-
-def _serialize_scheduling_run(run: SchedulingRunModel) -> SchedulingRunRead:
+def _serialize_scheduling_run(run) -> SchedulingRunRead:
     """
     Convert ORM object to Pydantic schema.
-    
-    Args:
-        run: SchedulingRunModel instance
-        
-    Returns:
-        SchedulingRunRead instance
     """
-    # Count solutions
     solution_count = len(run.solutions) if run.solutions else 0
     
     return SchedulingRunRead(
@@ -64,19 +51,12 @@ def _serialize_scheduling_run(run: SchedulingRunModel) -> SchedulingRunRead:
     )
 
 
-def _serialize_scheduling_solution(solution: SchedulingSolutionModel) -> SchedulingSolutionRead:
+def _serialize_scheduling_solution(solution) -> SchedulingSolutionRead:
     """
     Convert ORM object to Pydantic schema.
-    
-    Args:
-        solution: SchedulingSolutionModel instance
-        
-    Returns:
-        SchedulingSolutionRead instance
     """
     user_full_name = solution.user.user_full_name if solution.user else None
     role_name = solution.role.role_name if solution.role else None
-    # Extract date from datetime (start_time is a datetime, we need just the date)
     shift_date = solution.planned_shift.start_time.date() if solution.planned_shift and solution.planned_shift.start_time else None
     
     return SchedulingSolutionRead(
@@ -93,509 +73,257 @@ def _serialize_scheduling_solution(solution: SchedulingSolutionModel) -> Schedul
     )
 
 
-# ------------------------
-# CRUD Functions for Scheduling Runs
-# ------------------------
-
 async def create_scheduling_run(
-    db: Session,
     run_data: SchedulingRunCreate,
-    user_id: int
+    user_id: int,
+    run_repository: SchedulingRunRepository,
+    schedule_repository: WeeklyScheduleRepository,
+    user_repository: UserRepository,
+    db: Session  # For transaction management
 ) -> SchedulingRunRead:
     """
     Create a new scheduling run.
     
-    Args:
-        db: Database session
-        run_data: Scheduling run creation data
-        user_id: ID of the user creating the run
-        
-    Returns:
-        Created SchedulingRunRead instance
-        
-    Raises:
-        HTTPException: If validation fails or database error occurs
+    Business logic:
+    - Verify weekly schedule exists
+    - Verify user exists
+    - Create run with PENDING status
     """
     try:
-        # Verify weekly schedule exists
-        schedule = db.get(WeeklyScheduleModel, run_data.weekly_schedule_id)
-        if not schedule:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Weekly schedule not found"
-            )
+        # Business rule: Verify weekly schedule exists
+        schedule_repository.get_by_id_or_raise(run_data.weekly_schedule_id)
         
-        # Verify user exists
-        user = db.get(UserModel, user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+        # Business rule: Verify user exists
+        user_repository.get_by_id_or_raise(user_id)
         
-        run = SchedulingRunModel(
-            weekly_schedule_id=run_data.weekly_schedule_id,
-            status=SchedulingRunStatus.PENDING,
+        with transaction(db):
+            run = run_repository.create(
+                weekly_schedule_id=run_data.weekly_schedule_id,
+                status=SchedulingRunStatus.PENDING,
+            )
+            
+            # Get run with relationships for serialization
+            run = run_repository.get_with_solutions(run.run_id)
+            return _serialize_scheduling_run(run)
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-        db.add(run)
-        db.commit()
-        db.refresh(run)
-        
-        # Ensure relationships are loaded
-        _ = run.weekly_schedule
-        
-        return _serialize_scheduling_run(run)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
 async def get_all_scheduling_runs(
-    db: Session,
+    run_repository: SchedulingRunRepository,
     weekly_schedule_id: Optional[int] = None,
     status_filter: Optional[SchedulingRunStatus] = None
 ) -> List[SchedulingRunRead]:
     """
     Retrieve all scheduling runs, optionally filtered by schedule or status.
-    
-    Args:
-        db: Database session
-        weekly_schedule_id: Optional weekly schedule ID to filter by
-        status_filter: Optional status to filter by
-        
-    Returns:
-        List of SchedulingRunRead instances
-        
-    Raises:
-        HTTPException: If database error occurs
     """
-    try:
-        query = db.query(SchedulingRunModel).options(
-            joinedload(SchedulingRunModel.solutions)
-        )
-        
-        if weekly_schedule_id:
-            query = query.filter(SchedulingRunModel.weekly_schedule_id == weekly_schedule_id)
-        
-        if status_filter:
-            query = query.filter(SchedulingRunModel.status == status_filter)
-        
-        runs = query.order_by(SchedulingRunModel.started_at.desc()).all()
-        return [_serialize_scheduling_run(r) for r in runs]
+    if weekly_schedule_id:
+        runs = run_repository.get_by_schedule(weekly_schedule_id)
+    elif status_filter:
+        runs = run_repository.get_by_status(status_filter)
+    else:
+        runs = run_repository.get_all()
     
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    # Load solutions for each run
+    runs_with_solutions = []
+    for run in runs:
+        run = run_repository.get_with_solutions(run.run_id)
+        runs_with_solutions.append(run)
+    
+    # Sort by started_at descending
+    runs_with_solutions.sort(key=lambda r: r.started_at if r.started_at else r.run_id, reverse=True)
+    
+    return [_serialize_scheduling_run(r) for r in runs_with_solutions]
 
 
 async def get_scheduling_run(
-    db: Session,
-    run_id: int
+    run_id: int,
+    run_repository: SchedulingRunRepository
 ) -> SchedulingRunRead:
     """
     Retrieve a single scheduling run by ID.
-    
-    Args:
-        db: Database session
-        run_id: Scheduling run identifier
-        
-    Returns:
-        SchedulingRunRead instance
-        
-    Raises:
-        HTTPException: If run not found or database error occurs
     """
     try:
-        run = db.query(SchedulingRunModel).options(
-            joinedload(SchedulingRunModel.solutions)
-        ).filter(SchedulingRunModel.run_id == run_id).first()
-        
+        run = run_repository.get_with_solutions(run_id)
         if not run:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scheduling run not found"
-            )
-        
+            raise NotFoundError(f"Scheduling run {run_id} not found")
         return _serialize_scheduling_run(run)
-    
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scheduling run not found"
         )
 
 
 async def update_scheduling_run(
-    db: Session,
     run_id: int,
-    run_data: SchedulingRunUpdate
+    run_data: SchedulingRunUpdate,
+    run_repository: SchedulingRunRepository,
+    db: Session  # For transaction management
 ) -> SchedulingRunRead:
     """
     Update a scheduling run. Used internally to update run status and solver results.
     
-    Args:
-        db: Database session
-        run_id: Scheduling run identifier
-        run_data: Update data
-        
-    Returns:
-        Updated SchedulingRunRead instance
-        
-    Raises:
-        HTTPException: If run not found or database error occurs
+    Business logic:
+    - Update fields if provided
     """
     try:
-        run = db.get(SchedulingRunModel, run_id)
-        if not run:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scheduling run not found"
-            )
+        run_repository.get_by_id_or_raise(run_id)  # Verify exists
         
-        # Update fields if provided
-        if run_data.status is not None:
-            run.status = run_data.status
-        if run_data.solver_name is not None:
-            run.solver_name = run_data.solver_name
-        if run_data.objective_value is not None:
-            run.objective_value = run_data.objective_value
-        if run_data.solver_status is not None:
-            run.solver_status = run_data.solver_status
-        if run_data.runtime_seconds is not None:
-            run.runtime_seconds = run_data.runtime_seconds
-        if run_data.completed_at is not None:
-            run.completed_at = run_data.completed_at
-        
-        db.commit()
-        db.refresh(run)
-        
-        # Ensure relationships are loaded
-        _ = run.solutions
-        
-        return _serialize_scheduling_run(run)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            # Update fields
+            update_data = {}
+            if run_data.status is not None:
+                update_data["status"] = run_data.status
+            if run_data.objective_value is not None:
+                update_data["objective_value"] = run_data.objective_value
+            if run_data.solver_status is not None:
+                update_data["solver_status"] = run_data.solver_status
+            if run_data.runtime_seconds is not None:
+                update_data["runtime_seconds"] = run_data.runtime_seconds
+            if run_data.completed_at is not None:
+                update_data["completed_at"] = run_data.completed_at
+            
+            if update_data:
+                run_repository.update(run_id, **update_data)
+            
+            # Get updated run with relationships
+            run = run_repository.get_with_solutions(run_id)
+            return _serialize_scheduling_run(run)
+            
+    except NotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scheduling run not found"
+        )
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
 async def delete_scheduling_run(
-    db: Session,
-    run_id: int
+    run_id: int,
+    run_repository: SchedulingRunRepository,
+    db: Session  # For transaction management
 ) -> None:
     """
     Delete a scheduling run and all its solutions.
     
-    Args:
-        db: Database session
-        run_id: Scheduling run identifier
-        
-    Raises:
-        HTTPException: If run not found or database error occurs
+    Business logic:
+    - Verify run exists
+    - Delete run (solutions cascade)
     """
     try:
-        run = db.get(SchedulingRunModel, run_id)
-        if not run:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scheduling run not found"
-            )
+        run_repository.get_by_id_or_raise(run_id)  # Verify exists
         
-        db.delete(run)
-        db.commit()
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            run_repository.delete(run_id)
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scheduling run not found"
         )
 
 
-# ------------------------
-# Solution Management Functions
-# ------------------------
-
-async def create_scheduling_solutions(
-    db: Session,
+async def get_solutions_for_run(
     run_id: int,
-    solutions_data: List[SchedulingSolutionCreate]
+    solution_repository: SchedulingSolutionRepository,
+    run_repository: SchedulingRunRepository
 ) -> List[SchedulingSolutionRead]:
     """
-    Create multiple scheduling solutions for a run.
-    Used internally when storing optimizer results.
+    Get all solutions for a scheduling run.
     
-    Args:
-        db: Database session
-        run_id: Scheduling run identifier
-        solutions_data: List of solution creation data
-        
-    Returns:
-        List of created SchedulingSolutionRead instances
-        
-    Raises:
-        HTTPException: If run not found or database error occurs
+    Business logic:
+    - Verify run exists
+    - Get solutions with relationships
     """
     try:
-        # Verify run exists
-        run = db.get(SchedulingRunModel, run_id)
-        if not run:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scheduling run not found"
-            )
+        run_repository.get_by_id_or_raise(run_id)  # Verify run exists
         
-        solutions = []
-        for solution_data in solutions_data:
-            solution = SchedulingSolutionModel(
-                run_id=run_id,
-                planned_shift_id=solution_data.planned_shift_id,
-                user_id=solution_data.user_id,
-                role_id=solution_data.role_id,
-                assignment_score=solution_data.assignment_score,
-            )
-            db.add(solution)
-            solutions.append(solution)
-        
-        db.commit()
-        
-        # Refresh all solutions and load relationships
-        for solution in solutions:
-            db.refresh(solution)
-            _ = solution.user
-            _ = solution.role
-            _ = solution.planned_shift
-        
+        solutions = solution_repository.get_all_with_relationships_by_run(run_id)
         return [_serialize_scheduling_solution(s) for s in solutions]
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scheduling run not found"
         )
 
 
-async def get_scheduling_solutions(
-    db: Session,
-    run_id: int
-) -> List[SchedulingSolutionRead]:
-    """
-    Retrieve all solutions for a scheduling run.
-    
-    Args:
-        db: Database session
-        run_id: Scheduling run identifier
-        
-    Returns:
-        List of SchedulingSolutionRead instances
-        
-    Raises:
-        HTTPException: If run not found or database error occurs
-    """
-    try:
-        # Verify run exists
-        run = db.get(SchedulingRunModel, run_id)
-        if not run:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scheduling run not found"
-            )
-        
-        solutions = db.query(SchedulingSolutionModel).options(
-            joinedload(SchedulingSolutionModel.user),
-            joinedload(SchedulingSolutionModel.role),
-            joinedload(SchedulingSolutionModel.planned_shift)
-        ).filter(SchedulingSolutionModel.run_id == run_id).all()
-        
-        return [_serialize_scheduling_solution(s) for s in solutions]
-    
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-
-
-async def apply_scheduling_solution(
-    db: Session,
+async def apply_solution_to_schedule(
     run_id: int,
-    overwrite: bool = False
+    solution_repository: SchedulingSolutionRepository,
+    assignment_repository,
+    run_repository: SchedulingRunRepository,
+    db: Session  # For transaction management
 ) -> dict:
     """
-    Apply an optimization solution by converting SchedulingSolution records
-    into actual ShiftAssignment records.
+    Apply a scheduling solution to create actual shift assignments.
     
-    Args:
-        db: Database session
-        run_id: Scheduling run identifier
-        overwrite: If True, delete existing assignments for affected shifts before applying.
-                  If False, raises error if conflicts exist.
-        
-    Returns:
-        Dictionary with application results:
-            - assignments_created: Number of assignments created
-            - shifts_updated: Number of shifts marked as fully assigned
-            - message: Success message
-        
-    Raises:
-        HTTPException: If run not found, solution invalid, or conflicts exist
+    Business logic:
+    - Verify run exists and is completed
+    - Get selected solutions
+    - Create shift assignments
+    - Clear existing assignments for the schedule
     """
     try:
-        # 1. Verify run exists and is completed
-        run = db.query(SchedulingRunModel).options(
-            joinedload(SchedulingRunModel.solutions)
-        ).filter(SchedulingRunModel.run_id == run_id).first()
-        
+        run = run_repository.get_with_all_relationships(run_id)
         if not run:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scheduling run not found"
-            )
+            raise NotFoundError(f"Scheduling run {run_id} not found")
         
+        # Business rule: Only completed runs can be applied
         if run.status != SchedulingRunStatus.COMPLETED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot apply solution. Run status is {run.status.value}, expected COMPLETED"
+                detail=f"Cannot apply solution: run status is {run.status.value}, must be COMPLETED"
             )
         
-        # 2. Get all selected solutions
-        solutions = db.query(SchedulingSolutionModel).filter(
-            SchedulingSolutionModel.run_id == run_id,
-            SchedulingSolutionModel.is_selected == True
-        ).all()
+        # Get selected solutions
+        selected_solutions = solution_repository.get_selected_by_run(run_id)
         
-        if not solutions:
+        if not selected_solutions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No selected solutions found for this run"
             )
         
-        # 3. Check for existing assignments if not overwriting
-        if not overwrite:
-            shift_ids = list(set([sol.planned_shift_id for sol in solutions]))
-            existing = db.query(ShiftAssignmentModel).filter(
-                ShiftAssignmentModel.planned_shift_id.in_(shift_ids)
-            ).count()
+        with transaction(db):
+            # Clear existing assignments for the schedule
+            assignment_repository.delete_by_schedule(run.weekly_schedule_id)
             
-            if existing > 0:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Found {existing} existing assignments. Use overwrite=true to replace them."
-                )
-        
-        # 4. If overwriting, delete existing assignments for affected shifts
-        assignments_created = 0
-        shifts_updated = set()
-        
-        if overwrite:
-            shift_ids = list(set([sol.planned_shift_id for sol in solutions]))
-            deleted = db.query(ShiftAssignmentModel).filter(
-                ShiftAssignmentModel.planned_shift_id.in_(shift_ids)
-            ).delete(synchronize_session=False)
-        
-        # 5. Create new shift assignments from solutions
-        for solution in solutions:
-            # Check if assignment already exists (in case of partial overwrite)
-            existing = db.query(ShiftAssignmentModel).filter(
-                ShiftAssignmentModel.planned_shift_id == solution.planned_shift_id,
-                ShiftAssignmentModel.user_id == solution.user_id,
-                ShiftAssignmentModel.role_id == solution.role_id
-            ).first()
-            
-            if not existing:
-                assignment = ShiftAssignmentModel(
+            # Create assignments from solutions
+            for solution in selected_solutions:
+                assignment_repository.create_assignment(
                     planned_shift_id=solution.planned_shift_id,
                     user_id=solution.user_id,
                     role_id=solution.role_id
                 )
-                db.add(assignment)
-                assignments_created += 1
-                shifts_updated.add(solution.planned_shift_id)
-        
-        # 6. Update PlannedShift status to FULLY_ASSIGNED
-        for shift_id in shifts_updated:
-            shift = db.get(PlannedShiftModel, shift_id)
-            if shift:
-                shift.status = PlannedShiftStatus.FULLY_ASSIGNED
-        
-        # 7. Commit transaction
-        db.commit()
-        
-        return {
-            "assignments_created": assignments_created,
-            "shifts_updated": len(shifts_updated),
-            "message": f"Successfully applied {assignments_created} assignments to {len(shifts_updated)} shifts"
-        }
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+            
+            return {
+                "message": f"Applied {len(selected_solutions)} assignments from solution",
+                "run_id": run_id,
+                "assignments_created": len(selected_solutions)
+            }
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
+            detail=str(e)
         )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-

@@ -3,42 +3,35 @@ Time-off request controller module.
 
 This module contains business logic for time-off request management operations including
 creation, retrieval, updating, approval, and rejection of time-off requests.
+Controllers use repositories for database access - no direct ORM access.
 """
 
 from datetime import datetime
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from typing import List, Optional
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session  # Only for type hints
+
+from app.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.repositories.user_repository import UserRepository
 from app.db.models.timeOffRequestModel import (
-    TimeOffRequestModel,
     TimeOffRequestStatus,
     TimeOffRequestType
 )
-from app.db.models.userModel import UserModel
 from app.schemas.timeOffRequestSchema import (
     TimeOffRequestCreate,
     TimeOffRequestUpdate,
     TimeOffRequestRead,
     TimeOffRequestAction,
 )
+from app.db.models.userModel import UserModel
+from app.exceptions.repository import NotFoundError, ConflictError
+from app.db.session_manager import transaction
 
 
-# ------------------------
-# Helper Functions
-# ------------------------
-
-def _serialize_time_off_request(request: TimeOffRequestModel) -> TimeOffRequestRead:
+def _serialize_time_off_request(request) -> TimeOffRequestRead:
     """
     Convert ORM object to Pydantic schema.
-    
-    Args:
-        request: TimeOffRequestModel instance
-        
-    Returns:
-        TimeOffRequestRead instance
     """
-    # Extract relationship data explicitly
     user_full_name = request.user.user_full_name if request.user else None
     approved_by_name = request.approved_by.user_full_name if request.approved_by else None
     
@@ -60,13 +53,6 @@ def _serialize_time_off_request(request: TimeOffRequestModel) -> TimeOffRequestR
 def _validate_date_range(start_date, end_date):
     """
     Validate that start_date is before or equal to end_date.
-    
-    Args:
-        start_date: Start date
-        end_date: End date
-        
-    Raises:
-        HTTPException: If start_date is after end_date
     """
     if start_date > end_date:
         raise HTTPException(
@@ -75,164 +61,96 @@ def _validate_date_range(start_date, end_date):
         )
 
 
-# ------------------------
-# CRUD Functions
-# ------------------------
-
 async def create_time_off_request(
-    db: Session,
     request_data: TimeOffRequestCreate,
-    user_id: int
+    user_id: int,
+    time_off_repository: TimeOffRequestRepository,
+    user_repository: UserRepository,
+    db: Session  # For transaction management
 ) -> TimeOffRequestRead:
     """
     Create a new time-off request.
     
-    Args:
-        db: Database session
-        request_data: Time-off request creation data
-        user_id: ID of the user creating the request
-        
-    Returns:
-        Created TimeOffRequestRead instance
-        
-    Raises:
-        HTTPException: If validation fails or database error occurs
+    Business logic:
+    - Validate date range
+    - Verify user exists
+    - Create request
     """
     try:
-        # Validate date range
+        # Business rule: Validate date range
         _validate_date_range(request_data.start_date, request_data.end_date)
         
-        # Verify user exists
-        user = db.get(UserModel, user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+        # Business rule: Verify user exists
+        user_repository.get_by_id_or_raise(user_id)
+        
+        with transaction(db):
+            request = time_off_repository.create(
+                user_id=user_id,
+                start_date=request_data.start_date,
+                end_date=request_data.end_date,
+                request_type=request_data.request_type,
+                status=TimeOffRequestStatus.PENDING,
+                requested_at=datetime.utcnow(),
             )
-        
-        request = TimeOffRequestModel(
-            user_id=user_id,
-            start_date=request_data.start_date,
-            end_date=request_data.end_date,
-            request_type=request_data.request_type,
-            status=TimeOffRequestStatus.PENDING,
-            requested_at=datetime.utcnow(),
+            
+            # Get request with relationships for serialization
+            request = time_off_repository.get_with_relationships(request.request_id)
+            return _serialize_time_off_request(request)
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-        db.add(request)
-        db.commit()
-        db.refresh(request)
-        
-        # Ensure relationships are loaded
-        _ = request.user  # Trigger lazy load
-        
-        return _serialize_time_off_request(request)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
 async def get_all_time_off_requests(
-    db: Session,
     current_user: UserModel,
+    time_off_repository: TimeOffRequestRepository,
     user_id: Optional[int] = None,
     status_filter: Optional[TimeOffRequestStatus] = None
 ) -> List[TimeOffRequestRead]:
     """
     Retrieve all time-off requests, optionally filtered by user or status.
     
-    Authorization:
+    Business logic:
     - Employees can only see their own requests
-    - Managers can see all requests and filter by user_id and status
-    
-    Args:
-        db: Database session
-        current_user: Authenticated user
-        user_id: Optional user ID to filter by (ignored for non-managers)
-        status_filter: Optional status to filter by
-        
-    Returns:
-        List of TimeOffRequestRead instances
-        
-    Raises:
-        HTTPException: If database error occurs
+    - Managers can see all requests
     """
-    try:
-        # Employees can only see their own requests
-        if not current_user.is_manager:
-            user_id = current_user.user_id
-        
-        query = db.query(TimeOffRequestModel).options(
-            joinedload(TimeOffRequestModel.user),
-            joinedload(TimeOffRequestModel.approved_by)
-        )
-        
-        if user_id:
-            query = query.filter(TimeOffRequestModel.user_id == user_id)
-        
-        if status_filter:
-            query = query.filter(TimeOffRequestModel.status == status_filter)
-        
-        requests = query.order_by(TimeOffRequestModel.requested_at.desc()).all()
-        return [_serialize_time_off_request(r) for r in requests]
+    # Business rule: Employees can only see their own requests
+    if not current_user.is_manager:
+        user_id = current_user.user_id
     
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    requests = time_off_repository.get_all_with_relationships(
+        user_id=user_id,
+        status_filter=status_filter
+    )
+    return [_serialize_time_off_request(r) for r in requests]
 
 
 async def get_time_off_request(
-    db: Session,
     request_id: int,
-    current_user: UserModel
+    current_user: UserModel,
+    time_off_repository: TimeOffRequestRepository
 ) -> TimeOffRequestRead:
     """
     Retrieve a single time-off request by ID.
     
-    Authorization:
+    Business logic:
     - Employees can only view their own requests
     - Managers can view any request
-    
-    Args:
-        db: Database session
-        request_id: Time-off request identifier
-        current_user: Authenticated user
-        
-    Returns:
-        TimeOffRequestRead instance
-        
-    Raises:
-        HTTPException: If request not found, unauthorized, or database error occurs
     """
     try:
-        request = db.query(TimeOffRequestModel).options(
-            joinedload(TimeOffRequestModel.user),
-            joinedload(TimeOffRequestModel.approved_by)
-        ).filter(TimeOffRequestModel.request_id == request_id).first()
-        
+        request = time_off_repository.get_with_relationships(request_id)
         if not request:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Time-off request not found"
-            )
+            raise NotFoundError(f"Time-off request {request_id} not found")
         
-        # Employees can only view their own requests
+        # Business rule: Employees can only view their own requests
         if not current_user.is_manager and request.user_id != current_user.user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -240,248 +158,207 @@ async def get_time_off_request(
             )
         
         return _serialize_time_off_request(request)
-    
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+        
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Time-off request not found"
         )
 
 
 async def update_time_off_request(
-    db: Session,
     request_id: int,
     request_data: TimeOffRequestUpdate,
-    user_id: int
+    user_id: int,
+    time_off_repository: TimeOffRequestRepository,
+    db: Session  # For transaction management
 ) -> TimeOffRequestRead:
     """
     Update a time-off request. Only pending requests can be updated.
     Only the user who created the request can update it.
     
-    Args:
-        db: Database session
-        request_id: Time-off request identifier
-        request_data: Update data
-        user_id: ID of the user attempting to update
-        
-    Returns:
-        Updated TimeOffRequestRead instance
-        
-    Raises:
-        HTTPException: If request not found, not pending, unauthorized, or database error occurs
+    Business logic:
+    - Only pending requests can be updated
+    - Only the creator can update
+    - Validate date range
     """
     try:
-        request = db.get(TimeOffRequestModel, request_id)
-        if not request:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Time-off request not found"
-            )
+        request = time_off_repository.get_by_id_or_raise(request_id)
         
-        # Only pending requests can be updated
+        # Business rule: Only pending requests can be updated
         if request.status != TimeOffRequestStatus.PENDING:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only pending requests can be updated"
             )
         
-        # Only the user who created the request can update it
+        # Business rule: Only the creator can update
         if request.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update your own time-off requests"
             )
         
-        # Update fields if provided
-        if request_data.start_date is not None:
-            request.start_date = request_data.start_date
-        if request_data.end_date is not None:
-            request.end_date = request_data.end_date
-        if request_data.request_type is not None:
-            request.request_type = request_data.request_type
+        # Validate date range if dates are being updated
+        start_date = request_data.start_date if request_data.start_date else request.start_date
+        end_date = request_data.end_date if request_data.end_date else request.end_date
+        _validate_date_range(start_date, end_date)
         
-        # Validate date range if dates were updated
-        _validate_date_range(request.start_date, request.end_date)
-        
-        db.commit()
-        db.refresh(request)
-        
-        # Ensure relationships are loaded
-        _ = request.user
-        _ = request.approved_by
-        
-        return _serialize_time_off_request(request)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            # Update fields
+            update_data = {}
+            if request_data.start_date is not None:
+                update_data["start_date"] = request_data.start_date
+            if request_data.end_date is not None:
+                update_data["end_date"] = request_data.end_date
+            if request_data.request_type is not None:
+                update_data["request_type"] = request_data.request_type
+            
+            if update_data:
+                time_off_repository.update(request_id, **update_data)
+            
+            # Get updated request with relationships
+            request = time_off_repository.get_with_relationships(request_id)
+            return _serialize_time_off_request(request)
+            
+    except NotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Time-off request not found"
+        )
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
 async def delete_time_off_request(
-    db: Session,
     request_id: int,
-    user_id: int
+    user_id: int,
+    time_off_repository: TimeOffRequestRepository,
+    db: Session  # For transaction management
 ) -> None:
     """
     Delete a time-off request. Only pending requests can be deleted.
     Only the user who created the request can delete it.
     
-    Args:
-        db: Database session
-        request_id: Time-off request identifier
-        user_id: ID of the user attempting to delete
-        
-    Raises:
-        HTTPException: If request not found, not pending, unauthorized, or database error occurs
+    Business logic:
+    - Only pending requests can be deleted
+    - Only the creator can delete
     """
     try:
-        request = db.get(TimeOffRequestModel, request_id)
-        if not request:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Time-off request not found"
-            )
+        request = time_off_repository.get_by_id_or_raise(request_id)
         
-        # Only pending requests can be deleted
+        # Business rule: Only pending requests can be deleted
         if request.status != TimeOffRequestStatus.PENDING:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only pending requests can be deleted"
             )
         
-        # Only the user who created the request can delete it
+        # Business rule: Only the creator can delete
         if request.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only delete your own time-off requests"
             )
         
-        db.delete(request)
-        db.commit()
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            time_off_repository.delete(request_id)
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Time-off request not found"
         )
 
 
-# ------------------------
-# Approval/Rejection Functions
-# ------------------------
-
-async def process_time_off_request(
-    db: Session,
+async def approve_time_off_request(
     request_id: int,
     manager_id: int,
-    new_status: TimeOffRequestStatus,
-    action_data: Optional[TimeOffRequestAction] = None
+    time_off_repository: TimeOffRequestRepository,
+    user_repository: UserRepository,
+    db: Session  # For transaction management
 ) -> TimeOffRequestRead:
     """
-    Process a time-off request (approve or reject). Only managers can process requests.
+    Approve a time-off request. Only managers can approve.
     
-    Args:
-        db: Database session
-        request_id: Time-off request identifier
-        manager_id: ID of the manager processing the request
-        new_status: New status (APPROVED or REJECTED)
-        action_data: Optional notes about the action
-        
-    Returns:
-        Updated TimeOffRequestRead instance
-        
-    Raises:
-        HTTPException: If request not found, already processed, invalid status, or database error occurs
+    Business logic:
+    - Verify manager exists and is manager
+    - Only pending requests can be approved
+    - Approve request
     """
     try:
-        # Validate status
-        if new_status not in [TimeOffRequestStatus.APPROVED, TimeOffRequestStatus.REJECTED]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Status must be either APPROVED or REJECTED"
-            )
+        request = time_off_repository.get_by_id_or_raise(request_id)
         
-        request = db.get(TimeOffRequestModel, request_id)
-        if not request:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Time-off request not found"
-            )
-        
-        # Only pending requests can be processed
+        # Business rule: Only pending requests can be approved
         if request.status != TimeOffRequestStatus.PENDING:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Request is already {request.status.value.lower()}"
             )
         
-        # Verify manager exists
-        manager = db.get(UserModel, manager_id)
-        if not manager:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Manager not found"
-            )
-        
+        # Business rule: Verify manager exists and is manager
+        manager = user_repository.get_by_id_or_raise(manager_id)
         if not manager.is_manager:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only managers can process time-off requests"
+                detail="Only managers can approve time-off requests"
             )
         
-        # Update request
-        request.status = new_status
-        request.approved_by_id = manager_id
-        request.approved_at = datetime.utcnow()
-        
-        db.commit()
-        db.refresh(request)
-        
-        # Ensure relationships are loaded
-        _ = request.user
-        _ = request.approved_by
-        
-        return _serialize_time_off_request(request)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            updated_request = time_off_repository.approve_request(request_id, manager_id)
+            request = time_off_repository.get_with_relationships(request_id)
+            return _serialize_time_off_request(request)
+            
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-    except SQLAlchemyError as e:
-        db.rollback()
+
+
+async def reject_time_off_request(
+    request_id: int,
+    manager_id: int,
+    time_off_repository: TimeOffRequestRepository,
+    user_repository: UserRepository,
+    db: Session  # For transaction management
+) -> TimeOffRequestRead:
+    """
+    Reject a time-off request. Only managers can reject.
+    
+    Business logic:
+    - Verify manager exists and is manager
+    - Only pending requests can be rejected
+    - Reject request
+    """
+    try:
+        request = time_off_repository.get_by_id_or_raise(request_id)
+        
+        # Business rule: Only pending requests can be rejected
+        if request.status != TimeOffRequestStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Request is already {request.status.value.lower()}"
+            )
+        
+        # Business rule: Verify manager exists and is manager
+        manager = user_repository.get_by_id_or_raise(manager_id)
+        if not manager.is_manager:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only managers can reject time-off requests"
+            )
+        
+        with transaction(db):
+            updated_request = time_off_repository.reject_request(request_id, manager_id)
+            request = time_off_repository.get_with_relationships(request_id)
+            return _serialize_time_off_request(request)
+            
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )

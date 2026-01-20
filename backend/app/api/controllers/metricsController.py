@@ -2,22 +2,32 @@
 Metrics Controller
 Handles calculation of dashboard metrics like employee count,
 shift statistics, and coverage rates.
+Controllers use repositories for database access - no direct ORM access.
 """
 
-from sqlalchemy import func, and_, distinct
-from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from sqlalchemy.orm import Session  # Only for type hints
 
-from app.db.models.userModel import UserModel
-from app.db.models.plannedShiftModel import PlannedShiftModel
-from app.db.models.shiftAssignmentModel import ShiftAssignmentModel
-from app.db.models.weeklyScheduleModel import WeeklyScheduleModel
+from app.repositories.user_repository import UserRepository
+from app.repositories.shift_repository import ShiftRepository
+from app.repositories.shift_repository import ShiftAssignmentRepository
+from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.db.models.timeOffRequestModel import TimeOffRequestStatus
 
 
-async def get_dashboard_metrics(db: Session) -> Dict[str, Any]:
+async def get_dashboard_metrics(
+    user_repository: UserRepository,
+    shift_repository: ShiftRepository,
+    assignment_repository: ShiftAssignmentRepository,
+    schedule_repository: WeeklyScheduleRepository,
+    time_off_repository: TimeOffRequestRepository
+) -> Dict[str, Any]:
     """
     Calculate and return key dashboard metrics
+    
+    Uses repositories to get all data.
     
     Returns:
         Dict containing:
@@ -28,50 +38,46 @@ async def get_dashboard_metrics(db: Session) -> Dict[str, Any]:
         - published_schedules: Number of published schedules
         - pending_time_off: Count of pending time-off requests
     """
-    
     # Total active employees
-    total_employees = db.query(func.count(UserModel.user_id)).filter(
-        UserModel.user_status == 'ACTIVE'
-    ).scalar() or 0
+    all_users = user_repository.get_all()
+    total_employees = len([u for u in all_users if u.user_status == 'ACTIVE'])
     
     # Upcoming shifts (next 7 days)
     today = datetime.now().date()
     next_week = today + timedelta(days=7)
     
-    upcoming_shifts = db.query(func.count(PlannedShiftModel.planned_shift_id)).filter(
-        PlannedShiftModel.date >= today,
-        PlannedShiftModel.date < next_week
-    ).scalar() or 0
+    all_shifts = shift_repository.get_all()
+    upcoming_shifts = [s for s in all_shifts if today <= s.date < next_week]
+    upcoming_shift_count = len(upcoming_shifts)
     
     # Coverage rate - assigned shifts vs total shifts (next 7 days)
-    total_upcoming_shifts = upcoming_shifts
-    assigned_shifts = db.query(func.count(distinct(ShiftAssignmentModel.planned_shift_id))).join(
-        PlannedShiftModel,
-        ShiftAssignmentModel.planned_shift_id == PlannedShiftModel.planned_shift_id
-    ).filter(
-        PlannedShiftModel.date >= today,
-        PlannedShiftModel.date < next_week
-    ).scalar() or 0
+    total_upcoming_shifts = upcoming_shift_count
+    assigned_shift_ids = set()
     
+    for shift in upcoming_shifts:
+        assignments = assignment_repository.get_by_shift(shift.planned_shift_id)
+        if assignments:
+            assigned_shift_ids.add(shift.planned_shift_id)
+    
+    assigned_shifts = len(assigned_shift_ids)
     coverage_rate = round((assigned_shifts / total_upcoming_shifts * 100), 1) if total_upcoming_shifts > 0 else 0
     
     # Total schedules created
-    total_schedules = db.query(func.count(WeeklyScheduleModel.weekly_schedule_id)).scalar() or 0
+    all_schedules = schedule_repository.get_all()
+    total_schedules = len(all_schedules)
     
     # Published schedules
-    published_schedules = db.query(func.count(WeeklyScheduleModel.weekly_schedule_id)).filter(
-        WeeklyScheduleModel.status == 'PUBLISHED'
-    ).scalar() or 0
+    published_schedules = len([s for s in all_schedules if s.status.value == 'PUBLISHED'])
     
     # Pending time-off requests
-    from app.db.models.timeOffRequestModel import TimeOffRequestModel
-    pending_time_off = db.query(func.count(TimeOffRequestModel.request_id)).filter(
-        TimeOffRequestModel.status == 'PENDING'
-    ).scalar() or 0
+    pending_requests = time_off_repository.get_all_with_relationships(
+        status_filter=TimeOffRequestStatus.PENDING
+    )
+    pending_time_off = len(pending_requests)
     
     return {
         "total_employees": total_employees,
-        "upcoming_shifts": upcoming_shifts,
+        "upcoming_shifts": upcoming_shift_count,
         "coverage_rate": coverage_rate,
         "total_schedules": total_schedules,
         "published_schedules": published_schedules,

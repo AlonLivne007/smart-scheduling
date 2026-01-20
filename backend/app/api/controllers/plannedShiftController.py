@@ -3,37 +3,29 @@ Planned shift controller module.
 
 This module contains business logic for planned shift management operations including
 creation, retrieval, updating, and deletion of planned shift records.
+Controllers use repositories for database access - no direct ORM access.
 """
 
 from datetime import date, datetime
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from typing import List
-from app.db.models.plannedShiftModel import PlannedShiftModel
-from app.db.models.shiftTemplateModel import ShiftTemplateModel
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session  # Only for type hints
+
+from app.repositories.shift_repository import ShiftRepository
+from app.repositories.shift_template_repository import ShiftTemplateRepository
 from app.schemas.plannedShiftSchema import (
     PlannedShiftCreate,
     PlannedShiftUpdate,
     PlannedShiftRead,
 )
 from app.schemas.shiftAssignmentSchema import ShiftAssignmentRead
+from app.exceptions.repository import NotFoundError, ConflictError
+from app.db.session_manager import transaction
 
 
-# ------------------------
-# Helper Functions
-# ------------------------
-
-def _serialize_planned_shift(db: Session, shift: PlannedShiftModel) -> PlannedShiftRead:
+def _serialize_planned_shift(shift) -> PlannedShiftRead:
     """
     Convert ORM object to response schema.
-    
-    Args:
-        db: Database session
-        shift: PlannedShiftModel instance
-        
-    Returns:
-        PlannedShiftRead instance
     """
     shift_template_name = None
     if shift.shift_template:
@@ -68,33 +60,25 @@ def _serialize_planned_shift(db: Session, shift: PlannedShiftModel) -> PlannedSh
     )
 
 
-# ------------------------
-# CRUD Functions
-# ------------------------
-
-async def create_planned_shift(db: Session, planned_shift_data: PlannedShiftCreate) -> PlannedShiftRead:
+async def create_planned_shift(
+    planned_shift_data: PlannedShiftCreate,
+    shift_repository: ShiftRepository,
+    template_repository: ShiftTemplateRepository,
+    db: Session  # For transaction management
+) -> PlannedShiftRead:
     """
     Create a new planned shift for a given week and template.
     If start_time, end_time, or location are not provided, they will be taken from the shift template.
     
-    Args:
-        db: Database session
-        planned_shift_data: Planned shift creation data
-        
-    Returns:
-        Created PlannedShiftRead instance
-        
-    Raises:
-        HTTPException: If template not found, missing template data, or database error occurs
+    Business logic:
+    - Get template for default values
+    - Combine date with template times if needed
+    - Use template location if not provided
+    - Create shift
     """
     try:
-        # Fetch template to get default values if not provided
-        template = db.get(ShiftTemplateModel, planned_shift_data.shift_template_id)
-        if not template:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Shift template not found"
-            )
+        # Get template to get default values
+        template = template_repository.get_by_id_or_raise(planned_shift_data.shift_template_id)
         
         # Use provided values or fall back to template values
         start_datetime = planned_shift_data.start_time
@@ -122,190 +106,135 @@ async def create_planned_shift(db: Session, planned_shift_data: PlannedShiftCrea
                 )
             location = template.location
         
-        new_shift = PlannedShiftModel(
-            weekly_schedule_id=planned_shift_data.weekly_schedule_id,
-            shift_template_id=planned_shift_data.shift_template_id,
-            date=planned_shift_data.date,
-            start_time=start_datetime,
-            end_time=end_datetime,
-            location=location,
-            status=planned_shift_data.status,
+        with transaction(db):
+            shift = shift_repository.create(
+                weekly_schedule_id=planned_shift_data.weekly_schedule_id,
+                shift_template_id=planned_shift_data.shift_template_id,
+                date=planned_shift_data.date,
+                start_time=start_datetime,
+                end_time=end_datetime,
+                location=location,
+                status=planned_shift_data.status,
+            )
+            
+            # Get shift with relationships for serialization
+            shift = shift_repository.get_with_template_and_assignments(shift.planned_shift_id)
+            return _serialize_planned_shift(shift)
+            
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        db.add(new_shift)
-        db.commit()
-        db.refresh(new_shift)
-        return _serialize_planned_shift(db, new_shift)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
-async def get_all_planned_shifts(db: Session) -> List[PlannedShiftRead]:
+async def get_all_planned_shifts(
+    shift_repository: ShiftRepository
+) -> List[PlannedShiftRead]:
     """
     Retrieve all planned shifts from the database.
-    
-    Args:
-        db: Database session
-        
-    Returns:
-        List of all PlannedShiftRead instances
-        
-    Raises:
-        HTTPException: If database error occurs
     """
-    try:
-        shifts = db.query(PlannedShiftModel).all()
-        return [_serialize_planned_shift(db, s) for s in shifts]
-    except SQLAlchemyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+    shifts = shift_repository.get_all_with_template_and_assignments()
+    return [_serialize_planned_shift(s) for s in shifts]
 
 
-async def get_planned_shift(db: Session, shift_id: int) -> PlannedShiftRead:
+async def get_planned_shift(
+    shift_id: int,
+    shift_repository: ShiftRepository
+) -> PlannedShiftRead:
     """
     Retrieve a single planned shift by ID.
-    
-    Args:
-        db: Database session
-        shift_id: Planned shift identifier
-        
-    Returns:
-        PlannedShiftRead instance
-        
-    Raises:
-        HTTPException: If shift not found or database error occurs
     """
     try:
-        shift = db.get(PlannedShiftModel, shift_id)
+        shift = shift_repository.get_with_template_and_assignments(shift_id)
         if not shift:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Planned shift not found"
-            )
-        return _serialize_planned_shift(db, shift)
-    except HTTPException:
-        raise
-    except SQLAlchemyError as e:
+            raise NotFoundError(f"Planned shift {shift_id} not found")
+        return _serialize_planned_shift(shift)
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Planned shift not found"
         )
 
 
-async def update_planned_shift(db: Session, shift_id: int, planned_shift_data: PlannedShiftUpdate) -> PlannedShiftRead:
+async def update_planned_shift(
+    shift_id: int,
+    planned_shift_data: PlannedShiftUpdate,
+    shift_repository: ShiftRepository,
+    db: Session  # For transaction management
+) -> PlannedShiftRead:
     """
     Update an existing planned shift.
     
-    Args:
-        db: Database session
-        shift_id: Planned shift identifier
-        planned_shift_data: Update data
-        
-    Returns:
-        Updated PlannedShiftRead instance
-        
-    Raises:
-        HTTPException: If shift not found, constraint violation, or database error occurs
+    Business logic:
+    - Update fields if provided
+    - Return updated shift with relationships
     """
     try:
-        shift = db.get(PlannedShiftModel, shift_id)
-        if not shift:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Planned shift not found"
-            )
-
-        # Update fields (only if provided)
-        if planned_shift_data.weekly_schedule_id is not None:
-            shift.weekly_schedule_id = planned_shift_data.weekly_schedule_id
-        if planned_shift_data.shift_template_id is not None:
-            shift.shift_template_id = planned_shift_data.shift_template_id
-        if planned_shift_data.date is not None:
-            shift.date = planned_shift_data.date
-        if planned_shift_data.start_time is not None:
-            shift.start_time = planned_shift_data.start_time
-        if planned_shift_data.end_time is not None:
-            shift.end_time = planned_shift_data.end_time
-        if planned_shift_data.location is not None:
-            shift.location = planned_shift_data.location
-        if planned_shift_data.status is not None:
-            shift.status = planned_shift_data.status
-
-        db.commit()
-        db.refresh(shift)
-        return _serialize_planned_shift(db, shift)
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        shift_repository.get_by_id_or_raise(shift_id)  # Verify exists
+        
+        with transaction(db):
+            # Update fields
+            update_data = {}
+            if planned_shift_data.weekly_schedule_id is not None:
+                update_data["weekly_schedule_id"] = planned_shift_data.weekly_schedule_id
+            if planned_shift_data.shift_template_id is not None:
+                update_data["shift_template_id"] = planned_shift_data.shift_template_id
+            if planned_shift_data.date is not None:
+                update_data["date"] = planned_shift_data.date
+            if planned_shift_data.start_time is not None:
+                update_data["start_time"] = planned_shift_data.start_time
+            if planned_shift_data.end_time is not None:
+                update_data["end_time"] = planned_shift_data.end_time
+            if planned_shift_data.location is not None:
+                update_data["location"] = planned_shift_data.location
+            if planned_shift_data.status is not None:
+                update_data["status"] = planned_shift_data.status
+            
+            if update_data:
+                shift_repository.update(shift_id, **update_data)
+            
+            # Get updated shift with relationships
+            shift = shift_repository.get_with_template_and_assignments(shift_id)
+            return _serialize_planned_shift(shift)
+            
+    except NotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Planned shift not found"
+        )
+    except ConflictError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
+            detail=str(e)
         )
 
 
-async def delete_planned_shift(db: Session, shift_id: int) -> None:
+async def delete_planned_shift(
+    shift_id: int,
+    shift_repository: ShiftRepository,
+    db: Session  # For transaction management
+) -> None:
     """
     Delete a planned shift and all its assignments.
     
-    Args:
-        db: Database session
-        shift_id: Planned shift identifier
-        
-    Raises:
-        HTTPException: If shift not found or database error occurs
+    Business logic:
+    - Verify shift exists
+    - Delete shift (assignments cascade automatically)
     """
     try:
-        shift = db.get(PlannedShiftModel, shift_id)
-        if not shift:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Planned shift not found"
-            )
+        shift_repository.get_by_id_or_raise(shift_id)  # Verify exists
         
-        # Delete shift (assignments will be automatically deleted via CASCADE)
-        db.delete(shift)
-        db.commit()
-    
-    except HTTPException:
-        db.rollback()
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        with transaction(db):
+            shift_repository.delete(shift_id)
+            
+    except NotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Database constraint violation: {error_str}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Planned shift not found"
         )
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
-
