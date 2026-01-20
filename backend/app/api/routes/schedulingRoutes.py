@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
-from app.api.controllers.schedulingController import (
+from app.api.controllers.scheduling_controller import (
     trigger_optimization,
     get_scheduling_run_with_metrics,
     get_schedule_runs_with_metrics
@@ -21,14 +21,14 @@ from app.api.dependencies.repositories import (
     get_optimization_config_repository,
     get_shift_template_repository
 )
-from app.db.session import get_db
+from app.data.session import get_db
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
 
 router = APIRouter(prefix="/scheduling", tags=["Scheduling"])
 

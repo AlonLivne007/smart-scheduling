@@ -9,30 +9,30 @@ from typing import List
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.controllers import weeklyScheduleController
-from app.api.controllers.weeklyScheduleController import (
+from app.api.controllers import weekly_schedule_controller
+from app.api.controllers.weekly_schedule_controller import (
     create_weekly_schedule,
     get_weekly_schedule,
     delete_weekly_schedule
 )
-from app.api.controllers.authController import get_current_user
+from app.api.controllers.auth_controller import get_current_user
 from app.api.dependencies.repositories import (
     get_weekly_schedule_repository,
     get_shift_template_repository,
     get_user_repository
 )
-from app.db.session import get_db
-from app.schemas.weeklyScheduleSchema import (
+from app.data.session import get_db
+from app.schemas.weekly_schedule_schema import (
     WeeklyScheduleCreate,
     WeeklyScheduleRead
 )
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
-from app.repositories.user_repository import UserRepository
-from app.db.models.userModel import UserModel
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.models.user_model import UserModel
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/weekly-schedules", tags=["Weekly Schedules"])
@@ -76,7 +76,7 @@ async def get_all_schedules(
     schedule_repository: WeeklyScheduleRepository = Depends(get_weekly_schedule_repository),
     template_repository: ShiftTemplateRepository = Depends(get_shift_template_repository)
 ):
-    return await weeklyScheduleController.list_weekly_schedules(schedule_repository, template_repository)
+    return await weekly_schedule_controller.list_weekly_schedules(schedule_repository, template_repository)
 
 
 # ---------------------- Resource routes ---------------------

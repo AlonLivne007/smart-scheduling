@@ -8,10 +8,10 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import Literal
 
-from app.db.session import get_db
+from app.data.session import get_db
 from app.api.dependencies.auth import get_current_user
-from app.db.models.userModel import UserModel
-from app.api.controllers.exportController import export_schedule
+from app.data.models.user_model import UserModel
+from app.api.controllers.export_controller import export_schedule
 
 router = APIRouter(prefix="/export", tags=["Export"])
 

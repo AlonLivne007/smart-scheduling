@@ -12,23 +12,23 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers import userController
-from app.api.controllers.userController import (
+from app.api.controllers import user_controller
+from app.api.controllers.user_controller import (
     create_user, get_user, update_user, delete_user,
     authenticate_user
 )
 from app.api.dependencies.repositories import get_user_repository, get_role_repository
-from app.db.session import get_db
-from app.schemas.userSchema import (
+from app.data.session import get_db
+from app.schemas.user_schema import (
     UserCreate, UserRead, UserUpdate, UserLogin, LoginResponse
 )
 
 # AuthN/Authorization
-from app.api.controllers.authController import get_current_user
+from app.api.controllers.auth_controller import get_current_user
 from app.api.dependencies.auth import require_auth, require_manager
-from app.db.models.userModel import UserModel
-from app.repositories.user_repository import UserRepository
-from app.repositories.role_repository import RoleRepository
+from app.data.models.user_model import UserModel
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.role_repository import RoleRepository
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -91,7 +91,7 @@ async def add_user(
 async def list_users(
     user_repository: UserRepository = Depends(get_user_repository)
 ):
-    return await userController.list_users(user_repository)
+    return await user_controller.list_users(user_repository)
 
 
 # ---------------------- Resource routes ---------------------

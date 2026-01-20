@@ -6,10 +6,10 @@ Provides endpoints for fetching dashboard metrics and statistics
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.data.session import get_db
 from app.api.dependencies.auth import get_current_user
-from app.db.models.userModel import UserModel
-from app.api.controllers.metricsController import get_dashboard_metrics
+from app.data.models.user_model import UserModel
+from app.api.controllers.metrics_controller import get_dashboard_metrics
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 

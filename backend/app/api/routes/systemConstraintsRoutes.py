@@ -10,16 +10,16 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers import systemConstraintsController
-from app.api.controllers.systemConstraintsController import (
+from app.api.controllers import system_constraints_controller
+from app.api.controllers.system_constraints_controller import (
     create_system_constraint,
     get_system_constraint,
     update_system_constraint,
     delete_system_constraint
 )
 from app.api.dependencies.repositories import get_system_constraints_repository
-from app.db.session import get_db
-from app.schemas.systemConstraintsSchema import (
+from app.data.session import get_db
+from app.schemas.system_constraints_schema import (
     SystemConstraintCreate,
     SystemConstraintUpdate,
     SystemConstraintRead
@@ -27,7 +27,7 @@ from app.schemas.systemConstraintsSchema import (
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.system_constraints_repository import SystemConstraintsRepository
+from app.data.repositories.system_constraints_repository import SystemConstraintsRepository
 
 router = APIRouter(prefix="/system-constraints", tags=["System Constraints"])
 
@@ -59,7 +59,7 @@ async def create_constraint(
 async def list_constraints(
     constraints_repository: SystemConstraintsRepository = Depends(get_system_constraints_repository)
 ):
-    return await systemConstraintsController.list_system_constraints(constraints_repository)
+    return await system_constraints_controller.list_system_constraints(constraints_repository)
 
 
 # ---------------------- Resource routes ---------------------

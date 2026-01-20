@@ -7,11 +7,11 @@ Routes use repository dependency injection - no direct DB access.
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.controllers import schedulingRunController
-from app.api.controllers.schedulingRunController import (
+from app.api.controllers import scheduling_run_controller
+from app.api.controllers.scheduling_run_controller import (
     create_scheduling_run,
     get_scheduling_run,
     update_scheduling_run,
@@ -19,7 +19,7 @@ from app.api.controllers.schedulingRunController import (
     get_solutions_for_run,
     apply_solution_to_schedule
 )
-from app.api.controllers.authController import get_current_user
+from app.api.controllers.auth_controller import get_current_user
 from app.api.dependencies.repositories import (
     get_scheduling_run_repository,
     get_scheduling_solution_repository,
@@ -27,23 +27,23 @@ from app.api.dependencies.repositories import (
     get_user_repository,
     get_shift_assignment_repository
 )
-from app.db.session import get_db
-from app.schemas.schedulingRunSchema import (
+from app.data.session import get_db
+from app.schemas.scheduling_run_schema import (
     SchedulingRunCreate,
     SchedulingRunUpdate,
     SchedulingRunRead
 )
-from app.schemas.schedulingSolutionSchema import SchedulingSolutionRead
-from app.db.models.schedulingRunModel import SchedulingRunStatus
-from app.db.models.userModel import UserModel
+from app.schemas.scheduling_solution_schema import SchedulingSolutionRead
+from app.data.models.scheduling_run_model import SchedulingRunStatus
+from app.data.models.user_model import UserModel
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.scheduling_run_repository import SchedulingRunRepository
-from app.repositories.scheduling_solution_repository import SchedulingSolutionRepository
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.shift_repository import ShiftAssignmentRepository
+from app.data.repositories.scheduling_run_repository import SchedulingRunRepository
+from app.data.repositories.scheduling_solution_repository import SchedulingSolutionRepository
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.shift_repository import ShiftAssignmentRepository
 
 router = APIRouter(prefix="/scheduling-runs", tags=["Scheduling Runs"])
 
@@ -97,7 +97,7 @@ async def list_runs(
                 detail=f"Invalid status. Must be one of: {[s.name for s in SchedulingRunStatus]}"
             )
     
-    return await schedulingRunController.list_scheduling_runs(
+    return await scheduling_run_controller.list_scheduling_runs(
         run_repository,
         weekly_schedule_id,
         status_enum

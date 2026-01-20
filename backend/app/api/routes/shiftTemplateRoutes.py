@@ -10,8 +10,8 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers import shiftTemplateController
-from app.api.controllers.shiftTemplateController import (
+from app.api.controllers import shift_template_controller
+from app.api.controllers.shift_template_controller import (
     create_shift_template,
     get_shift_template,
     update_shift_template,
@@ -22,8 +22,8 @@ from app.api.dependencies.repositories import (
     get_role_repository,
     get_shift_repository
 )
-from app.db.session import get_db
-from app.schemas.shiftTemplateSchema import (
+from app.data.session import get_db
+from app.schemas.shift_template_schema import (
     ShiftTemplateCreate,
     ShiftTemplateUpdate,
     ShiftTemplateRead
@@ -31,9 +31,9 @@ from app.schemas.shiftTemplateSchema import (
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.shift_template_repository import ShiftTemplateRepository
-from app.repositories.role_repository import RoleRepository
-from app.repositories.shift_repository import ShiftRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.role_repository import RoleRepository
+from app.data.repositories.shift_repository import ShiftRepository
 
 router = APIRouter(prefix="/shift-templates", tags=["Shift Templates"])
 
@@ -71,7 +71,7 @@ async def create_template(
 async def list_all_templates(
     template_repository: ShiftTemplateRepository = Depends(get_shift_template_repository)
 ):
-    return await shiftTemplateController.list_shift_templates(template_repository)
+    return await shift_template_controller.list_shift_templates(template_repository)
 
 
 # ---------------------- Resource routes ---------------------

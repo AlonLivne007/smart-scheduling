@@ -38,22 +38,22 @@ from app.core.exceptions.service import (
 )
 
 from app.api.routes import (
-    users_routes,
-    roles_routes,
-    shift_template_routes,
-    weekly_schedule_routes,
-    planned_shift_routes,
-    shift_assignment_routes,
-    time_off_request_routes,
-    system_constraints_routes,
-    employee_preferences_routes,
-    optimization_config_routes,
-    scheduling_routes,
-    scheduling_run_routes,
-    schedule_publishing_routes,
-    activity_log_routes,
-    metrics_routes,
-    export_routes,
+    usersRoutes as users_routes,
+    rolesRoutes as roles_routes,
+    shiftTemplateRoutes as shift_template_routes,
+    weeklyScheduleRoutes as weekly_schedule_routes,
+    plannedShiftRoutes as planned_shift_routes,
+    shiftAssignmentRoutes as shift_assignment_routes,
+    timeOffRequestRoutes as time_off_request_routes,
+    systemConstraintsRoutes as system_constraints_routes,
+    employeePreferencesRoutes as employee_preferences_routes,
+    optimizationConfigRoutes as optimization_config_routes,
+    schedulingRoutes as scheduling_routes,
+    schedulingRunRoutes as scheduling_run_routes,
+    schedulePublishingRoutes as schedule_publishing_routes,
+    activityLogRoutes as activity_log_routes,
+    metricsRoutes as metrics_routes,
+    exportRoutes as export_routes,
 )
 from app.data.session import engine, Base
 from app.data.models import (

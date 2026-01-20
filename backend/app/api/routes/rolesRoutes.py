@@ -11,17 +11,17 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.roleController import (
+from app.api.controllers.role_controller import (
     create_role, list_roles, get_role, update_role, delete_role
 )
 from app.api.dependencies.repositories import get_role_repository
-from app.db.session import get_db
-from app.schemas.roleSchema import RoleCreate, RoleRead, RoleUpdate
+from app.data.session import get_db
+from app.schemas.role_schema import RoleCreate, RoleRead, RoleUpdate
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.role_repository import RoleRepository
-from app.db.models.roleModel import RoleModel
+from app.data.repositories.role_repository import RoleRepository
+from app.data.models.role_model import RoleModel
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
@@ -50,7 +50,7 @@ async def add_role(
     summary="Get all roles",
     dependencies=[Depends(require_auth)],  # AUTH REQUIRED
 )
-async def list_roles(
+async def list_all_roles(
     role_repository: RoleRepository = Depends(get_role_repository)
 ):
     return await list_roles(role_repository)

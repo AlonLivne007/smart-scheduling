@@ -10,8 +10,8 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers import plannedShiftController
-from app.api.controllers.plannedShiftController import (
+from app.api.controllers import planned_shift_controller
+from app.api.controllers.planned_shift_controller import (
     create_planned_shift,
     get_planned_shift,
     update_planned_shift,
@@ -21,8 +21,8 @@ from app.api.dependencies.repositories import (
     get_shift_repository,
     get_shift_template_repository
 )
-from app.db.session import get_db
-from app.schemas.plannedShiftSchema import (
+from app.data.session import get_db
+from app.schemas.planned_shift_schema import (
     PlannedShiftCreate,
     PlannedShiftUpdate,
     PlannedShiftRead
@@ -30,8 +30,8 @@ from app.schemas.plannedShiftSchema import (
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.shift_repository import ShiftRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.repositories.shift_repository import ShiftRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
 
 router = APIRouter(prefix="/planned-shifts", tags=["Planned Shifts"])
 
@@ -69,7 +69,7 @@ async def create_shift(
 async def list_all_shifts(
     shift_repository: ShiftRepository = Depends(get_shift_repository)
 ):
-    return await plannedShiftController.list_planned_shifts(shift_repository)
+    return await planned_shift_controller.list_planned_shifts(shift_repository)
 
 
 # ---------------------- Resource routes ---------------------

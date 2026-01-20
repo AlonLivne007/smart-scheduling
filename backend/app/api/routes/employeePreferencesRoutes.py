@@ -10,21 +10,21 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.employeePreferencesController import (
+from app.api.controllers.employee_preferences_controller import (
     create_employee_preference,
     get_employee_preferences_by_user,
     get_employee_preference,
     update_employee_preference,
     delete_employee_preference
 )
-from app.api.controllers.authController import get_current_user
+from app.api.controllers.auth_controller import get_current_user
 from app.api.dependencies.repositories import (
     get_employee_preferences_repository,
     get_user_repository,
     get_shift_template_repository
 )
-from app.db.session import get_db
-from app.schemas.employeePreferencesSchema import (
+from app.data.session import get_db
+from app.schemas.employee_preferences_schema import (
     EmployeePreferencesCreate,
     EmployeePreferencesUpdate,
     EmployeePreferencesRead
@@ -32,10 +32,10 @@ from app.schemas.employeePreferencesSchema import (
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.employee_preferences_repository import EmployeePreferencesRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.shift_template_repository import ShiftTemplateRepository
-from app.db.models.userModel import UserModel
+from app.data.repositories.employee_preferences_repository import EmployeePreferencesRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.shift_template_repository import ShiftTemplateRepository
+from app.data.models.user_model import UserModel
 
 router = APIRouter(prefix="/employee-preferences", tags=["Employee Preferences"])
 

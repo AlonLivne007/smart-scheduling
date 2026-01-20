@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
-from app.db.session import get_db
+from app.data.session import get_db
 from app.api.dependencies.auth import require_manager, get_current_user
 from app.api.dependencies.repositories import (
     get_weekly_schedule_repository,
@@ -17,12 +17,12 @@ from app.api.dependencies.repositories import (
     get_user_repository,
     get_activity_log_repository
 )
-from app.db.models.userModel import UserModel
-from app.repositories.weekly_schedule_repository import WeeklyScheduleRepository
-from app.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.activity_log_repository import ActivityLogRepository
-from app.api.controllers.schedulePublishingController import (
+from app.data.models.user_model import UserModel
+from app.data.repositories.weekly_schedule_repository import WeeklyScheduleRepository
+from app.data.repositories.shift_repository import ShiftRepository, ShiftAssignmentRepository
+from app.data.repositories.user_repository import UserRepository
+from app.data.repositories.activity_log_repository import ActivityLogRepository
+from app.api.controllers.schedule_publishing_controller import (
     publish_schedule,
     unpublish_schedule
 )

@@ -10,7 +10,7 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.controllers.optimizationConfigController import (
+from app.api.controllers.optimization_config_controller import (
     create_optimization_config,
     list_optimization_configs,
     get_optimization_config,
@@ -19,8 +19,8 @@ from app.api.controllers.optimizationConfigController import (
     delete_optimization_config
 )
 from app.api.dependencies.repositories import get_optimization_config_repository
-from app.db.session import get_db
-from app.schemas.optimizationConfigSchema import (
+from app.data.session import get_db
+from app.schemas.optimization_config_schema import (
     OptimizationConfigCreate,
     OptimizationConfigUpdate,
     OptimizationConfigRead
@@ -28,7 +28,7 @@ from app.schemas.optimizationConfigSchema import (
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.optimization_config_repository import OptimizationConfigRepository
+from app.data.repositories.optimization_config_repository import OptimizationConfigRepository
 
 router = APIRouter(prefix="/optimization-configs", tags=["Optimization Configs"])
 

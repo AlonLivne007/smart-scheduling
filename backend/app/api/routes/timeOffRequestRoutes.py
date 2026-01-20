@@ -10,8 +10,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
-from app.api.controllers import timeOffRequestController
-from app.api.controllers.timeOffRequestController import (
+from app.api.controllers import time_off_request_controller
+from app.api.controllers.time_off_request_controller import (
     create_time_off_request,
     get_time_off_request,
     update_time_off_request,
@@ -19,25 +19,25 @@ from app.api.controllers.timeOffRequestController import (
     approve_time_off_request,
     reject_time_off_request
 )
-from app.api.controllers.authController import get_current_user
+from app.api.controllers.auth_controller import get_current_user
 from app.api.dependencies.repositories import (
     get_time_off_request_repository,
     get_user_repository
 )
-from app.db.session import get_db
-from app.schemas.timeOffRequestSchema import (
+from app.data.session import get_db
+from app.schemas.time_off_request_schema import (
     TimeOffRequestCreate,
     TimeOffRequestUpdate,
     TimeOffRequestRead,
     TimeOffRequestAction,
 )
-from app.db.models.timeOffRequestModel import TimeOffRequestStatus
-from app.db.models.userModel import UserModel
+from app.data.models.time_off_request_model import TimeOffRequestStatus
+from app.data.models.user_model import UserModel
 
 # AuthN/Authorization
 from app.api.dependencies.auth import require_auth, require_manager
-from app.repositories.time_off_request_repository import TimeOffRequestRepository
-from app.repositories.user_repository import UserRepository
+from app.data.repositories.time_off_request_repository import TimeOffRequestRepository
+from app.data.repositories.user_repository import UserRepository
 
 router = APIRouter(prefix="/time-off-requests", tags=["Time Off Requests"])
 
@@ -80,7 +80,7 @@ async def list_requests(
     user_id: Optional[int] = Query(None, description="Filter by user ID (managers only)"),
     status_filter: Optional[TimeOffRequestStatus] = Query(None, description="Filter by status")
 ):
-    return await timeOffRequestController.list_time_off_requests(
+    return await time_off_request_controller.list_time_off_requests(
         current_user,
         time_off_repository,
         user_id,
