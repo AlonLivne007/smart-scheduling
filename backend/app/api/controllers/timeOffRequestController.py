@@ -485,30 +485,3 @@ async def process_time_off_request(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error: {str(e)}"
         )
-
-
-# Convenience functions for backward compatibility (optional)
-async def approve_time_off_request(
-    db: Session,
-    request_id: int,
-    manager_id: int,
-    action_data: Optional[TimeOffRequestAction] = None
-) -> TimeOffRequestRead:
-    """Approve a time-off request. Convenience wrapper around process_time_off_request."""
-    return await process_time_off_request(
-        db, request_id, manager_id, TimeOffRequestStatus.APPROVED, action_data
-    )
-
-
-async def reject_time_off_request(
-    db: Session,
-    request_id: int,
-    manager_id: int,
-    action_data: Optional[TimeOffRequestAction] = None
-) -> TimeOffRequestRead:
-    """Reject a time-off request. Convenience wrapper around process_time_off_request."""
-    return await process_time_off_request(
-        db, request_id, manager_id, TimeOffRequestStatus.REJECTED, action_data
-    )
-
-

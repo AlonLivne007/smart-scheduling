@@ -18,7 +18,31 @@ from app.db.models.shiftRoleRequirementsTabel import shift_role_requirements
 from app.tasks.optimization_tasks import run_optimization_task
 
 
-def compute_total_required_positions(
+def _calculate_coverage_percentage(
+    run: SchedulingRunModel,
+    db: Session
+) -> float:
+    """
+    Calculate coverage percentage for a scheduling run.
+    
+    Args:
+        run: SchedulingRunModel instance
+        db: Database session
+        
+    Returns:
+        Coverage percentage (0.0 to 100.0)
+    """
+    if not run.solutions or not run.weekly_schedule:
+        return 0.0
+    
+    total_required = _compute_total_required_positions(run.weekly_schedule, db)
+    if total_required == 0:
+        return 0.0
+    
+    return (len(run.solutions) / total_required) * 100
+
+
+def _compute_total_required_positions(
     schedule: WeeklyScheduleModel,
     db: Session
 ) -> int:
@@ -160,10 +184,7 @@ async def get_scheduling_run_with_metrics(
         scores = [s.assignment_score for s in run.solutions if s.assignment_score is not None]
         avg_pref_score = sum(scores) / len(scores) if scores else 0.0
 
-        if run.weekly_schedule:
-            total_required = compute_total_required_positions(run.weekly_schedule, db)
-            if total_required > 0:
-                coverage_pct = (len(run.solutions) / total_required) * 100
+        coverage_pct = _calculate_coverage_percentage(run, db)
     
     return {
         "run_id": run.run_id,
@@ -202,11 +223,7 @@ async def get_schedule_runs_with_metrics(
     result = []
     for run in runs:
         # Calculate coverage for each run
-        coverage_pct = 0.0
-        if run.solutions and run.weekly_schedule:
-            total_required = compute_total_required_positions(run.weekly_schedule, db)
-            if total_required > 0:
-                coverage_pct = (len(run.solutions) / total_required) * 100
+        coverage_pct = _calculate_coverage_percentage(run, db)
         
         result.append({
             "run_id": run.run_id,
